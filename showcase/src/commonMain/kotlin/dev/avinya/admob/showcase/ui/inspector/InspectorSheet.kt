@@ -143,7 +143,7 @@ fun InspectorSheet(
                     adEvents = adEvents,
                     policyDecisions = policyDecisions,
                     paidEvents = paidEvents,
-                    isAndroid = true,
+                    isAndroid = isAndroid,
                     modifier = tabModifier(),
                 )
             }
