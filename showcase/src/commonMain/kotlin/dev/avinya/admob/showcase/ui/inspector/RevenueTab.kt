@@ -32,8 +32,6 @@ import androidx.compose.ui.unit.dp
 import dev.avinya.admob.showcase.data.db.entity.PaidEventEntity
 import dev.avinya.admob.showcase.domain.telemetry.PlacementRevenue
 import dev.avinya.admob.showcase.domain.telemetry.aggregateRevenue
-import dev.avinya.admob.showcase.ui.theme.AmberAdGold
-import dev.avinya.admob.showcase.ui.theme.EmeraldPrimary
 
 /**
  * Revenue tab: per-placement aggregate (top earner first) and the raw paid
@@ -127,13 +125,13 @@ private fun RevenueOverviewCard(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(EmeraldPrimary.copy(alpha = 0.12f)),
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.MonetizationOn,
                         contentDescription = null,
-                        tint = EmeraldPrimary,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -197,13 +195,13 @@ private fun AggregateRow(line: PlacementRevenue, precisionLabel: String) {
                 )
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = EmeraldPrimary.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.35f)),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
                 ) {
                     Text(
                         text = formatMicrosAsCurrency(line.totalMicros, line.currency),
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = EmeraldPrimary,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                     )
                 }
@@ -251,13 +249,13 @@ private fun RawRow(event: PaidEventEntity) {
                 )
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = AmberAdGold.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, AmberAdGold.copy(alpha = 0.35f)),
+                    color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)),
                 ) {
                     Text(
                         text = formatMicrosAsCurrency(event.valueMicros, event.currency),
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = AmberAdGold,
+                        color = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                 }

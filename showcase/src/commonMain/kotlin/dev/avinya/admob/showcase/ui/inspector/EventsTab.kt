@@ -27,9 +27,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.avinya.admob.showcase.data.db.entity.AdEventEntity
 import dev.avinya.admob.showcase.data.db.entity.PolicyDecisionEntity
-import dev.avinya.admob.showcase.ui.theme.AmberAdGold
-import dev.avinya.admob.showcase.ui.theme.EmeraldPrimary
-import dev.avinya.admob.showcase.ui.theme.MintNeon
 
 /**
  * Events tab: the rolling ad-event log interleaved with policy decisions,
@@ -90,9 +87,9 @@ private fun AndroidVideoGapBanner() {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, AmberAdGold.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)),
         colors = CardDefaults.cardColors(
-            containerColor = AmberAdGold.copy(alpha = 0.08f),
+            containerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.08f),
         ),
     ) {
         Row(
@@ -103,7 +100,7 @@ private fun AndroidVideoGapBanner() {
             Icon(
                 imageVector = Icons.Rounded.Info,
                 contentDescription = null,
-                tint = AmberAdGold,
+                tint = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier.size(18.dp),
             )
             Text(
@@ -170,13 +167,13 @@ private fun EventRow(row: EventRow) {
 @Composable
 private fun EventTypeBadge(type: String) {
     val badgeColor = when {
-        type.contains("Impression", ignoreCase = true) || type.contains("Paid", ignoreCase = true) -> EmeraldPrimary
-        type.contains("Click", ignoreCase = true) || type.contains("Opened", ignoreCase = true) -> AmberAdGold
-        type.contains("Loaded", ignoreCase = true) -> MintNeon
+        type.contains("Impression", ignoreCase = true) || type.contains("Paid", ignoreCase = true) -> MaterialTheme.colorScheme.primary
+        type.contains("Click", ignoreCase = true) || type.contains("Opened", ignoreCase = true) -> MaterialTheme.colorScheme.tertiary
+        type.contains("Loaded", ignoreCase = true) -> MaterialTheme.colorScheme.secondary
         type.contains("Fail", ignoreCase = true) ||
             type.contains("Suppress", ignoreCase = true) ||
             type.contains("Error", ignoreCase = true) -> MaterialTheme.colorScheme.error
-        type.startsWith("Show") -> EmeraldPrimary
+        type.startsWith("Show") -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.primary
     }
 

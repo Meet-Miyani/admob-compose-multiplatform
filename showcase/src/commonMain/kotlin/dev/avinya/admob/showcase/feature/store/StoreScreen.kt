@@ -84,9 +84,6 @@ import dev.avinya.admob.showcase.ui.ad.runRewarded
 import dev.avinya.admob.showcase.ui.inspector.InspectorEntryPoint
 import dev.avinya.admob.showcase.ui.inspector.InspectorSheet
 import dev.avinya.admob.showcase.ui.inspector.LocalInspectorPlacements
-import dev.avinya.admob.showcase.ui.theme.AmberAdGold
-import dev.avinya.admob.showcase.ui.theme.EmeraldPrimary
-import dev.avinya.admob.showcase.ui.theme.EmeraldSurface
 import kotlinx.coroutines.launch
 
 @Composable
@@ -209,13 +206,13 @@ fun StoreScreen() {
                         }
                         Surface(
                             shape = CircleShape,
-                            color = EmeraldPrimary.copy(alpha = 0.15f),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                         ) {
                             Text(
                                 text = "${state.premium.count { it.isUnlocked }}/${state.premium.size}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = EmeraldPrimary,
+                                color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             )
                         }
@@ -269,24 +266,7 @@ private fun rememberSessionId(clock: dev.avinya.admob.showcase.core.time.Clock):
  */
 @Composable
 private fun BalanceCard(balance: Int) {
-    val isDark = MaterialTheme.colorScheme.surface == EmeraldSurface
-    val heroGradient = if (isDark) {
-        Brush.linearGradient(
-            0.0f to Color(0xFF0F2B20),
-            0.5f to Color(0xFF163E2D),
-            1.0f to Color(0xFF0D2218),
-            start = Offset(0f, 0f),
-            end = Offset.Infinite,
-        )
-    } else {
-        Brush.linearGradient(
-            0.0f to Color(0xFFE8F5E9),
-            0.5f to Color(0xFFD4EEDD),
-            1.0f to Color(0xFFEAF8EE),
-            start = Offset(0f, 0f),
-            end = Offset.Infinite,
-        )
-    }
+    val heroColor = MaterialTheme.colorScheme.surfaceContainerHigh
 
     val animatedBalance by animateIntAsState(
         targetValue = balance,
@@ -296,13 +276,13 @@ private fun BalanceCard(balance: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.35f)),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+        colors = CardDefaults.cardColors(containerColor = heroColor),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(heroGradient)
+                .background(heroColor)
                 .padding(20.dp),
         ) {
             Column(
@@ -317,8 +297,8 @@ private fun BalanceCard(balance: Int) {
                 ) {
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = EmeraldPrimary.copy(alpha = 0.18f),
-                        border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.35f)),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -329,13 +309,13 @@ private fun BalanceCard(balance: Int) {
                                 modifier = Modifier
                                     .size(7.dp)
                                     .clip(CircleShape)
-                                    .background(EmeraldPrimary),
+                                    .background(MaterialTheme.colorScheme.primary),
                             )
                             Text(
                                 text = "ACTIVE WALLET",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = EmeraldPrimary,
+                                color = MaterialTheme.colorScheme.primary,
                                 letterSpacing = 0.8.sp,
                             )
                         }
@@ -343,8 +323,8 @@ private fun BalanceCard(balance: Int) {
 
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = AmberAdGold.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, AmberAdGold.copy(alpha = 0.3f)),
+                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)),
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -354,14 +334,14 @@ private fun BalanceCard(balance: Int) {
                             Icon(
                                 imageVector = Icons.Rounded.AutoAwesome,
                                 contentDescription = null,
-                                tint = AmberAdGold,
+                                tint = MaterialTheme.colorScheme.tertiary,
                                 modifier = Modifier.size(13.dp),
                             )
                             Text(
                                 text = "REWARD ECONOMY",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = AmberAdGold,
+                                color = MaterialTheme.colorScheme.tertiary,
                             )
                         }
                     }
@@ -395,7 +375,7 @@ private fun BalanceCard(balance: Int) {
                                 text = "COINS",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = AmberAdGold,
+                                color = MaterialTheme.colorScheme.tertiary,
                                 modifier = Modifier.padding(bottom = 6.dp),
                             )
                         }
@@ -406,21 +386,14 @@ private fun BalanceCard(balance: Int) {
                         modifier = Modifier
                             .size(54.dp)
                             .clip(CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    listOf(
-                                        AmberAdGold.copy(alpha = 0.28f),
-                                        AmberAdGold.copy(alpha = 0.08f),
-                                    ),
-                                ),
-                            )
-                            .border(1.5.dp, AmberAdGold.copy(alpha = 0.45f), CircleShape),
+                            .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f))
+                            .border(1.5.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f), CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.MonetizationOn,
                             contentDescription = "Gold Coin",
-                            tint = AmberAdGold,
+                            tint = MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier.size(32.dp),
                         )
                     }
@@ -444,7 +417,7 @@ private fun BalanceCard(balance: Int) {
                         Icon(
                             imageVector = Icons.Rounded.Bolt,
                             contentDescription = null,
-                            tint = EmeraldPrimary,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(15.dp),
                         )
                         Text(
@@ -462,7 +435,7 @@ private fun BalanceCard(balance: Int) {
                         Icon(
                             imageVector = Icons.Rounded.Shield,
                             contentDescription = null,
-                            tint = EmeraldPrimary,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(15.dp),
                         )
                         Text(
@@ -503,14 +476,14 @@ private fun VideoAdBoosterCard(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(EmeraldPrimary.copy(alpha = 0.15f))
-                    .border(1.dp, EmeraldPrimary.copy(alpha = 0.3f), RoundedCornerShape(14.dp)),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(14.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Rounded.PlayArrow,
                     contentDescription = "Watch Video Ad",
-                    tint = EmeraldPrimary,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(26.dp),
                 )
             }
@@ -536,7 +509,7 @@ private fun VideoAdBoosterCard(
                     enabled = enabled && !isLoading,
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = EmeraldPrimary,
+                        containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.Black,
                         disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
@@ -586,7 +559,7 @@ private fun OfferWallBoosterCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, AmberAdGold.copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         Row(
@@ -598,14 +571,14 @@ private fun OfferWallBoosterCard(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(AmberAdGold.copy(alpha = 0.18f))
-                    .border(1.dp, AmberAdGold.copy(alpha = 0.35f), RoundedCornerShape(14.dp)),
+                    .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.18f))
+                    .border(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f), RoundedCornerShape(14.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Rounded.WorkspacePremium,
                     contentDescription = "Interactive Offer Wall",
-                    tint = AmberAdGold,
+                    tint = MaterialTheme.colorScheme.tertiary,
                     modifier = Modifier.size(26.dp),
                 )
             }
@@ -631,7 +604,7 @@ private fun OfferWallBoosterCard(
                     enabled = enabled && !isLoading,
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AmberAdGold,
+                        containerColor = MaterialTheme.colorScheme.tertiary,
                         contentColor = Color.Black,
                         disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
@@ -702,7 +675,7 @@ private fun UnlockableCatalogRow(
                     .size(44.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(
-                        if (article.isUnlocked) EmeraldPrimary.copy(alpha = 0.15f)
+                        if (article.isUnlocked) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                         else MaterialTheme.colorScheme.surface,
                     ),
                 contentAlignment = Alignment.Center,
@@ -710,7 +683,7 @@ private fun UnlockableCatalogRow(
                 Icon(
                     imageVector = categoryIcon,
                     contentDescription = null,
-                    tint = if (article.isUnlocked) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (article.isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(22.dp),
                 )
             }
@@ -725,13 +698,13 @@ private fun UnlockableCatalogRow(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = EmeraldPrimary.copy(alpha = 0.12f),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                     ) {
                         Text(
                             text = article.section.uppercase(),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = EmeraldPrimary,
+                            color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         )
                     }
@@ -743,14 +716,14 @@ private fun UnlockableCatalogRow(
                         Icon(
                             imageVector = Icons.Rounded.MonetizationOn,
                             contentDescription = null,
-                            tint = AmberAdGold,
+                            tint = MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier.size(13.dp),
                         )
                         Text(
                             text = "${article.costCoins} COINS",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.ExtraBold,
-                            color = AmberAdGold,
+                            color = MaterialTheme.colorScheme.tertiary,
                         )
                     }
                 }
@@ -769,8 +742,8 @@ private fun UnlockableCatalogRow(
                 article.isUnlocked -> {
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = EmeraldPrimary.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.35f)),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -780,14 +753,14 @@ private fun UnlockableCatalogRow(
                             Icon(
                                 imageVector = Icons.Rounded.CheckCircle,
                                 contentDescription = null,
-                                tint = EmeraldPrimary,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(16.dp),
                             )
                             Text(
                                 text = "Unlocked",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = EmeraldPrimary,
+                                color = MaterialTheme.colorScheme.primary,
                             )
                         }
                     }
@@ -823,7 +796,7 @@ private fun UnlockableCatalogRow(
                         onClick = onUnlock,
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = EmeraldPrimary,
+                            containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = Color.Black,
                         ),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
@@ -866,14 +839,14 @@ private fun OfferWallDialog(
                 .padding(horizontal = 12.dp),
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surfaceContainer,
-            border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.35f)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
             tonalElevation = 6.dp,
         ) {
             Column(
                 modifier = Modifier.padding(22.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                // Header Row with Emerald Icon Pill and Title
+                // Header Row with Accent Icon Pill and Title
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -882,14 +855,14 @@ private fun OfferWallDialog(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(EmeraldPrimary.copy(alpha = 0.15f))
-                            .border(1.dp, EmeraldPrimary.copy(alpha = 0.3f), RoundedCornerShape(14.dp)),
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(14.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.CardGiftcard,
                             contentDescription = null,
-                            tint = EmeraldPrimary,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp),
                         )
                     }
@@ -898,7 +871,7 @@ private fun OfferWallDialog(
                             text = "Special Offer Wall",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
-                            color = EmeraldPrimary,
+                            color = MaterialTheme.colorScheme.primary,
                         )
                         Text(
                             text = "Interactive Partner Reward",
@@ -933,8 +906,8 @@ private fun OfferWallDialog(
                             )
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
-                                color = AmberAdGold.copy(alpha = 0.18f),
-                                border = BorderStroke(1.dp, AmberAdGold.copy(alpha = 0.4f)),
+                                color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.18f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)),
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
@@ -944,14 +917,14 @@ private fun OfferWallDialog(
                                     Icon(
                                         imageVector = Icons.Rounded.MonetizationOn,
                                         contentDescription = null,
-                                        tint = AmberAdGold,
+                                        tint = MaterialTheme.colorScheme.tertiary,
                                         modifier = Modifier.size(12.dp),
                                     )
                                     Text(
                                         text = "+50 COINS",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = AmberAdGold,
+                                        color = MaterialTheme.colorScheme.tertiary,
                                     )
                                 }
                             }
@@ -979,7 +952,7 @@ private fun OfferWallDialog(
                                     text = "Ready to Claim (100%)",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = EmeraldPrimary,
+                                    color = MaterialTheme.colorScheme.primary,
                                 )
                             }
                             LinearProgressIndicator(
@@ -988,7 +961,7 @@ private fun OfferWallDialog(
                                     .fillMaxWidth()
                                     .height(6.dp)
                                     .clip(RoundedCornerShape(3.dp)),
-                                color = EmeraldPrimary,
+                                color = MaterialTheme.colorScheme.primary,
                                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
                             )
                         }
@@ -1002,7 +975,7 @@ private fun OfferWallDialog(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = EmeraldPrimary,
+                            containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = Color.Black,
                         ),
                         contentPadding = PaddingValues(vertical = 12.dp),

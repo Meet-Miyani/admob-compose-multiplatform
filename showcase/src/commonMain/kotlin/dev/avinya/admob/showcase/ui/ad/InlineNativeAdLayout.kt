@@ -58,7 +58,7 @@ val inlineNativeAdLayout: AdLayout = adLayout {
             modifier = AdModifier.fillMaxWidth(),
             style = AdButtonStyle(
                 textStyle = AdTextStyle(14f, 0xFF000000, AdFontWeight.Bold, AdTextAlign.Center),
-                backgroundArgb = 0xFF10B981, // EmeraldPrimary
+                backgroundArgb = 0xFFC6452D, // Fieldnotes accent
                 cornerRadiusDp = 8f,
             ),
         )

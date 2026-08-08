@@ -62,7 +62,6 @@ import dev.avinya.admob.showcase.domain.library.LibraryEntry
 import dev.avinya.admob.showcase.ui.inspector.InspectorEntryPoint
 import dev.avinya.admob.showcase.ui.inspector.InspectorSheet
 import dev.avinya.admob.showcase.ui.inspector.LocalInspectorPlacements
-import dev.avinya.admob.showcase.ui.theme.EmeraldPrimary
 import dev.avinya.ads.AdPlacement
 import kotlinx.coroutines.launch
 
@@ -141,7 +140,7 @@ fun LibraryScreen(
                         Icon(
                             imageVector = Icons.Rounded.Search,
                             contentDescription = "Search",
-                            tint = EmeraldPrimary,
+                            tint = MaterialTheme.colorScheme.primary,
                         )
                     },
                     trailingIcon = {
@@ -159,11 +158,11 @@ fun LibraryScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        focusedBorderColor = EmeraldPrimary,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                        cursorColor = EmeraldPrimary,
-                        focusedLeadingIconColor = EmeraldPrimary,
-                        unfocusedLeadingIconColor = EmeraldPrimary,
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                        focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLeadingIconColor = MaterialTheme.colorScheme.primary,
                         focusedTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         unfocusedTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -211,13 +210,13 @@ fun LibraryScreen(
                             )
                             Surface(
                                 shape = CircleShape,
-                                color = EmeraldPrimary.copy(alpha = 0.15f),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                             ) {
                                 Text(
                                     text = group.size.toString(),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = EmeraldPrimary,
+                                    color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                 )
                             }
@@ -275,10 +274,10 @@ private fun LibraryFilterPill(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(20.dp),
-        color = if (selected) EmeraldPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
+        color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
         border = BorderStroke(
             1.dp,
-            if (selected) EmeraldPrimary else MaterialTheme.colorScheme.outlineVariant,
+            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
         ),
     ) {
         Text(
@@ -286,7 +285,7 @@ private fun LibraryFilterPill(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            color = if (selected) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -333,8 +332,8 @@ private fun LibraryArticleCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(50),
-                        color = EmeraldPrimary.copy(alpha = 0.15f),
-                        contentColor = EmeraldPrimary,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        contentColor = MaterialTheme.colorScheme.primary,
                     ) {
                         Text(
                             text = entry.section.uppercase(),
@@ -374,7 +373,7 @@ private fun LibraryArticleCard(
                     Icon(
                         imageVector = if (isBookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
                         contentDescription = if (isBookmarked) "Remove bookmark" else "Bookmark article",
-                        tint = if (isBookmarked) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         modifier = Modifier.size(20.dp),
                     )
                 }
@@ -408,7 +407,7 @@ private fun LibraryArticleCard(
                             text = "${(progress.coerceIn(0f, 1f) * 100).toInt()}%",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = EmeraldPrimary,
+                            color = MaterialTheme.colorScheme.primary,
                         )
                     }
                     Box(
@@ -422,7 +421,7 @@ private fun LibraryArticleCard(
                             modifier = Modifier
                                 .fillMaxWidth(progress.coerceIn(0.04f, 1f))
                                 .fillMaxHeight()
-                                .background(EmeraldPrimary),
+                                .background(MaterialTheme.colorScheme.primary),
                         )
                     }
                 }
@@ -453,13 +452,13 @@ private fun LibraryEmptyState(
                 modifier = Modifier
                     .size(64.dp)
                     .clip(CircleShape)
-                    .background(EmeraldPrimary.copy(alpha = 0.15f)),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Rounded.BookmarkBorder,
                     contentDescription = null,
-                    tint = EmeraldPrimary,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(32.dp),
                 )
             }
@@ -491,9 +490,9 @@ private fun LibraryEmptyState(
                 OutlinedButton(
                     onClick = onClearFilter,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, EmeraldPrimary),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = EmeraldPrimary,
+                        contentColor = MaterialTheme.colorScheme.primary,
                     ),
                 ) {
                     Text(
@@ -507,7 +506,7 @@ private fun LibraryEmptyState(
                     onClick = onExploreFeed,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = EmeraldPrimary,
+                        containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                     ),
                     contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
@@ -548,13 +547,13 @@ private fun AdFreeSanctuaryCard() {
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(EmeraldPrimary.copy(alpha = 0.15f)),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Shield,
                     contentDescription = "Ad-free sanctuary",
-                    tint = EmeraldPrimary,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp),
                 )
             }

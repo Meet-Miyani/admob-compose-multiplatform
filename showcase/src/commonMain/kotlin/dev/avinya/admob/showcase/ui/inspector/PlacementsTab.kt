@@ -45,8 +45,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import dev.avinya.admob.showcase.ui.theme.AmberAdGold
-import dev.avinya.admob.showcase.ui.theme.EmeraldPrimary
 import dev.avinya.ads.AdFormat
 import dev.avinya.ads.AdLoadState
 import dev.avinya.ads.AdManager
@@ -110,13 +108,13 @@ private fun PlacementsCard(placement: AdPlacement, manager: AdManager) {
                 )
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = EmeraldPrimary.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.3f)),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
                 ) {
                     Text(
                         text = placement.format.name,
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = EmeraldPrimary,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                     )
                 }
@@ -222,8 +220,8 @@ private fun NativeAdSlotState?.label(): String = when (this) {
 @Composable
 private fun AdLoadStateBadge(loadState: AdLoadState) {
     val (statusLabel, badgeColor) = when (loadState) {
-        is AdLoadState.Loaded -> ("READY" to EmeraldPrimary)
-        is AdLoadState.Loading -> ("LOADING" to AmberAdGold)
+        is AdLoadState.Loaded -> ("READY" to MaterialTheme.colorScheme.primary)
+        is AdLoadState.Loading -> ("LOADING" to MaterialTheme.colorScheme.tertiary)
         is AdLoadState.Failed -> ("ERROR" to MaterialTheme.colorScheme.error)
         is AdLoadState.Idle -> ("IDLE" to MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -295,10 +293,10 @@ private fun CopyableUnitIdRow(label: String, unitId: String) {
                     copied = true
                 },
                 shape = RoundedCornerShape(6.dp),
-                color = if (copied) EmeraldPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest,
+                color = if (copied) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest,
                 border = BorderStroke(
                     1.dp,
-                    if (copied) EmeraldPrimary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                    if (copied) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                 ),
                 modifier = Modifier.size(26.dp),
             ) {
@@ -315,7 +313,7 @@ private fun CopyableUnitIdRow(label: String, unitId: String) {
                             Icon(
                                 imageVector = Icons.Rounded.Check,
                                 contentDescription = "Copied",
-                                tint = EmeraldPrimary,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(14.dp),
                             )
                         } else {

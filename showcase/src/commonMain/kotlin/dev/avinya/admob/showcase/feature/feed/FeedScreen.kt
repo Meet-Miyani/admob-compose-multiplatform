@@ -52,7 +52,6 @@ import dev.avinya.admob.showcase.ui.ad.feedNativeAdLayout
 import dev.avinya.admob.showcase.ui.inspector.InspectorEntryPoint
 import dev.avinya.admob.showcase.ui.inspector.InspectorSheet
 import dev.avinya.admob.showcase.ui.inspector.LocalInspectorPlacements
-import dev.avinya.admob.showcase.ui.theme.EmeraldPrimary
 import dev.avinya.ads.LocalAdManager
 import dev.avinya.ads.ui.BannerAdView
 import dev.avinya.ads.ui.NativeAdView
@@ -197,10 +196,10 @@ private fun CategoryPill(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(20.dp),
-        color = if (selected) EmeraldPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
+        color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
         border = BorderStroke(
             1.dp,
-            if (selected) EmeraldPrimary else MaterialTheme.colorScheme.outlineVariant,
+            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
         ),
     ) {
         Text(
@@ -208,7 +207,7 @@ private fun CategoryPill(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            color = if (selected) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -247,8 +246,8 @@ private fun ArticleCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(50),
-                        color = EmeraldPrimary.copy(alpha = 0.15f),
-                        contentColor = EmeraldPrimary,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        contentColor = MaterialTheme.colorScheme.primary,
                     ) {
                         Text(
                             text = item.section.uppercase(),
@@ -288,7 +287,7 @@ private fun ArticleCard(
                     Icon(
                         imageVector = if (isBookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
                         contentDescription = if (isBookmarked) "Remove bookmark" else "Bookmark article",
-                        tint = if (isBookmarked) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         modifier = Modifier.size(20.dp),
                     )
                 }

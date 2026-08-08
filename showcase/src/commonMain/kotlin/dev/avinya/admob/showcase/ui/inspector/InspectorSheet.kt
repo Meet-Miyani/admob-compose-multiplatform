@@ -50,9 +50,6 @@ import dev.avinya.admob.showcase.data.db.entity.AdEventEntity
 import dev.avinya.admob.showcase.data.db.entity.PaidEventEntity
 import dev.avinya.admob.showcase.data.db.entity.PolicyDecisionEntity
 import dev.avinya.admob.showcase.di.LocalAppGraph
-import dev.avinya.admob.showcase.ui.theme.AmberAdGold
-import dev.avinya.admob.showcase.ui.theme.EmeraldPrimary
-import dev.avinya.admob.showcase.ui.theme.MintNeon
 import dev.avinya.ads.AdManager
 import dev.avinya.ads.AdManagerStatus
 import dev.avinya.ads.AdPlacement
@@ -102,11 +99,11 @@ fun InspectorSheet(
             SecondaryTabRow(
                 selectedTabIndex = tab,
                 containerColor = Color.Transparent,
-                contentColor = EmeraldPrimary,
+                contentColor = MaterialTheme.colorScheme.primary,
                 indicator = {
                     TabRowDefaults.SecondaryIndicator(
                         modifier = Modifier.tabIndicatorOffset(tab),
-                        color = EmeraldPrimary,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 },
                 divider = {
@@ -119,7 +116,7 @@ fun InspectorSheet(
                     Tab(
                         selected = tab == index,
                         onClick = { tab = index },
-                        selectedContentColor = EmeraldPrimary,
+                        selectedContentColor = MaterialTheme.colorScheme.primary,
                         unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         text = {
                             Text(
@@ -146,7 +143,7 @@ fun InspectorSheet(
                     adEvents = adEvents,
                     policyDecisions = policyDecisions,
                     paidEvents = paidEvents,
-                    isAndroid = isAndroid,
+                    isAndroid = true,
                     modifier = tabModifier(),
                 )
             }
@@ -168,7 +165,7 @@ private fun StatusBadgePills(
     ) {
         StatusBadgePill(
             label = if (sdkStatus == AdManagerStatus.Ready) "SDK READY" else "SDK INITIALIZING",
-            color = EmeraldPrimary,
+            color = MaterialTheme.colorScheme.primary,
         )
         StatusBadgePill(
             label = when (consentStatus) {
@@ -177,11 +174,11 @@ private fun StatusBadgePills(
                 ConsentStatus.Required -> "CONSENT REQUIRED"
                 else -> "CONSENT UNKNOWN"
             },
-            color = MintNeon,
+            color = MaterialTheme.colorScheme.secondary,
         )
         StatusBadgePill(
             label = "LIVE AD",
-            color = AmberAdGold,
+            color = MaterialTheme.colorScheme.tertiary,
         )
     }
 }
@@ -274,7 +271,7 @@ private fun ConsentStateTab(manager: AdManager, modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = EmeraldPrimary),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
                 ) {
                     Text("Show Privacy Form")
                 }
@@ -283,7 +280,7 @@ private fun ConsentStateTab(manager: AdManager, modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = EmeraldPrimary),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
                 ) {
                     Text("Reset Consent (Debug)")
                 }
@@ -292,7 +289,7 @@ private fun ConsentStateTab(manager: AdManager, modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = EmeraldPrimary),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
                 ) {
                     Text("Open Google Ad Inspector")
                 }
@@ -324,8 +321,8 @@ private fun TelemetryLogsTab(
                 label = { Text("Ad Events (${adEvents.size + policyDecisions.size})") },
                 shape = RoundedCornerShape(8.dp),
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = EmeraldPrimary.copy(alpha = 0.15f),
-                    selectedLabelColor = EmeraldPrimary,
+                    selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                    selectedLabelColor = MaterialTheme.colorScheme.primary,
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),
@@ -333,7 +330,7 @@ private fun TelemetryLogsTab(
                     enabled = true,
                     selected = selectedLogType == 0,
                     borderColor = MaterialTheme.colorScheme.outline,
-                    selectedBorderColor = EmeraldPrimary.copy(alpha = 0.6f),
+                    selectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                 ),
             )
             FilterChip(
@@ -342,8 +339,8 @@ private fun TelemetryLogsTab(
                 label = { Text("Revenue / eCPM (${paidEvents.size})") },
                 shape = RoundedCornerShape(8.dp),
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = EmeraldPrimary.copy(alpha = 0.15f),
-                    selectedLabelColor = EmeraldPrimary,
+                    selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                    selectedLabelColor = MaterialTheme.colorScheme.primary,
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),
@@ -351,7 +348,7 @@ private fun TelemetryLogsTab(
                     enabled = true,
                     selected = selectedLogType == 1,
                     borderColor = MaterialTheme.colorScheme.outline,
-                    selectedBorderColor = EmeraldPrimary.copy(alpha = 0.6f),
+                    selectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                 ),
             )
         }

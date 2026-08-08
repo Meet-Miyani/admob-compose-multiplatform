@@ -62,7 +62,6 @@ import dev.avinya.admob.showcase.ui.ad.AdEffectHandler
 import dev.avinya.admob.showcase.ui.ad.inlineNativeAdLayout
 import dev.avinya.admob.showcase.ui.inspector.InspectorSheet
 import dev.avinya.admob.showcase.ui.inspector.LocalInspectorPlacements
-import dev.avinya.admob.showcase.ui.theme.EmeraldPrimary
 import dev.avinya.ads.LocalAdManager
 import dev.avinya.ads.nativead.NativeAdSlot
 import dev.avinya.ads.ui.BannerAdView
@@ -215,7 +214,7 @@ private fun ArticleBody(
                 modifier = Modifier
                     .fillMaxWidth(animatedProgress.coerceIn(0f, 1f))
                     .fillMaxHeight()
-                    .background(EmeraldPrimary)
+                    .background(MaterialTheme.colorScheme.primary)
             )
         }
 
@@ -332,8 +331,8 @@ private fun ArticleContentHeader(
         ) {
             Surface(
                 shape = RoundedCornerShape(50),
-                color = EmeraldPrimary.copy(alpha = 0.15f),
-                contentColor = EmeraldPrimary,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                contentColor = MaterialTheme.colorScheme.primary,
             ) {
                 Text(
                     text = article.section.uppercase(),
@@ -378,13 +377,13 @@ private fun ArticleContentHeader(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(EmeraldPrimary.copy(alpha = 0.15f)),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Person,
                     contentDescription = "Author avatar",
-                    tint = EmeraldPrimary,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp),
                 )
             }
@@ -477,8 +476,8 @@ private fun ArticleTopBar(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(50),
-                        color = EmeraldPrimary.copy(alpha = 0.15f),
-                        contentColor = EmeraldPrimary,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        contentColor = MaterialTheme.colorScheme.primary,
                     ) {
                         Text(
                             text = section.uppercase(),
@@ -517,7 +516,7 @@ private fun ArticleTopBar(
                     Icon(
                         imageVector = Icons.Rounded.Analytics,
                         contentDescription = "Inspect Telemetry",
-                        tint = EmeraldPrimary,
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
@@ -526,7 +525,7 @@ private fun ArticleTopBar(
                 Icon(
                     imageVector = if (bookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
                     contentDescription = if (bookmarked) "Remove bookmark" else "Bookmark article",
-                    tint = if (bookmarked) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (bookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

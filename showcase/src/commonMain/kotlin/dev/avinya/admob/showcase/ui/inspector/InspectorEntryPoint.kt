@@ -30,7 +30,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import dev.avinya.admob.showcase.ui.theme.EmeraldPrimary
 
 /**
  * Inline top bar with glass container and floating trigger chip featuring
@@ -95,7 +94,7 @@ fun InspectorEntryPoint(
                             .size(8.dp)
                             .graphicsLayer { alpha = pulseAlpha }
                             .clip(CircleShape)
-                            .background(EmeraldPrimary),
+                            .background(MaterialTheme.colorScheme.primary),
                     )
                     Icon(
                         imageVector = Icons.Rounded.Analytics,

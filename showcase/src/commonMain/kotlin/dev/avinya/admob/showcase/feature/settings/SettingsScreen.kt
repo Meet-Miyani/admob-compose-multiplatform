@@ -67,7 +67,6 @@ import dev.avinya.admob.showcase.domain.ad.ShowcasePlacements
 import dev.avinya.admob.showcase.ui.inspector.InspectorEntryPoint
 import dev.avinya.admob.showcase.ui.inspector.InspectorSheet
 import dev.avinya.admob.showcase.ui.inspector.LocalInspectorPlacements
-import dev.avinya.admob.showcase.ui.theme.EmeraldPrimary
 import dev.avinya.admob.showcase.ui.theme.ThemeMode
 import dev.avinya.ads.AdTrackingAuthorization
 import dev.avinya.ads.ConsentDebugGeography
@@ -110,7 +109,7 @@ fun SettingsScreen() {
                     )
                 }
 
-                // Glass SDK Status Card
+                // SDK Status Card
                 item {
                     SdkStatusCard(
                         status = state.sdkStatus,
@@ -171,7 +170,7 @@ fun SettingsScreen() {
                             shape = RoundedCornerShape(8.dp),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = EmeraldPrimary,
+                                contentColor = MaterialTheme.colorScheme.primary,
                             ),
                         ) { Text("Reset consent state") }
                     }
@@ -193,7 +192,7 @@ fun SettingsScreen() {
                                 onClick = { viewModel.onIntent(SettingsIntent.RequestTracking) },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = EmeraldPrimary,
+                                    containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = Color.Black,
                                 ),
                             ) {
@@ -243,13 +242,13 @@ private fun SdkStatusCard(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(EmeraldPrimary.copy(alpha = 0.12f)),
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Dns,
                         contentDescription = null,
-                        tint = EmeraldPrimary,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp),
                     )
                 }
@@ -277,7 +276,7 @@ private fun SdkStatusCard(
                     onClick = onRetryStartup,
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = EmeraldPrimary,
+                        containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.Black,
                     ),
                 ) {
@@ -292,7 +291,7 @@ private fun SdkStatusCard(
                     onClick = onManageConsent,
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = EmeraldPrimary,
+                        containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.Black,
                     ),
                 ) {
@@ -366,7 +365,7 @@ private fun ThemeSegmentPill(
     modifier: Modifier = Modifier,
 ) {
     val backgroundColor by animateColorAsState(
-        targetValue = if (selected) EmeraldPrimary else Color.Transparent,
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
         animationSpec = tween(durationMillis = 200),
         label = "themePillBg",
     )
@@ -439,16 +438,16 @@ private fun InspectorToggleCard(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(if (inspectorEnabled) EmeraldPrimary else Color.Gray),
+                            .background(if (inspectorEnabled) MaterialTheme.colorScheme.primary else Color.Gray),
                     )
                 }
                 Switch(
                     checked = inspectorEnabled,
                     onCheckedChange = onInspectorToggle,
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = EmeraldPrimary,
-                        checkedTrackColor = EmeraldPrimary.copy(alpha = 0.3f),
-                        checkedBorderColor = EmeraldPrimary,
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                        checkedBorderColor = MaterialTheme.colorScheme.primary,
                         uncheckedThumbColor = MaterialTheme.colorScheme.outline,
                         uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         uncheckedBorderColor = MaterialTheme.colorScheme.outline,
@@ -477,7 +476,7 @@ private fun InspectorToggleCard(
                 modifier = Modifier.fillMaxWidth(),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = EmeraldPrimary,
+                    contentColor = MaterialTheme.colorScheme.primary,
                 ),
             ) {
                 Row(
@@ -519,7 +518,7 @@ private fun SettingsSection(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = EmeraldPrimary,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp),
                 )
                 Text(title, style = MaterialTheme.typography.titleMedium)
@@ -572,7 +571,7 @@ private fun RadioRow(
             selected = selected,
             onClick = null,
             colors = RadioButtonDefaults.colors(
-                selectedColor = EmeraldPrimary,
+                selectedColor = MaterialTheme.colorScheme.primary,
                 unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             ),
         )
@@ -600,9 +599,9 @@ private fun SwitchRow(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = EmeraldPrimary,
-                checkedTrackColor = EmeraldPrimary.copy(alpha = 0.3f),
-                checkedBorderColor = EmeraldPrimary,
+                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                checkedBorderColor = MaterialTheme.colorScheme.primary,
                 uncheckedThumbColor = MaterialTheme.colorScheme.outline,
                 uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                 uncheckedBorderColor = MaterialTheme.colorScheme.outline,

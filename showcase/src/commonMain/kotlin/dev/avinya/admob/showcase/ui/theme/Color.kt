@@ -4,175 +4,117 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
-// ============================================================================
-// Dark Palette ("Emerald Obsidian")
-// ============================================================================
-internal val EmeraldBg = Color(0xFF0A120E)
-internal val EmeraldOnBg = Color(0xFFF1F5F9)
-internal val EmeraldSurface = Color(0xFF14221B)
-internal val EmeraldOnSurface = Color(0xFFF1F5F9)
-internal val EmeraldSurfaceVariant = Color(0xFF1C2E24)
-internal val EmeraldOnSurfaceVariant = Color(0xFF94A3B8)
+/**
+ * Locked Fieldnotes Light Palette.
+ */
+object FieldnotesLight {
+    val page = Color(0xFFF5F0E6)
+    val raisedSurface = Color(0xFFFCFAF5)
+    val ink = Color(0xFF181713)
+    val mutedInk = Color(0xFF6D685F)
+    val rule = Color(0xFFD8D0C2)
+    val accent = Color(0xFFC6452D)
+    val accentContainer = Color(0xFFF3D7CF)
+}
 
-internal val EmeraldSurfaceBright = Color(0xFF243B2E)
-internal val EmeraldSurfaceDim = Color(0xFF0E1A14)
-internal val EmeraldSurfaceContainerLowest = Color(0xFF070D0A)
-internal val EmeraldSurfaceContainerLow = Color(0xFF0E1A14)
-internal val EmeraldSurfaceContainer = Color(0xFF14221B)
-internal val EmeraldSurfaceContainerHigh = Color(0xFF1A2C23)
-internal val EmeraldSurfaceContainerHighest = Color(0xFF22382C)
+/**
+ * Locked Fieldnotes Dark Palette.
+ */
+object FieldnotesDark {
+    val page = Color(0xFF151411)
+    val raisedSurface = Color(0xFF201E1A)
+    val ink = Color(0xFFF3EEE4)
+    val mutedInk = Color(0xFFAAA397)
+    val rule = Color(0xFF3A3630)
+    val accent = Color(0xFFF0785F)
+    val accentContainer = Color(0xFF5A281F)
+}
 
-internal val EmeraldInverseSurface = Color(0xFFE2E8F0)
-internal val EmeraldInverseOnSurface = Color(0xFF0F172A)
+/** Semantic alpha helpers for disabled UI states. */
+val Color.disabledContent: Color
+    get() = copy(alpha = 0.38f)
 
-internal val EmeraldPrimary = Color(0xFF10B981)
-internal val EmeraldOnPrimary = Color(0xFF003822)
-internal val EmeraldPrimaryContainer = Color(0xFF064E3B)
-internal val EmeraldOnPrimaryContainer = Color(0xFFA7F3D0)
-internal val EmeraldInversePrimary = Color(0xFF059669)
-
-internal val MintNeon = Color(0xFF34D399)
-internal val MintOnSecondary = Color(0xFF003826)
-internal val MintSecondaryContainer = Color(0xFF0D523F)
-internal val MintOnSecondaryContainer = Color(0xFF6EE7B7)
-
-internal val AmberAdGold = Color(0xFFF59E0B)
-internal val AmberOnTertiary = Color(0xFF452B00)
-internal val AmberTertiaryContainer = Color(0xFF78350F)
-internal val AmberOnTertiaryContainer = Color(0xFFFDE68A)
-
-internal val DarkError = Color(0xFFEF4444)
-internal val DarkOnError = Color(0xFF450A0A)
-internal val DarkErrorContainer = Color(0xFF7F1D1D)
-internal val DarkOnErrorContainer = Color(0xFFFECACA)
-
-internal val GlassBorderDark = Color(0x1FFFFFFF)
-internal val GlassBorderDarkVariant = Color(0x0FFFFFFF)
-internal val DarkScrim = Color(0xFF000000)
-
-// ============================================================================
-// Light Palette ("Slate Pearl")
-// ============================================================================
-internal val SlatePearlBg = Color(0xFFF8FAFC)
-internal val LightOnBg = Color(0xFF0F172A)
-internal val WhiteSurface = Color(0xFFFFFFFF)
-internal val LightOnSurface = Color(0xFF0F172A)
-internal val LightSurfaceVariant = Color(0xFFF1F5F9)
-internal val LightOnSurfaceVariant = Color(0xFF64748B)
-
-internal val LightSurfaceBright = Color(0xFFFFFFFF)
-internal val LightSurfaceDim = Color(0xFFE2E8F0)
-internal val LightSurfaceContainerLowest = Color(0xFFFFFFFF)
-internal val LightSurfaceContainerLow = Color(0xFFF8FAFC)
-internal val LightSurfaceContainer = Color(0xFFF1F5F9)
-internal val LightSurfaceContainerHigh = Color(0xFFE2E8F0)
-internal val LightSurfaceContainerHighest = Color(0xFFCBD5E1)
-
-internal val LightInverseSurface = Color(0xFF1E293B)
-internal val LightInverseOnSurface = Color(0xFFF8FAFC)
-
-internal val ForestEmerald = Color(0xFF059669)
-internal val LightOnPrimary = Color(0xFFFFFFFF)
-internal val LightPrimaryContainer = Color(0xFFD1FAE5)
-internal val LightOnPrimaryContainer = Color(0xFF064E3B)
-internal val LightInversePrimary = Color(0xFF34D399)
-
-internal val TealSecondary = Color(0xFF0D9488)
-internal val LightOnSecondary = Color(0xFFFFFFFF)
-internal val LightSecondaryContainer = Color(0xFFCCFBF1)
-internal val LightOnSecondaryContainer = Color(0xFF115E59)
-
-internal val LightAmberTertiary = Color(0xFFD97706)
-internal val LightOnTertiary = Color(0xFFFFFFFF)
-internal val LightTertiaryContainer = Color(0xFFFEF3C7)
-internal val LightOnTertiaryContainer = Color(0xFF78350F)
-
-internal val LightError = Color(0xFFDC2626)
-internal val LightOnError = Color(0xFFFFFFFF)
-internal val LightErrorContainer = Color(0xFFFEE2E2)
-internal val LightOnErrorContainer = Color(0xFF991B1B)
-
-internal val GlassBorderLight = Color(0x0F000000)
-internal val GlassBorderLightVariant = Color(0xFFE2E8F0)
-internal val LightScrim = Color(0xFF000000)
+val Color.disabledContainer: Color
+    get() = copy(alpha = 0.12f)
 
 // ============================================================================
 // Material 3 Color Schemes
 // ============================================================================
-internal val ShowcaseDarkColors = darkColorScheme(
-    primary = EmeraldPrimary,
-    onPrimary = EmeraldOnPrimary,
-    primaryContainer = EmeraldPrimaryContainer,
-    onPrimaryContainer = EmeraldOnPrimaryContainer,
-    inversePrimary = EmeraldInversePrimary,
-    secondary = MintNeon,
-    onSecondary = MintOnSecondary,
-    secondaryContainer = MintSecondaryContainer,
-    onSecondaryContainer = MintOnSecondaryContainer,
-    tertiary = AmberAdGold,
-    onTertiary = AmberOnTertiary,
-    tertiaryContainer = AmberTertiaryContainer,
-    onTertiaryContainer = AmberOnTertiaryContainer,
-    background = EmeraldBg,
-    onBackground = EmeraldOnBg,
-    surface = EmeraldSurface,
-    onSurface = EmeraldOnSurface,
-    surfaceVariant = EmeraldSurfaceVariant,
-    onSurfaceVariant = EmeraldOnSurfaceVariant,
+internal val ShowcaseLightColors = lightColorScheme(
+    primary = FieldnotesLight.accent,
+    onPrimary = FieldnotesLight.raisedSurface,
+    primaryContainer = FieldnotesLight.accentContainer,
+    onPrimaryContainer = FieldnotesDark.accentContainer,
+    secondary = FieldnotesLight.accent,
+    onSecondary = FieldnotesLight.raisedSurface,
+    secondaryContainer = FieldnotesLight.accentContainer,
+    onSecondaryContainer = FieldnotesDark.accentContainer,
+    tertiary = FieldnotesLight.accent,
+    onTertiary = FieldnotesLight.raisedSurface,
+    tertiaryContainer = FieldnotesLight.accentContainer,
+    onTertiaryContainer = FieldnotesDark.accentContainer,
+    background = FieldnotesLight.page,
+    onBackground = FieldnotesLight.ink,
+    surface = FieldnotesLight.raisedSurface,
+    onSurface = FieldnotesLight.ink,
+    surfaceVariant = Color(0xFFEFE8DB),
+    onSurfaceVariant = FieldnotesLight.mutedInk,
     surfaceTint = Color.Transparent,
-    inverseSurface = EmeraldInverseSurface,
-    inverseOnSurface = EmeraldInverseOnSurface,
-    error = DarkError,
-    onError = DarkOnError,
-    errorContainer = DarkErrorContainer,
-    onErrorContainer = DarkOnErrorContainer,
-    outline = GlassBorderDark,
-    outlineVariant = GlassBorderDarkVariant,
-    scrim = DarkScrim,
-    surfaceBright = EmeraldSurfaceBright,
-    surfaceDim = EmeraldSurfaceDim,
-    surfaceContainer = EmeraldSurfaceContainer,
-    surfaceContainerHigh = EmeraldSurfaceContainerHigh,
-    surfaceContainerHighest = EmeraldSurfaceContainerHighest,
-    surfaceContainerLow = EmeraldSurfaceContainerLow,
-    surfaceContainerLowest = EmeraldSurfaceContainerLowest,
+    inverseSurface = FieldnotesDark.raisedSurface,
+    inverseOnSurface = FieldnotesDark.ink,
+    inversePrimary = FieldnotesDark.accent,
+    error = FieldnotesLight.accent,
+    onError = FieldnotesLight.raisedSurface,
+    errorContainer = FieldnotesLight.accentContainer,
+    onErrorContainer = FieldnotesDark.accentContainer,
+    outline = FieldnotesLight.rule,
+    outlineVariant = FieldnotesLight.rule,
+    scrim = Color(0xFF000000),
+    surfaceBright = FieldnotesLight.raisedSurface,
+    surfaceDim = Color(0xFFEFE8DB),
+    surfaceContainer = FieldnotesLight.raisedSurface,
+    surfaceContainerHigh = FieldnotesLight.raisedSurface,
+    surfaceContainerHighest = FieldnotesLight.raisedSurface,
+    surfaceContainerLow = FieldnotesLight.page,
+    surfaceContainerLowest = FieldnotesLight.raisedSurface,
 )
 
-internal val ShowcaseLightColors = lightColorScheme(
-    primary = ForestEmerald,
-    onPrimary = LightOnPrimary,
-    primaryContainer = LightPrimaryContainer,
-    onPrimaryContainer = LightOnPrimaryContainer,
-    inversePrimary = LightInversePrimary,
-    secondary = TealSecondary,
-    onSecondary = LightOnSecondary,
-    secondaryContainer = LightSecondaryContainer,
-    onSecondaryContainer = LightOnSecondaryContainer,
-    tertiary = LightAmberTertiary,
-    onTertiary = LightOnTertiary,
-    tertiaryContainer = LightTertiaryContainer,
-    onTertiaryContainer = LightOnTertiaryContainer,
-    background = SlatePearlBg,
-    onBackground = LightOnBg,
-    surface = WhiteSurface,
-    onSurface = LightOnSurface,
-    surfaceVariant = LightSurfaceVariant,
-    onSurfaceVariant = LightOnSurfaceVariant,
+internal val ShowcaseDarkColors = darkColorScheme(
+    primary = FieldnotesDark.accent,
+    onPrimary = FieldnotesDark.page,
+    primaryContainer = FieldnotesDark.accentContainer,
+    onPrimaryContainer = FieldnotesLight.accentContainer,
+    secondary = FieldnotesDark.accent,
+    onSecondary = FieldnotesDark.page,
+    secondaryContainer = FieldnotesDark.accentContainer,
+    onSecondaryContainer = FieldnotesLight.accentContainer,
+    tertiary = FieldnotesDark.accent,
+    onTertiary = FieldnotesDark.page,
+    tertiaryContainer = FieldnotesDark.accentContainer,
+    onTertiaryContainer = FieldnotesLight.accentContainer,
+    background = FieldnotesDark.page,
+    onBackground = FieldnotesDark.ink,
+    surface = FieldnotesDark.raisedSurface,
+    onSurface = FieldnotesDark.ink,
+    surfaceVariant = Color(0xFF25221D),
+    onSurfaceVariant = FieldnotesDark.mutedInk,
     surfaceTint = Color.Transparent,
-    inverseSurface = LightInverseSurface,
-    inverseOnSurface = LightInverseOnSurface,
-    error = LightError,
-    onError = LightOnError,
-    errorContainer = LightErrorContainer,
-    onErrorContainer = LightOnErrorContainer,
-    outline = GlassBorderLight,
-    outlineVariant = GlassBorderLightVariant,
-    scrim = LightScrim,
-    surfaceBright = LightSurfaceBright,
-    surfaceDim = LightSurfaceDim,
-    surfaceContainer = LightSurfaceContainer,
-    surfaceContainerHigh = LightSurfaceContainerHigh,
-    surfaceContainerHighest = LightSurfaceContainerHighest,
-    surfaceContainerLow = LightSurfaceContainerLow,
-    surfaceContainerLowest = LightSurfaceContainerLowest,
+    inverseSurface = FieldnotesLight.raisedSurface,
+    inverseOnSurface = FieldnotesLight.ink,
+    inversePrimary = FieldnotesLight.accent,
+    error = FieldnotesDark.accent,
+    onError = FieldnotesDark.page,
+    errorContainer = FieldnotesDark.accentContainer,
+    onErrorContainer = FieldnotesLight.accentContainer,
+    outline = FieldnotesDark.rule,
+    outlineVariant = FieldnotesDark.rule,
+    scrim = Color(0xFF000000),
+    surfaceBright = Color(0xFF282520),
+    surfaceDim = FieldnotesDark.page,
+    surfaceContainer = FieldnotesDark.raisedSurface,
+    surfaceContainerHigh = Color(0xFF25221D),
+    surfaceContainerHighest = Color(0xFF2C2923),
+    surfaceContainerLow = Color(0xFF1B1916),
+    surfaceContainerLowest = FieldnotesDark.page,
 )
+

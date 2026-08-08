@@ -44,7 +44,6 @@ import dev.avinya.admob.showcase.feature.library.LibraryScreen
 import dev.avinya.admob.showcase.feature.onboarding.OnboardingScreen
 import dev.avinya.admob.showcase.feature.settings.SettingsScreen
 import dev.avinya.admob.showcase.feature.store.StoreScreen
-import dev.avinya.admob.showcase.ui.theme.EmeraldPrimary
 
 /**
  * The app's navigation shell.
@@ -97,9 +96,9 @@ fun ShowcaseNavHost(backStack: SnapshotStateList<ShowcaseNavKey>) {
                                     },
                                     label = { Text(key.label) },
                                     colors = NavigationBarItemDefaults.colors(
-                                        selectedIconColor = EmeraldPrimary,
-                                        selectedTextColor = EmeraldPrimary,
-                                        indicatorColor = EmeraldPrimary.copy(alpha = 0.14f),
+                                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                                        indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
                                         unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                         unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                     ),
