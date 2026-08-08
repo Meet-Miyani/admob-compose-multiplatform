@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bookmark
@@ -28,9 +27,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.SaveableStateHolder
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavEntryDecorator
+import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 
@@ -52,6 +55,23 @@ import dev.avinya.admob.showcase.ui.theme.FieldnotesTokens
  */
 @Composable
 fun ShowcaseNavHost(navigationState: ShowcaseNavigationState) {
+    val saveableStateHolder = rememberSaveableStateHolder()
+
+    // Persistent ViewModelStoreNavEntryDecorator per top-level tab.
+    // Retaining these at host scope ensures switching active tabs does not cause
+    // inactive tab ViewModels or ad sessions to be cleared as "popped" routes.
+    val todayDecorator = rememberViewModelStoreNavEntryDecorator<NavKey>()
+    val discoverDecorator = rememberViewModelStoreNavEntryDecorator<NavKey>()
+    val libraryDecorator = rememberViewModelStoreNavEntryDecorator<NavKey>()
+    val profileDecorator = rememberViewModelStoreNavEntryDecorator<NavKey>()
+
+    val activeDecorator: NavEntryDecorator<NavKey> = when (navigationState.selectedTab) {
+        ShowcaseTab.Today -> todayDecorator
+        ShowcaseTab.Discover -> discoverDecorator
+        ShowcaseTab.Library -> libraryDecorator
+        ShowcaseTab.Profile -> profileDecorator
+    }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isExpanded = maxWidth >= FieldnotesTokens.navigationRailBreakpoint
         val showChrome = showsNavigationChrome(navigationState.currentRoute)
@@ -78,6 +98,8 @@ fun ShowcaseNavHost(navigationState: ShowcaseNavigationState) {
                 }
                 NavDisplayContent(
                     navigationState = navigationState,
+                    saveableStateHolder = saveableStateHolder,
+                    activeDecorator = activeDecorator,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }
@@ -113,6 +135,8 @@ fun ShowcaseNavHost(navigationState: ShowcaseNavigationState) {
             ) { padding ->
                 NavDisplayContent(
                     navigationState = navigationState,
+                    saveableStateHolder = saveableStateHolder,
+                    activeDecorator = activeDecorator,
                     modifier = Modifier.fillMaxSize().padding(padding),
                 )
             }
@@ -123,6 +147,8 @@ fun ShowcaseNavHost(navigationState: ShowcaseNavigationState) {
 @Composable
 private fun NavDisplayContent(
     navigationState: ShowcaseNavigationState,
+    saveableStateHolder: SaveableStateHolder,
+    activeDecorator: NavEntryDecorator<NavKey>,
     modifier: Modifier = Modifier,
 ) {
     val suppressor = LocalAppOpenSuppressor.current
@@ -131,9 +157,7 @@ private fun NavDisplayContent(
         backStack = navigationState.currentStack,
         modifier = modifier,
         onBack = { navigationState.pop() },
-        entryDecorators = listOf(
-            rememberViewModelStoreNavEntryDecorator(),
-        ),
+        entryDecorators = listOf(activeDecorator),
         transitionSpec = {
             ContentTransform(
                 fadeIn(animationSpec = tween(220)),
@@ -147,46 +171,74 @@ private fun NavDisplayContent(
             )
         },
         entryProvider = entryProvider {
-            entry<OnboardingRoute> {
-                LaunchedEffect(Unit) { suppressor.enter() }
-                DisposableEffect(Unit) { onDispose { suppressor.exit() } }
-                OnboardingScreen(
-                    onFinished = {
-                        navigationState.pop()
-                    },
-                )
+            entry<OnboardingRoute> { key ->
+                saveableStateHolder.SaveableStateProvider(key) {
+                    LaunchedEffect(Unit) { suppressor.enter() }
+                    DisposableEffect(Unit) { onDispose { suppressor.exit() } }
+                    OnboardingScreen(
+                        onFinished = {
+                            navigationState.pop()
+                        },
+                    )
+                }
             }
-            entry<TodayRoute> {
-                FeedScreen(
-                    onArticleClick = { articleId ->
-                        navigationState.push(ArticleRoute(articleId))
-                    },
-                )
+            entry<TodayRoute> { key ->
+                saveableStateHolder.SaveableStateProvider(key) {
+                    FeedScreen(
+                        onArticleClick = { articleId ->
+                            navigationState.push(ArticleRoute(articleId))
+                        },
+                    )
+                }
             }
-            entry<DiscoverRoute> { StoreScreen() }
-            entry<LibraryRoute> {
-                LibraryScreen(
-                    onArticleClick = { articleId ->
-                        navigationState.push(ArticleRoute(articleId))
-                    },
-                    onExploreFeedClick = {
-                        navigationState.select(ShowcaseTab.Today)
-                    },
-                )
+            entry<DiscoverRoute> { key ->
+                saveableStateHolder.SaveableStateProvider(key) {
+                    StoreScreen()
+                }
             }
-            entry<ProfileRoute> { SettingsScreen() }
+            entry<LibraryRoute> { key ->
+                saveableStateHolder.SaveableStateProvider(key) {
+                    LibraryScreen(
+                        onArticleClick = { articleId ->
+                            navigationState.push(ArticleRoute(articleId))
+                        },
+                        onExploreFeedClick = {
+                            navigationState.select(ShowcaseTab.Today)
+                        },
+                    )
+                }
+            }
+            entry<ProfileRoute> { key ->
+                saveableStateHolder.SaveableStateProvider(key) {
+                    SettingsScreen()
+                }
+            }
             entry<ArticleRoute> { key ->
-                ArticleScreen(
-                    articleId = key.articleId,
-                    onBack = { navigationState.pop() },
-                )
+                saveableStateHolder.SaveableStateProvider(key) {
+                    ArticleScreen(
+                        articleId = key.articleId,
+                        onBack = { navigationState.pop() },
+                    )
+                }
             }
-            entry<SdkLabRoute> { PlaceholderScreen("SDK Lab") }
-            entry<BannerLabRoute> { PlaceholderScreen("Banner Lab") }
-            entry<NativeLabRoute> { PlaceholderScreen("Native Lab") }
-            entry<FullScreenLabRoute> { PlaceholderScreen("Full Screen Lab") }
-            entry<PrivacyLabRoute> { PlaceholderScreen("Privacy Lab") }
-            entry<DiagnosticsLabRoute> { PlaceholderScreen("Diagnostics Lab") }
+            entry<SdkLabRoute> { key ->
+                saveableStateHolder.SaveableStateProvider(key) { PlaceholderScreen("SDK Lab") }
+            }
+            entry<BannerLabRoute> { key ->
+                saveableStateHolder.SaveableStateProvider(key) { PlaceholderScreen("Banner Lab") }
+            }
+            entry<NativeLabRoute> { key ->
+                saveableStateHolder.SaveableStateProvider(key) { PlaceholderScreen("Native Lab") }
+            }
+            entry<FullScreenLabRoute> { key ->
+                saveableStateHolder.SaveableStateProvider(key) { PlaceholderScreen("Full Screen Lab") }
+            }
+            entry<PrivacyLabRoute> { key ->
+                saveableStateHolder.SaveableStateProvider(key) { PlaceholderScreen("Privacy Lab") }
+            }
+            entry<DiagnosticsLabRoute> { key ->
+                saveableStateHolder.SaveableStateProvider(key) { PlaceholderScreen("Diagnostics Lab") }
+            }
         },
     )
 }
