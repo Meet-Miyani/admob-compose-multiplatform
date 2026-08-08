@@ -8,43 +8,38 @@ import kotlin.test.assertTrue
 class ShowcaseNavKeyTest {
 
     @Test
-    fun exposesExactlyFourTopLevelDestinations() {
+    fun exposesExactlyFourTopLevelTabs() {
         assertEquals(
             listOf(
-                ShowcaseNavKey.Feed,
-                ShowcaseNavKey.Library,
-                ShowcaseNavKey.Store,
-                ShowcaseNavKey.Settings,
+                ShowcaseTab.Today,
+                ShowcaseTab.Discover,
+                ShowcaseTab.Library,
+                ShowcaseTab.Profile,
             ),
-            TOP_LEVEL_KEYS,
+            ShowcaseTab.entries,
         )
     }
 
     @Test
-    fun articleDetailIsNotATopLevelDestination() {
-        assertTrue(TOP_LEVEL_KEYS.none { it is ShowcaseNavKey.ArticleDetail })
+    fun articleRouteIsNotATopLevelDestination() {
+        assertTrue(TOP_LEVEL_KEYS.none { it is ArticleRoute })
     }
 
     @Test
-    fun articleDetailKeysCompareByArticleId() {
-        assertEquals(ShowcaseNavKey.ArticleDetail("a1"), ShowcaseNavKey.ArticleDetail("a1"))
-        assertTrue(ShowcaseNavKey.ArticleDetail("a1") != ShowcaseNavKey.ArticleDetail("a2"))
-    }
-
-    @Test
-    fun everyTopLevelKeyHasALabel() {
-        assertTrue(TOP_LEVEL_KEYS.all { it.label.isNotBlank() })
+    fun articleRouteKeysCompareByArticleId() {
+        assertEquals(ArticleRoute("a1"), ArticleRoute("a1"))
+        assertTrue(ArticleRoute("a1") != ArticleRoute("a2"))
     }
 
     @Test
     fun onboardingIsNotATopLevelDestination() {
-        assertTrue(TOP_LEVEL_KEYS.none { it == ShowcaseNavKey.Onboarding })
+        assertTrue(TOP_LEVEL_KEYS.none { it == OnboardingRoute })
     }
 
     @Test
-    fun onboardingHidesTheBottomBar() {
-        assertFalse(showsBottomBar(ShowcaseNavKey.Onboarding))
-        assertTrue(showsBottomBar(ShowcaseNavKey.Feed))
-        assertTrue(showsBottomBar(ShowcaseNavKey.ArticleDetail("a1")))
+    fun onboardingHidesNavigationChrome() {
+        assertFalse(showsNavigationChrome(OnboardingRoute))
+        assertTrue(showsNavigationChrome(TodayRoute))
+        assertTrue(showsNavigationChrome(ArticleRoute("a1")))
     }
 }
