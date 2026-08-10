@@ -24,6 +24,16 @@ enum class OnboardingStep {
     }
 }
 
+/**
+ * Which panel of the onboarding flow is on screen.
+ *
+ * Three, deliberately: what this is, the ads choice, and the SDK doing the
+ * work. The choice gets its own panel because burying a consent decision
+ * under a spinner is how a sample teaches the wrong thing — the reader should
+ * see the exchange stated plainly and press a button.
+ */
+enum class OnboardingPanel { Welcome, AdsChoice, Preparing }
+
 /** How the tracking step renders. Android has no ATT and says so. */
 enum class TrackingStepDisplay { Pending, Granted, Refused, NotApplicable }
 
@@ -40,6 +50,7 @@ fun trackingStepDisplay(status: AdTrackingAuthorization): TrackingStepDisplay = 
 }
 
 data class OnboardingState(
+    val panel: OnboardingPanel = OnboardingPanel.Welcome,
     val step: OnboardingStep = OnboardingStep.Consent,
     val tracking: TrackingStepDisplay = TrackingStepDisplay.Pending,
     val startup: StartupState = StartupState.Starting,
@@ -47,9 +58,22 @@ data class OnboardingState(
 )
 
 sealed interface OnboardingIntent {
-    data object Begin : OnboardingIntent
-    data object Retry : OnboardingIntent
+    /** Move from the welcome panel to the ads choice. */
+    data object Continue : OnboardingIntent
+
+    /**
+     * Accept ads: runs the consent gather, the ATT prompt where applicable,
+     * and SDK initialisation, in that order.
+     */
+    data object EnableAds : OnboardingIntent
+
+    /** Decline ads: the app is fully usable without them, and says so. */
     data object ContinueWithoutAds : OnboardingIntent
+
+    data object Retry : OnboardingIntent
+
+    /** Leave once initialisation has settled. */
+    data object Finish : OnboardingIntent
 }
 
 sealed interface OnboardingEffect {

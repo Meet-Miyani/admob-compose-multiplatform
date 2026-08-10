@@ -82,19 +82,36 @@ class AppGraph(storage: PlatformStorage) {
         clock = clock,
     )
 
+    private var telemetryStarted = false
+
     /**
      * Launches a single app-scoped collector over [AdManager.events]. Called
      * once from `ShowcaseApp` after the `LocalAdManager` provider is in
      * place; calling it more than once would double-record every event.
      */
     fun startTelemetry(adManager: AdManager) {
+        if (telemetryStarted) return
+        telemetryStarted = true
         appScope.launch {
             adManager.events.collect { event ->
                 telemetry.record(event, clock.nowMillis())
             }
         }
     }
+
+    companion object {
+        fun get(storage: PlatformStorage): AppGraph {
+            return getOrCreateAppGraph { AppGraph(storage) }
+        }
+
+        internal fun resetForTesting() {
+            resetAppGraphForTesting()
+        }
+    }
 }
+
+internal expect fun getOrCreateAppGraph(create: () -> AppGraph): AppGraph
+internal expect fun resetAppGraphForTesting()
 
 /**
  * Set by [dev.avinya.admob.showcase.ShowcaseApp]. Reading it outside that
@@ -125,5 +142,6 @@ val LocalAppOpenSuppressor: ProvidableCompositionLocal<AppOpenSuppressor> = comp
 @Composable
 internal fun rememberAppGraph(): AppGraph {
     val storage = rememberPlatformStorage()
-    return remember(storage) { AppGraph(storage) }
+    return remember { AppGraph.get(storage) }
 }
+

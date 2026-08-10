@@ -1,6 +1,5 @@
 package dev.avinya.admob.showcase.ui.inspector
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,26 +9,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.avinya.admob.showcase.data.db.entity.AdEventEntity
 import dev.avinya.admob.showcase.data.db.entity.PolicyDecisionEntity
-import dev.avinya.admob.showcase.ui.theme.AmberAdGold
-import dev.avinya.admob.showcase.ui.theme.EmeraldPrimary
-import dev.avinya.admob.showcase.ui.theme.MintNeon
+import dev.avinya.admob.showcase.ui.kit.Badge
+import dev.avinya.admob.showcase.ui.kit.EmptyState
+import dev.avinya.admob.showcase.ui.kit.Plane
+import dev.avinya.admob.showcase.ui.kit.SunkenPanel
+import dev.avinya.admob.showcase.ui.theme.ShowcaseType
+import dev.avinya.admob.showcase.ui.theme.Tokens
+import dev.avinya.admob.showcase.ui.theme.showcaseColors
 
 /**
  * Events tab: the rolling ad-event log interleaved with policy decisions,
@@ -57,22 +53,16 @@ fun EventsTab(
             AndroidVideoGapBanner()
         }
         if (adEvents.isEmpty() && policyDecisions.isEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    "No events yet — exercise the placements on this screen and they will appear here in real time.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            EmptyState(
+                title = "No events yet",
+                message = "Exercise the placements on this screen and they will appear here " +
+                    "in real time.",
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(Tokens.Spacing.s16),
+                verticalArrangement = Arrangement.spacedBy(Tokens.Spacing.s8),
             ) {
                 val rows = mergedRows(adEvents, policyDecisions)
                 items(rows, key = { it.key() }) { row ->
@@ -85,34 +75,30 @@ fun EventsTab(
 
 @Composable
 private fun AndroidVideoGapBanner() {
-    Card(
+    val palette = showcaseColors
+    SunkenPanel(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, AmberAdGold.copy(alpha = 0.4f)),
-        colors = CardDefaults.cardColors(
-            containerColor = AmberAdGold.copy(alpha = 0.08f),
-        ),
+            .padding(horizontal = Tokens.Spacing.s16, vertical = Tokens.Spacing.s8),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(Tokens.Spacing.s12),
+            horizontalArrangement = Arrangement.spacedBy(Tokens.Spacing.s8),
             verticalAlignment = Alignment.Top,
         ) {
             Icon(
                 imageVector = Icons.Rounded.Info,
                 contentDescription = null,
-                tint = AmberAdGold,
-                modifier = Modifier.size(18.dp),
+                tint = palette.accent,
+                modifier = Modifier.size(16.dp),
             )
             Text(
                 "VideoStarted / VideoPlayed / VideoPaused / VideoEnded / VideoMuted are " +
                     "not delivered on Android — the GMA Next-Gen SDK exposes no equivalent " +
                     "to iOS's GADVideoControllerDelegate. This is an upstream gap, not a " +
                     "showcase omission.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = ShowcaseType.bodySmall,
+                color = palette.inkMuted,
             )
         }
     }
@@ -120,17 +106,10 @@ private fun AndroidVideoGapBanner() {
 
 @Composable
 private fun EventRow(row: EventRow) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        ),
-    ) {
+    Plane(modifier = Modifier.fillMaxWidth(), elevation = Tokens.Elevation.flat) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(Tokens.Spacing.s12),
+            verticalArrangement = Arrangement.spacedBy(Tokens.Spacing.s4),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -139,7 +118,8 @@ private fun EventRow(row: EventRow) {
             ) {
                 Text(
                     text = row.placementId,
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    style = ShowcaseType.titleSmall,
+                    color = showcaseColors.ink,
                 )
                 EventTypeBadge(type = row.type)
             }
@@ -147,8 +127,8 @@ private fun EventRow(row: EventRow) {
             if (row.reason != null) {
                 Text(
                     text = row.reason,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = ShowcaseType.bodySmall,
+                    color = showcaseColors.inkMuted,
                 )
             }
 
@@ -159,8 +139,8 @@ private fun EventRow(row: EventRow) {
             ) {
                 Text(
                     text = formatTimestamp(row.at),
-                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    style = ShowcaseType.numeric,
+                    color = showcaseColors.inkFaint,
                 )
             }
         }
@@ -169,29 +149,22 @@ private fun EventRow(row: EventRow) {
 
 @Composable
 private fun EventTypeBadge(type: String) {
+    val palette = showcaseColors
     val badgeColor = when {
-        type.contains("Impression", ignoreCase = true) || type.contains("Paid", ignoreCase = true) -> EmeraldPrimary
-        type.contains("Click", ignoreCase = true) || type.contains("Opened", ignoreCase = true) -> AmberAdGold
-        type.contains("Loaded", ignoreCase = true) -> MintNeon
         type.contains("Fail", ignoreCase = true) ||
             type.contains("Suppress", ignoreCase = true) ||
-            type.contains("Error", ignoreCase = true) -> MaterialTheme.colorScheme.error
-        type.startsWith("Show") -> EmeraldPrimary
-        else -> MaterialTheme.colorScheme.primary
+            type.contains("Error", ignoreCase = true) -> palette.danger
+
+        type.contains("Impression", ignoreCase = true) ||
+            type.contains("Paid", ignoreCase = true) -> palette.success
+
+        type.contains("Click", ignoreCase = true) ||
+            type.contains("Opened", ignoreCase = true) -> palette.accent
+
+        else -> palette.primary
     }
 
-    Surface(
-        shape = RoundedCornerShape(6.dp),
-        color = badgeColor.copy(alpha = 0.12f),
-        border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.35f)),
-    ) {
-        Text(
-            text = type,
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-            color = badgeColor,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-        )
-    }
+    Badge(text = type, color = badgeColor, container = palette.surfaceSunken)
 }
 
 private fun formatTimestamp(timestampMillis: Long): String {

@@ -8,6 +8,7 @@ import dev.avinya.admob.showcase.data.db.entity.AdEventEntity
 import dev.avinya.admob.showcase.data.db.entity.PaidEventEntity
 import dev.avinya.admob.showcase.data.db.entity.PolicyDecisionEntity
 import dev.avinya.admob.showcase.domain.ad.AdDecision
+import dev.avinya.admob.showcase.domain.ad.AppOpenDecision
 import dev.avinya.admob.showcase.domain.telemetry.AdEventRow
 import dev.avinya.admob.showcase.domain.telemetry.toRow
 import kotlinx.coroutines.CoroutineScope
@@ -77,6 +78,26 @@ class AdTelemetryRepository(
                 decision = when (decision) {
                     AdDecision.Show -> "Show"
                     is AdDecision.Suppress -> "Suppress:${decision.reason.name}"
+                },
+                reason = reason,
+            ),
+        )
+    }
+
+    /** Records one [AppOpenDecision] for the app-open placement. */
+    suspend fun recordAppOpenDecision(
+        placementId: String,
+        decision: AppOpenDecision,
+        at: Long = clock.nowMillis(),
+    ) {
+        val reason = (decision as? AppOpenDecision.Suppress)?.reason?.name
+        telemetryDao.recordPolicyDecision(
+            PolicyDecisionEntity(
+                at = at,
+                placementId = placementId,
+                decision = when (decision) {
+                    AppOpenDecision.Show -> "Show"
+                    is AppOpenDecision.Suppress -> "Suppress:${decision.reason.name}"
                 },
                 reason = reason,
             ),

@@ -2,44 +2,70 @@ package dev.avinya.admob.showcase.feature.article
 
 import dev.avinya.admob.showcase.data.db.entity.ArticleEntity
 import dev.avinya.admob.showcase.domain.ad.SuppressionReason
+import dev.avinya.admob.showcase.ui.ad.RewardOutcome
 
 /**
- * Immutable UI state for the article detail screen.
+ * Immutable UI state for the article reader.
  *
- * `article == null` with [loading] == true means the load is in flight.
- * `article == null` with [loading] == false means the load completed and the
- * row was missing — the screen renders "Article not found" rather than
- * "Loading…" forever.
+ * `article == null` with [loading] true means the load is in flight; with
+ * [loading] false it means the row was missing, and the screen says so rather
+ * than spinning forever.
  *
- * [initialProgress] is the persisted scroll fraction, loaded once on
- * entry so the screen can restore the user's last reading position.
- *
- * [adsEnabled] reflects the user-facing master switch in settings; [sdkReady]
- * confirms the AdManager has finished initializing. The inline native ad is
- * only rendered when both are true — when the user has disabled ads, or
- * consent has not yet been resolved, the slot collapses to the paragraph
- * that would have followed so reading flow does not shift.
+ * [adsEnabled] reflects the user-facing master switch; [sdkReady] confirms the
+ * AdManager finished initialising. Every ad slot on this screen is gated on
+ * both, so turning ads off leaves a complete, readable article behind.
  */
 data class ArticleState(
     val article: ArticleEntity? = null,
     val bookmarked: Boolean = false,
+    val unlocked: Boolean = false,
     val initialProgress: Float = 0f,
     val loading: Boolean = true,
     val adsEnabled: Boolean = true,
     val sdkReady: Boolean = false,
-)
+    val unlocking: Boolean = false,
+    val leaving: Boolean = false,
+) {
+    /** Premium body stays sealed until the reader unlocks it. */
+    val isLocked: Boolean get() = article?.isPremium == true && !unlocked
+
+    val canShowAds: Boolean get() = adsEnabled && sdkReady
+}
 
 sealed interface ArticleIntent {
     data object ToggleBookmark : ArticleIntent
-    data object Close : ArticleIntent
     data class ProgressUpdated(val fraction: Float) : ArticleIntent
+
+    /** Watch a rewarded ad to unlock this premium article. */
+    data object UnlockWithAd : ArticleIntent
+
+    /** Spend earned coins instead of watching an ad. */
+    data object UnlockWithCoins : ArticleIntent
+
+    /**
+     * The reader is leaving.
+     *
+     * The ViewModel evaluates the interstitial policy and answers with
+     * [ArticleEffect.Leave] once the decision — and any presentation — is
+     * settled, so navigation never races an ad that is about to appear.
+     */
+    data object Close : ArticleIntent
 }
 
 sealed interface ArticleEffect {
-    /** Ask the host to pop this entry. */
-    data object NavigateBack : ArticleEffect
-    /** Ask the host to show the article-interstitial ad. */
-    data object ShowInterstitial : ArticleEffect
-    /** The ad was suppressed for [reason] — the host may surface it in the Inspector. */
-    data class AdSuppressed(val reason: SuppressionReason) : ArticleEffect
+    /** Navigation may proceed. Always emitted exactly once per [ArticleIntent.Close]. */
+    data object Leave : ArticleEffect
+
+    data class Notice(val message: String) : ArticleEffect
+
+    data class UnlockResult(val outcome: RewardOutcome) : ArticleEffect
+
+    /**
+     * The interstitial was declined, and why.
+     *
+     * Surfaced rather than swallowed: "no ad appeared and I don't know why" is
+     * the most common AdMob integration confusion, so the reason is a
+     * first-class value the Inspector and Diagnostics can render.
+     */
+    data class InterstitialSuppressed(val reason: SuppressionReason) : ArticleEffect
 }

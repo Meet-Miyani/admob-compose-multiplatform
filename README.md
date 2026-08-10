@@ -254,97 +254,60 @@ is the contributor's responsibility:
    Maven Central coordinates are immutable, and it is the last point at which
    a bad release can be stopped.
 
-## Showcase app
+## Showcase app — Fieldnotes
 
-`showcase/` is a production-grade Compose Multiplatform reference app that
-exercises every ad format the SDK supports in realistic placements — a
-reading app with a paged feed, article detail, a coin economy and a
-per-screen ad Inspector.
+`showcase/` is a product-shaped Compose Multiplatform reference app named
+**Fieldnotes**. It demonstrates the SDK in real product flows with retained
+top-level navigation, a procedural editorial design system, and an in-app
+SDK Lab and telemetry Inspector.
 
 It is a **consumer** of `admob-cmp`; reusable ad lifecycle behavior belongs
-in the SDK rather than in sample-only workarounds. The approved next work is
-defined by the [native-ad session architecture](docs/superpowers/plans/2026-08-07-native-ad-session-architecture.md)
-and the dependent [Fieldnotes Showcase redesign](docs/superpowers/plans/2026-08-07-showcase-fieldnotes-redesign.md).
+in the SDK rather than in sample-only workarounds.
 
-### Screens
+### Destinations
 
-- **Onboarding** — first-run only. The canonical UMP consent → ATT → GMA
-  initialisation order from the SDK, including the
-  `AdInitializationPhase.BeforeMobileAdsInitialize` hook that fires the ATT
-  request. Renders `Starting`, `ConsentRequired`, `Ready` and `Failed`
-  states.
-- **Feed** — a Paging3-backed list of articles. A native ad slot is
-  interleaved after every sixth article using `insertSeparators`; the slot
-  slot key is derived from the preceding article's id, so refreshing or
-  prepending pages does not discard a stable native session record. An anchored adaptive banner
-  pins above the bottom bar.
-- **Article** — the detail screen. An inline native ad is inserted after the
-  third paragraph using a different `AdLayout` than the feed's, proving the
-  layout DSL composes. A collapsible banner sits at the bottom. On close,
-  `AdPolicy.decideInterstitial` decides whether the next article is
-  interrupted, and every decision — Show or Suppress — is recorded in the
-  Inspector with its reason.
-- **Store** — a coin economy. "Watch an ad → +50 coins" runs the full
-  `RewardedAdController` lifecycle; the credit comes from the
-  `onRewardEarned` callback, not from `show()`'s return value, and a
-  per-presentation idempotency key in `reward_grants` prevents a replayed
-  callback from double-crediting. A rewarded-interstitial is offered as a
-  "today's offer" dialog on entering the premium section. Unlocking a
-  premium article spends coins and runs inside `AppOpenSuppressor` so an
-  app-open ad cannot appear mid-transaction.
-- **Library** — bookmarks, in-progress articles, and unlocked premium
-  articles. **Zero ads, by design** — restraint is part of a good
-  integration, and Settings explains the reasoning.
-- **Settings** — consent status and privacy options, ATT status and
-  `requestAuthorization()`, `resetConsentForDebug()` and a
-  `ConsentDebugGeography` picker, SDK version and adapter statuses, the
-  Google ad Inspector, the SDK debug menu, and a theme toggle.
+- **Today** — curated chronological feed. Native slots interleaved (first
+  after 4 stories, then every 8) using `rememberNativeAdFeedSession`. Feeds
+  carry zero banners.
+- **Discover** — section browsing and local search. Native slots in query and
+  category result feeds with query-scoped sessions debounced and closed on query
+  change.
+- **Library** — saved, in-progress, and unlocked stories. **Zero ads, by design**
+  — demonstrating integration restraint.
+- **Profile** — appearance, privacy options, ATT status, consent debug tools,
+  and entry points to Rewards and the SDK Lab.
+- **Rewards** — secondary destination off Profile. Premium story unlocks via
+  a coin economy; rewarded ads and rewarded interstitials with idempotent
+  wallet credits driven by `onRewardEarned`.
+- **SDK Lab** — secondary destination off Profile. Exercises every supported
+  format in isolation (Banner, Native layouts & validator, Full screen,
+  App open gates, Privacy/ATT, and Diagnostics).
+- **Article** — full-screen reader. Inline native ad after the first section,
+  an anchored collapsible banner at the bottom, and an interstitial on exit
+  governed by `AdPolicy`.
 
-### Inspector
+### Telemetry Inspector
 
-Every screen has an **Inspect** button in its top bar, shown only when
-`settings.inspectorEnabled` is on. It opens a modal bottom sheet with three
-tabs that read the showcase's telemetry tables, so the history survives
-navigation:
+Available from the top bar (when enabled in Profile) as a modal bottom sheet:
 
-- **Placements** — for the current screen: the `AdPlacement` config as
-  rendered fields (id, format, ad unit per platform, size, refresh and cache
-  policy), native session slot states, and global loaded/reserved capacity.
-- **Events** — the rolling `ad_events` log interleaved with
-  `policy_decisions`, newest first. Suppression reasons are rendered
-  verbatim, so the tab answers "why did no ad appear", not just "what
-  happened".
-- **Revenue** — per-placement aggregates (`AdValuePrecision` is preserved)
-  and the raw `paid_events` list. Mixed currencies are not summed.
-
-On Android, the Events tab explicitly labels the native video events
-(`VideoStarted`, `VideoPlayed`, `VideoPaused`, `VideoEnded`, `VideoMuted`)
-as unavailable — the GMA Next-Gen SDK does not yet expose the equivalent
-of iOS's `GADVideoControllerDelegate`, and the SDK's own `AdEvent` KDoc
-records this as an upstream limitation. The empty section is labelled
-rather than left blank, so it reads as documented, not broken.
-
-### App-open ads
-
-A process-wide `AppOpenAdCoordinator` is started at the app root. It shows
-an ad on foreground after a minimum 4-second background and a 4-hour
-cooldown between shows. An `AppOpenSuppressor` lets flows opt out for
-their lifetime; the Store uses it for coin-unlock transactions and
-onboarding enters the suppressor for its whole screen, so an app-open ad
-cannot appear over a consent flow or a purchase.
+- **Placements** — live placement configs, native session slot states, and
+  global loaded/reserved capacity.
+- **Events** — rolling `ad_events` telemetry interleaved with `policy_decisions`
+  and explicit suppression reasons.
+- **Revenue** — per-placement aggregates (`AdValuePrecision` preserved) and raw
+  `paid_events`.
 
 ### Format coverage
 
 | Format | Where | What it proves |
 |---|---|---|
-| Banner | Feed, anchored adaptive | sizing, `SdkManaged` refresh |
-| Banner | Article, collapsible | `CollapsiblePlacement`, `AdServerManaged` |
-| Native | Feed, paged | bounded session, stable slot keys, viewport retention |
-| Native | Article, inline | layout DSL reuse in a different shape |
-| Interstitial | Article close | frequency capping, cache, suppression reasons |
-| Rewarded | Store | reward-callback correctness, persisted consequence |
-| RewardedInterstitial | Store premium entry | offer-wall pattern |
-| AppOpen | app-wide | `AppOpenAdCoordinator`, `isBlocked` during transactions |
+| Native | Today, Discover | Bounded session, stable slot keys, viewport retention across recycling/tabs |
+| Native | Article (inline) | Single-slot session, layout DSL reuse |
+| Banner | Article (bottom) | Anchored collapsible banner (`AdSizePolicy.LargeAnchoredAdaptive(CollapsiblePlacement.Bottom)`) |
+| Rewarded | Rewards | `onRewardEarned` correctness, idempotent grant key, wallet balance |
+| Rewarded interstitial | Rewards (daily pass) | Offer dialog, reward callback |
+| Interstitial | Article exit | Natural break timing, `AdPolicy` cooldown & frequency capping, suppression reasons |
+| App-open | App-wide | `AppOpenAdCoordinator`, `AppOpenEligibilityPolicy` suppression over sensitive flows |
 
 ### Run it
 
@@ -353,20 +316,12 @@ cannot appear over a consent flow or a purchase.
 open iosApp/iosApp.xcodeproj                # iOS — build and run in Xcode
 ```
 
-All placements use Google's test ad units with `strictTestMode` on. The app
-targets Android and iOS only; `desktopApp` and `webApp` keep rendering the
-unsupported-platform screen.
+All placements use Google's test ad units with `strictTestMode = true`.
 
-Compile check across all four consumer apps and the iOS arm64 target:
+Tests and verification:
 
 ```bash
-./gradlew :androidApp:assembleDebug :desktopApp:compileKotlin :webApp:compileKotlinJs :showcase:compileKotlinIosSimulatorArm64 --no-configuration-cache
-```
-
-Tests:
-
-```bash
-./gradlew :showcase:testAndroidHostTest :showcase:iosSimulatorArm64Test
+./gradlew :showcase:testAndroidHostTest :showcase:iosSimulatorArm64Test :showcase:compileKotlinIosSimulatorArm64 --no-configuration-cache
 ```
 
 ## License

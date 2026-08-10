@@ -9,20 +9,23 @@ package dev.avinya.admob.showcase.domain.feed
  */
 object FeedAdInserter {
 
-    /** One ad per six articles: frequent enough to demonstrate, sparse enough to be plausible. */
-    const val AD_INTERVAL: Int = 6
+    /** First ad after 4 articles (ordinal 3). */
+    const val FIRST_AD_AFTER: Int = 4
 
-    /** True when an ad slot belongs immediately after the article at [ordinal]. */
-    fun shouldInsertAfter(ordinal: Int): Boolean =
-        ordinal >= AD_INTERVAL - 1 && (ordinal + 1) % AD_INTERVAL == 0
+    /** Repeat every 8 articles (ordinals 3, 11, 19, 27...). */
+    const val REPEAT_INTERVAL: Int = 8
+
+    /** Today feed revision string for slot key stability. */
+    const val TODAY_FEED_REVISION: String = "seed-v1"
+
+    /** True when an ad slot belongs immediately after the article at [feedOrdinal]. */
+    fun shouldInsertAfter(feedOrdinal: Int): Boolean =
+        feedOrdinal >= FIRST_AD_AFTER - 1 && (feedOrdinal - (FIRST_AD_AFTER - 1)) % REPEAT_INTERVAL == 0
 
     /**
      * The `itemKey` for the slot following [articleId].
      *
      * Derived from the article's identity, **never** from its position.
-     * Positions shift on prepend and refresh; a changed `itemKey` makes
-     * `NativeAdView` release its pooled ad and acquire another, wasting
-     * inventory and making ads visibly flicker during scrolling.
      */
-    fun slotKeyAfter(articleId: String): String = "feed_native_after_$articleId"
+    fun slotKeyAfter(articleId: String): String = "today:$TODAY_FEED_REVISION:$articleId"
 }

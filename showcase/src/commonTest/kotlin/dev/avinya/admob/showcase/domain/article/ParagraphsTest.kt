@@ -17,16 +17,26 @@ class ParagraphsTest {
     }
 
     @Test
-    fun placesTheInlineAdAfterTheThirdParagraph() {
-        assertEquals(3, inlineAdSlotIndex(paragraphCount = 5))
-        assertEquals(3, inlineAdSlotIndex(paragraphCount = 4))
+    fun anchorWaitsForTwoParagraphsAndFourHundredFiftyCharacters() {
+        // Four short paragraphs (280 chars) never reach the 450-character floor.
+        val shortParagraphs = List(4) { "x".repeat(70) }
+        assertNull(inlineAdAnchorIndex(shortParagraphs))
+
+        // The fifth paragraph (index 4) crosses the character floor, and 4 >= 2.
+        val crossing = shortParagraphs + listOf("y".repeat(250))
+        assertEquals(4, inlineAdAnchorIndex(crossing))
     }
 
     @Test
-    fun omitsTheInlineAdWhenTheArticleIsTooShortToCarryIt() {
-        // An ad immediately before the last paragraph reads as an interruption
-        // rather than a break, so short articles get none.
-        assertNull(inlineAdSlotIndex(paragraphCount = 3))
-        assertNull(inlineAdSlotIndex(paragraphCount = 1))
+    fun anchorNeverSitsInsideTheOpening() {
+        // One enormous opening paragraph still cannot carry the ad before
+        // paragraph index 2.
+        val paragraphs = listOf("z".repeat(1_000), "a", "b", "c")
+        assertEquals(2, inlineAdAnchorIndex(paragraphs))
+    }
+
+    @Test
+    fun slotKeyIsAnchoredToArticleIdentity() {
+        assertEquals("article:article-9:inline-1", inlineAdSlotKey("article-9"))
     }
 }

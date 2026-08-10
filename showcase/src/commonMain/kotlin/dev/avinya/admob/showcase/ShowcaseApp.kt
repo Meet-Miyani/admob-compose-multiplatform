@@ -7,7 +7,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import dev.avinya.ads.LocalAdManager
@@ -16,8 +15,10 @@ import dev.avinya.admob.showcase.di.LocalAppOpenSuppressor
 import dev.avinya.admob.showcase.di.ProvideAdManager
 import dev.avinya.admob.showcase.di.rememberAppGraph
 import dev.avinya.admob.showcase.domain.ad.ShowcasePlacements
+import dev.avinya.admob.showcase.nav.OnboardingRoute
 import dev.avinya.admob.showcase.nav.ShowcaseNavHost
-import dev.avinya.admob.showcase.nav.ShowcaseNavKey
+import dev.avinya.admob.showcase.nav.ShowcaseTab
+import dev.avinya.admob.showcase.nav.rememberShowcaseNavigationState
 import dev.avinya.admob.showcase.ui.ad.AppOpenHost
 import dev.avinya.admob.showcase.ui.ad.AppOpenSuppressor
 import dev.avinya.admob.showcase.ui.inspector.LocalInspectorPlacements
@@ -53,27 +54,32 @@ fun ShowcaseApp() {
     ) {
         ProvideAdManager {
             val adManager = LocalAdManager.current
-            LaunchedEffect(graph, adManager) {
+            LaunchedEffect(graph, adManager, onboardingComplete) {
                 graph.startTelemetry(adManager)
-                graph.startup.attach(adManager)
+                // On a first run the onboarding flow starts the SDK itself,
+                // from an explicit button press. Auto-starting here would
+                // gather consent before the reader has been asked.
+                graph.startup.attach(
+                    adManager = adManager,
+                    autoStart = onboardingComplete == true,
+                )
             }
-            AppOpenHost(suppressor = suppressor) {
+            AppOpenHost(suppressor = suppressor, telemetry = graph.telemetry) {
                 ShowcaseTheme(themeMode = themeMode) {
                     // Hold the first screen until the preference resolves, otherwise
                     // a returning user briefly sees onboarding on every cold start.
                     when (onboardingComplete) {
                         null -> Box(Modifier.fillMaxSize())
                         else -> {
-                            val backStack = remember {
-                                mutableStateListOf<ShowcaseNavKey>(
-                                    if (onboardingComplete == true) {
-                                        ShowcaseNavKey.Feed
-                                    } else {
-                                        ShowcaseNavKey.Onboarding
-                                    },
-                                )
+                            val navigationState = rememberShowcaseNavigationState(
+                                initialTab = ShowcaseTab.Today,
+                            )
+                            LaunchedEffect(onboardingComplete) {
+                                if (onboardingComplete == false && navigationState.currentRoute != OnboardingRoute) {
+                                    navigationState.push(OnboardingRoute)
+                                }
                             }
-                            ShowcaseNavHost(backStack = backStack)
+                            ShowcaseNavHost(navigationState = navigationState)
                         }
                     }
                 }

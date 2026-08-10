@@ -10,20 +10,24 @@ import kotlin.test.assertTrue
 class FeedAdInsertionTest {
 
     @Test
-    fun insertsAfterEverySixthArticle() {
-        val positions = (0 until 18).filter { FeedAdInserter.shouldInsertAfter(it) }
-
-        assertEquals(listOf(5, 11, 17), positions)
+    fun insertsFirstAdAfterFourArticles_thenEveryEight() {
+        assertEquals(
+            listOf(3, 11, 19, 27),
+            (0 until 28).filter(FeedAdInserter::shouldInsertAfter),
+        )
     }
 
     @Test
-    fun doesNotInsertBeforeTheFirstSixArticles() {
-        (0..4).forEach { assertFalse(FeedAdInserter.shouldInsertAfter(it), "unexpected slot at $it") }
+    fun doesNotInsertBeforeTheFirstFourArticles() {
+        (0..2).forEach { assertFalse(FeedAdInserter.shouldInsertAfter(it), "unexpected slot at $it") }
     }
 
     @Test
-    fun slotKeysDeriveFromTheArticleTheyFollow() {
-        assertEquals("feed_native_after_article-005", FeedAdInserter.slotKeyAfter("article-005"))
+    fun slotKey_isRevisionedAndAnchoredToArticleIdentity() {
+        assertEquals(
+            "today:seed-v1:article-011",
+            FeedAdInserter.slotKeyAfter(articleId = "article-011"),
+        )
     }
 
     @Test
@@ -60,7 +64,7 @@ class FeedAdInsertionTest {
 
         val slot = model.sessionSlot(ShowcasePlacements.feedNative)
 
-        assertEquals("feed_native_after_article-011", slot.key)
+        assertEquals("today:seed-v1:article-011", slot.key)
         assertEquals(ShowcasePlacements.feedNative, slot.placement)
     }
 
@@ -68,12 +72,5 @@ class FeedAdInsertionTest {
     fun onlyTheFeedTestPlacementOptsIntoGoogleBatching() {
         assertEquals(NativeAdBatching.GoogleOnly, ShowcasePlacements.feedNative.nativeOptions.batching)
         assertEquals(NativeAdBatching.Sequential, ShowcasePlacements.articleNative.nativeOptions.batching)
-    }
-
-    @Test
-    fun theIntervalIsSixSoTheSeedYieldsTwentyOneSlots() {
-        // 126 seeded articles / 6 = 21 ad slots across the whole feed.
-        assertEquals(6, FeedAdInserter.AD_INTERVAL)
-        assertEquals(21, (0 until 126).count { FeedAdInserter.shouldInsertAfter(it) })
     }
 }
