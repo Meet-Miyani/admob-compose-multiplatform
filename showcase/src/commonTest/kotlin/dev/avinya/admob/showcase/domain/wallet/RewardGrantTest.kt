@@ -11,28 +11,28 @@ class RewardGrantTest {
     @Test
     fun theSameRewardYieldsTheSameKeySoAReplayCannotDoubleCredit() {
         assertEquals(
-            rewardGrantKey("store_rewarded", "session-1", 4),
-            rewardGrantKey("store_rewarded", "session-1", 4),
+            rewardGrantKey("lab_rewarded", "session-1", 4),
+            rewardGrantKey("lab_rewarded", "session-1", 4),
         )
     }
 
     @Test
     fun successiveRewardsInASessionGetDistinctKeys() {
         assertNotEquals(
-            rewardGrantKey("store_rewarded", "session-1", 4),
-            rewardGrantKey("store_rewarded", "session-1", 5),
+            rewardGrantKey("lab_rewarded", "session-1", 4),
+            rewardGrantKey("lab_rewarded", "session-1", 5),
         )
     }
 
     @Test
     fun differentSessionsAndPlacementsDoNotCollide() {
         assertNotEquals(
-            rewardGrantKey("store_rewarded", "session-1", 4),
-            rewardGrantKey("store_rewarded", "session-2", 4),
+            rewardGrantKey("lab_rewarded", "session-1", 4),
+            rewardGrantKey("lab_rewarded", "session-2", 4),
         )
         assertNotEquals(
-            rewardGrantKey("store_rewarded", "session-1", 4),
-            rewardGrantKey("store_rewarded_interstitial", "session-1", 4),
+            rewardGrantKey("lab_rewarded", "session-1", 4),
+            rewardGrantKey("lab_rewarded_interstitial", "session-1", 4),
         )
     }
 

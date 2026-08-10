@@ -37,9 +37,25 @@ class ShowcaseNavKeyTest {
     }
 
     @Test
-    fun onboardingHidesNavigationChrome() {
-        assertFalse(showsNavigationChrome(OnboardingRoute))
-        assertTrue(showsNavigationChrome(TodayRoute))
-        assertTrue(showsNavigationChrome(ArticleRoute("a1")))
+    fun onlyTabRootsKeepNavigationChrome() {
+        // A pushed detail takes the whole window and slides in over its parent,
+        // so "back" means one unambiguous thing on both platforms.
+        TOP_LEVEL_KEYS.forEach { root ->
+            assertTrue(showsNavigationChrome(root), "$root is a tab root")
+        }
+        listOf(
+            OnboardingRoute,
+            ArticleRoute("a1"),
+            RewardsRoute,
+            SdkLabRoute,
+            BannerLabRoute,
+            NativeLabRoute,
+            FullScreenLabRoute,
+            AppOpenLabRoute,
+            PrivacyLabRoute,
+            DiagnosticsLabRoute,
+        ).forEach { pushed ->
+            assertFalse(showsNavigationChrome(pushed), "$pushed is not a tab root")
+        }
     }
 }

@@ -5,14 +5,23 @@ import dev.avinya.ads.AdManager
 import dev.avinya.ads.AdManagerStatus
 import dev.avinya.admob.showcase.core.mvi.MviViewModel
 import dev.avinya.admob.showcase.core.time.Clock
+import dev.avinya.admob.showcase.data.db.entity.UnlockSource
 import dev.avinya.admob.showcase.data.prefs.SettingsRepository
 import dev.avinya.admob.showcase.data.repo.AdStateRepository
-import dev.avinya.admob.showcase.data.repo.AdTelemetryRepository
 import dev.avinya.admob.showcase.data.repo.ArticleRepository
+import dev.avinya.admob.showcase.data.repo.WalletRepository
 import dev.avinya.admob.showcase.domain.ad.AdDecision
 import dev.avinya.admob.showcase.domain.ad.AdPolicy
 import dev.avinya.admob.showcase.domain.ad.AdPolicySnapshot
 import dev.avinya.admob.showcase.domain.ad.ShowcasePlacements
+import dev.avinya.admob.showcase.domain.ad.SuppressionReason
+import dev.avinya.admob.showcase.domain.ad.advancesCooldown
+import dev.avinya.admob.showcase.domain.wallet.DebitResult
+import dev.avinya.admob.showcase.domain.wallet.rewardGrantKey
+import dev.avinya.admob.showcase.ui.ad.AppOpenSuppressor
+import dev.avinya.admob.showcase.ui.ad.RewardOutcome
+import dev.avinya.admob.showcase.ui.ad.runRewarded
+import dev.avinya.admob.showcase.ui.ad.suppressing
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -21,32 +30,45 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 /**
- * Loads a single article, observes its bookmark state, and persists the
- * reader's scroll fraction as they read.
+ * The reader's state, and the three ad decisions it owns.
  *
- * Task 1 keeps `Close` trivial — it just emits [ArticleEffect.NavigateBack].
- * Task 4 will consult the AdPolicy in `onIntent(ArticleIntent.Close)` and may
- * swap that for a `ShowInterstitial` / `AdSuppressed` effect.
+ * 1. **Inline native** — placed deterministically by the block model, never
+ *    above the headline.
+ * 2. **Collapsible bottom banner** — anchored, dismissible, gated on the ad
+ *    switch and SDK readiness.
+ * 3. **Interstitial on leave** — and only on leave. Opening an article is not
+ *    a break in the reader's attention; finishing one is. Every attempt goes
+ *    through [AdPolicy], which caps it to one per three articles, no sooner
+ *    than 60s apart, never in the first 30s after a cold start, and never
+ *    after a rewarded unlock — a reader who *just watched an ad* to open this
+ *    story does not get a second one on the way out.
  *
- * Task 2 adds the inline native ad. The ad's placement, the SDK status, and
- * the user's master switch are all observed here so the screen can collapse
- * the slot to the surrounding paragraph when ads are off, without the
- * reading position shifting.
+ * The cooldown advances only when an ad actually appeared
+ * ([advancesCooldown]); charging 60s of suppression for an ad that failed to
+ * show is a bug this sample shipped once already.
  */
 class ArticleViewModel(
     private val articles: ArticleRepository,
     private val settings: SettingsRepository,
     private val adState: AdStateRepository,
-    private val telemetry: AdTelemetryRepository,
+    private val wallet: WalletRepository,
     private val adManager: AdManager,
+    private val suppressor: AppOpenSuppressor,
     private val clock: Clock,
+    private val sessionId: String,
     private val articleId: String,
-    private val adPolicy: AdPolicy = AdPolicy(),
 ) : MviViewModel<ArticleState, ArticleIntent, ArticleEffect>(ArticleState()) {
+
+    private val policy = AdPolicy()
+
+    /** True once this reader unlocked the article by watching an ad. */
+    private var unlockedByRewardThisSession = false
+    private var rewardSequence = 0
 
     init {
         load()
         observeBookmark()
+        observeUnlock()
         observeAdGates()
     }
 
@@ -55,13 +77,9 @@ class ArticleViewModel(
             val entityDeferred = async { articles.article(articleId) }
             val progressDeferred = async { articles.progress(articleId) }
             val entity = entityDeferred.await()
-            val fraction = progressDeferred.await()
+            val progress = progressDeferred.await()
             updateState {
-                copy(
-                    article = entity,
-                    initialProgress = fraction,
-                    loading = false,
-                )
+                copy(article = entity, initialProgress = progress, loading = false)
             }
         }
     }
@@ -74,83 +92,154 @@ class ArticleViewModel(
         }
     }
 
+    private fun observeUnlock() {
+        viewModelScope.launch {
+            articles.isUnlocked(articleId).collect { unlocked ->
+                updateState { copy(unlocked = unlocked) }
+            }
+        }
+    }
+
     private fun observeAdGates() {
         combine(settings.adsMasterSwitch, adManager.status) { adsEnabled, status ->
             adsEnabled to status
-        }
-            .onEach { (adsEnabled, status) ->
-                updateState {
-                    copy(
-                        adsEnabled = adsEnabled,
-                        sdkReady = status == AdManagerStatus.Ready,
-                    )
-                }
+        }.onEach { (adsEnabled, status) ->
+            updateState {
+                copy(adsEnabled = adsEnabled, sdkReady = status == AdManagerStatus.Ready)
             }
-            .launchIn(viewModelScope)
+        }.launchIn(viewModelScope)
     }
 
     override fun onIntent(intent: ArticleIntent) {
         when (intent) {
             ArticleIntent.ToggleBookmark -> viewModelScope.launch {
-                // Read the current value from state so the optimistic write
-                // does not race with the bookmark flow's next emission.
+                // Read from state so the optimistic write cannot race the
+                // bookmark flow's next emission.
                 articles.setBookmarked(articleId, !state.value.bookmarked)
             }
-            ArticleIntent.Close -> viewModelScope.launch {
-                handleClose()
-            }
+
             is ArticleIntent.ProgressUpdated -> viewModelScope.launch {
                 articles.setProgress(articleId, intent.fraction)
             }
+
+            ArticleIntent.UnlockWithAd -> unlockWithAd()
+            ArticleIntent.UnlockWithCoins -> unlockWithCoins()
+            ArticleIntent.Close -> leave()
+        }
+    }
+
+    private fun unlockWithAd() {
+        val current = state.value
+        if (current.unlocking || !current.canShowAds) return
+        updateState { copy(unlocking = true) }
+
+        viewModelScope.launch {
+            val controller = adManager.rewarded(ShowcasePlacements.articleUnlockRewarded)
+            val grantKey = rewardGrantKey(
+                ShowcasePlacements.articleUnlockRewarded.id,
+                sessionId,
+                ++rewardSequence,
+            )
+
+            // An app-open ad on top of a rewarded presentation would be both a
+            // bad experience and a policy problem.
+            val outcome = suppressor.suppressing {
+                runRewarded(
+                    load = { controller.load() },
+                    show = { onReward -> controller.show(onRewardEarned = onReward) },
+                    wallet = wallet,
+                    grantKey = grantKey,
+                )
+            }
+
+            // The unlock is driven by the reward callback, never by `show()`
+            // returning: a reader who dismissed early gets no article.
+            if (outcome is RewardOutcome.Earned || outcome is RewardOutcome.AlreadyGranted) {
+                articles.unlock(articleId, UnlockSource.REWARDED)
+                unlockedByRewardThisSession = true
+            }
+
+            updateState { copy(unlocking = false) }
+            emitEffect(ArticleEffect.UnlockResult(outcome))
+        }
+    }
+
+    private fun unlockWithCoins() {
+        val article = state.value.article ?: return
+        if (state.value.unlocking) return
+        updateState { copy(unlocking = true) }
+
+        viewModelScope.launch {
+            suppressor.suppressing {
+                when (val result = wallet.debit(article.unlockCostCoins)) {
+                    is DebitResult.Debited -> {
+                        articles.unlock(articleId, UnlockSource.COINS)
+                        emitEffect(ArticleEffect.Notice("Unlocked with coins"))
+                    }
+
+                    is DebitResult.InsufficientFunds -> emitEffect(
+                        ArticleEffect.Notice(
+                            "You need ${result.required - result.balance} more coins — " +
+                                "watch an ad to unlock instead",
+                        ),
+                    )
+                }
+            }
+            updateState { copy(unlocking = false) }
         }
     }
 
     /**
-     * The single thing Task 4 is here to do: ask the policy whether an
-     * interstitial may show, dispatch the result, and **always** emit
-     * [ArticleEffect.NavigateBack] so a suppressed or not-ready ad never
-     * blocks the user from leaving the article.
-     *
-     * `articlesRead` increments *before* the decision, so the 3rd article
-     * close (and the 6th, 9th, …) sees `articlesRead = 3` and gets `Show`.
-     * The cooldown write lives in [onInterstitialShown] and is invoked from
-     * `AdEffectHandler` only on `AdShowResult.Shown` — recording the timestamp
-     * here would burn 60 seconds of cooldown for an ad that never rendered.
-     *
-     * The decision itself is also forwarded to [telemetry] so the Inspector's
-     * Events tab can answer "why did no ad appear" rather than just "what
-     * happened". `Show` is recorded the same way as `Suppress(<reason>)` —
-     * interleaving the two is the point.
+     * Leaving the article: count the read, ask the policy, present if allowed,
+     * and only then let navigation proceed.
      */
-    private suspend fun handleClose() {
-        adState.incrementArticlesRead()
-        val snapshot = AdPolicySnapshot(
-            articlesRead = adState.articlesRead.first(),
-            millisSinceLastInterstitial = adState.lastInterstitialAt.first()
-                ?.let { clock.nowMillis() - it } ?: Long.MAX_VALUE,
-            millisSinceColdStart = clock.nowMillis() - adState.coldStartAt,
-            canRequestAds = adManager.consent.canRequestAds.value,
-            // TODO(phase 5): wire to the rewarded-unlock flow
-            wasRewardedUnlock = false,
-            adsEnabled = state.value.adsEnabled,
-        )
-        val decision = adPolicy.decideInterstitial(snapshot)
-        telemetry.recordPolicyDecision(ShowcasePlacements.articleInterstitial.id, decision)
-        when (decision) {
-            AdDecision.Show -> emitEffect(ArticleEffect.ShowInterstitial)
-            is AdDecision.Suppress -> emitEffect(ArticleEffect.AdSuppressed(decision.reason))
-        }
-        emitEffect(ArticleEffect.NavigateBack)
-    }
+    private fun leave() {
+        if (state.value.leaving) return
+        updateState { copy(leaving = true) }
 
-    /**
-     * Records a successful interstitial presentation in [adState].
-     *
-     * Called from `AdEffectHandler`'s `AdShowResult.Shown` branch — not from
-     * the decision site — so a `NotReady` or `Failed` ad does not reset the
-     * cooldown.
-     */
-    fun onInterstitialShown() {
-        viewModelScope.launch { adState.recordInterstitialShown(clock.nowMillis()) }
+        viewModelScope.launch {
+            adState.incrementArticlesRead()
+
+            val decision = policy.decideInterstitial(
+                AdPolicySnapshot(
+                    articlesRead = adState.articlesRead.first(),
+                    millisSinceLastInterstitial = adState.lastInterstitialAt.first()
+                        ?.let { clock.nowMillis() - it }
+                        ?: Long.MAX_VALUE,
+                    millisSinceColdStart = clock.nowMillis() - adState.coldStartAt,
+                    canRequestAds = adManager.consent.canRequestAds.value,
+                    wasRewardedUnlock = unlockedByRewardThisSession,
+                    adsEnabled = state.value.adsEnabled && state.value.sdkReady,
+                ),
+            )
+
+            when (decision) {
+                is AdDecision.Suppress -> emitEffect(
+                    ArticleEffect.InterstitialSuppressed(decision.reason),
+                )
+
+                AdDecision.Show -> {
+                    val controller = adManager.interstitial(ShowcasePlacements.articleInterstitial)
+                    try {
+                        val result = suppressor.suppressing {
+                            controller.load()
+                            controller.show()
+                        }
+                        // Only a presentation that actually happened may advance
+                        // the cooldown.
+                        if (advancesCooldown(result)) {
+                            adState.recordInterstitialShown()
+                        }
+                    } catch (t: Throwable) {
+                        // A platform that throws instead of returning Failed would
+                        // otherwise crash this coroutine and leave ArticleEffect.Leave
+                        // unemitted — i.e. the user is stuck on the article.
+                        emitEffect(ArticleEffect.InterstitialSuppressed(SuppressionReason.NotReady))
+                    }
+                }
+            }
+
+            emitEffect(ArticleEffect.Leave)
+        }
     }
 }

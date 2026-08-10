@@ -54,11 +54,17 @@ fun ShowcaseApp() {
     ) {
         ProvideAdManager {
             val adManager = LocalAdManager.current
-            LaunchedEffect(graph, adManager) {
+            LaunchedEffect(graph, adManager, onboardingComplete) {
                 graph.startTelemetry(adManager)
-                graph.startup.attach(adManager)
+                // On a first run the onboarding flow starts the SDK itself,
+                // from an explicit button press. Auto-starting here would
+                // gather consent before the reader has been asked.
+                graph.startup.attach(
+                    adManager = adManager,
+                    autoStart = onboardingComplete == true,
+                )
             }
-            AppOpenHost(suppressor = suppressor) {
+            AppOpenHost(suppressor = suppressor, telemetry = graph.telemetry) {
                 ShowcaseTheme(themeMode = themeMode) {
                     // Hold the first screen until the preference resolves, otherwise
                     // a returning user briefly sees onboarding on every cold start.

@@ -41,9 +41,22 @@ class AdStartupController(
     private var boundManager: AdManager? = null
     private var startupJob: Job? = null
 
-    fun attach(adManager: AdManager) {
+    /**
+     * Binds the manager.
+     *
+     * [autoStart] is false during first-run onboarding: consent gathering is
+     * the thing the reader is about to be asked to authorise, so it must not
+     * begin before they press the button.
+     */
+    fun attach(adManager: AdManager, autoStart: Boolean = true) {
         boundManager = adManager
+        if (autoStart) ensureStarted()
+    }
+
+    /** Suspends until startup has settled, starting it if it has not begun. */
+    suspend fun awaitComplete(): StartupState {
         ensureStarted()
+        return state.first { it.phase == AdStartupPhase.Complete }.startup
     }
 
     fun ensureStarted() {

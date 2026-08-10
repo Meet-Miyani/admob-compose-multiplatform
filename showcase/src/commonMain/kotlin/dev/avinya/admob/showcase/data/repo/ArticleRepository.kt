@@ -46,6 +46,19 @@ class ArticleRepository(
         pagingSourceFactory = { articleDao.pagingSource() },
     ).flow.map { paging -> paging.map(ArticleEntity::toFeedArticle) }
 
+    /**
+     * Discover results for an optional [section] and a committed, normalized
+     * [query]. Both are applied inside the SQL so paging stays lazy and
+     * query changes re-run from the database instead of filtering in memory.
+     */
+    fun discoverPager(section: String?, query: String): Flow<PagingData<FeedItem.Article>> = Pager(
+        config = PagingConfig(pageSize = FEED_PAGE_SIZE, enablePlaceholders = false),
+        pagingSourceFactory = { articleDao.discoverPagingSource(section, query) },
+    ).flow.map { paging -> paging.map(ArticleEntity::toFeedArticle) }
+
+    /** Distinct editorial sections, alphabetically. */
+    fun sections(): Flow<List<String>> = articleDao.sections()
+
     suspend fun setProgress(articleId: String, fraction: Float) {
         articleDao.upsertProgress(
             ReadingProgressEntity(
@@ -116,11 +129,11 @@ private fun ArticleEntity.toFeedArticle(): FeedItem.Article = FeedItem.Article(
     title = title,
     author = author,
     section = section,
-    readTimeMin = readTimeMin,
+    readTimeMinutes = readTimeMin,
+    snippet = body.substringBefore("\n\n").take(140),
     isPremium = isPremium,
     feedOrdinal = feedOrdinal,
-    snippet = body.substringBefore("\n\n").take(140),
-    publishedAt = publishedAt,
+    isBookmarked = false,
 )
 
 data class PremiumArticle(

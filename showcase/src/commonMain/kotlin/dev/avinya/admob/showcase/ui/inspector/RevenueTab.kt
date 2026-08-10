@@ -1,6 +1,5 @@
 package dev.avinya.admob.showcase.ui.inspector
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,26 +11,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MonetizationOn
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.avinya.admob.showcase.data.db.entity.PaidEventEntity
 import dev.avinya.admob.showcase.domain.telemetry.PlacementRevenue
 import dev.avinya.admob.showcase.domain.telemetry.aggregateRevenue
+import dev.avinya.admob.showcase.ui.kit.Badge
+import dev.avinya.admob.showcase.ui.kit.EmptyState
+import dev.avinya.admob.showcase.ui.kit.Eyebrow
+import dev.avinya.admob.showcase.ui.kit.Plane
+import dev.avinya.admob.showcase.ui.kit.Rule
+import dev.avinya.admob.showcase.ui.theme.ShowcaseShapes
+import dev.avinya.admob.showcase.ui.theme.ShowcaseType
+import dev.avinya.admob.showcase.ui.theme.Tokens
+import dev.avinya.admob.showcase.ui.theme.showcaseColors
 
 /**
  * Revenue tab: per-placement aggregate (top earner first) and the raw paid
@@ -44,17 +44,11 @@ import dev.avinya.admob.showcase.domain.telemetry.aggregateRevenue
 @Composable
 fun RevenueTab(paidEvents: List<PaidEventEntity>, modifier: Modifier = Modifier) {
     if (paidEvents.isEmpty()) {
-        Column(
-            modifier = modifier.fillMaxWidth().padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                "No paid events yet. Impressions with revenue attached will appear here as they are recorded.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        EmptyState(
+            title = "No paid events yet",
+            message = "Impressions with revenue attached appear here as they are recorded.",
+            modifier = modifier.fillMaxWidth(),
+        )
         return
     }
     val rows = paidEvents.map { it.toPaidRow() }
@@ -64,8 +58,8 @@ fun RevenueTab(paidEvents: List<PaidEventEntity>, modifier: Modifier = Modifier)
 
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(Tokens.Spacing.s16),
+        verticalArrangement = Arrangement.spacedBy(Tokens.Spacing.s8),
     ) {
         item(key = "revenue_overview_card") {
             RevenueOverviewCard(
@@ -87,10 +81,7 @@ fun RevenueTab(paidEvents: List<PaidEventEntity>, modifier: Modifier = Modifier)
         }
 
         item(key = "section_divider") {
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                modifier = Modifier.padding(vertical = 4.dp),
-            )
+            Rule(modifier = Modifier.padding(vertical = Tokens.Spacing.s4))
         }
 
         item(key = "section_raw") {
@@ -107,12 +98,7 @@ private fun RevenueOverviewCard(
     totalImpressions: Int,
     totalPlacements: Int,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-    ) {
+    Plane(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -124,18 +110,22 @@ private fun RevenueOverviewCard(
                 Box(
                     modifier = Modifier
                         .size(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                        .clip(ShowcaseShapes.control)
+                        .background(showcaseColors.primarySoft),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.MonetizationOn,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = showcaseColors.primary,
                         modifier = Modifier.size(18.dp),
                     )
                 }
-                Text("Revenue & eCPM Overview", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = "Revenue and eCPM",
+                    style = ShowcaseType.titleSmall,
+                    color = showcaseColors.ink,
+                )
             }
 
             Row(
@@ -143,28 +133,22 @@ private fun RevenueOverviewCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Eyebrow(text = "Paid impressions", color = showcaseColors.inkFaint)
                     Text(
-                        "Total Paid Impressions",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = "$totalImpressions imp",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        text = "$totalImpressions",
+                        style = ShowcaseType.headlineSmall,
+                        color = showcaseColors.ink,
                     )
                 }
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
+                    Eyebrow(text = "Active placements", color = showcaseColors.inkFaint)
                     Text(
-                        "Active Placements",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = "$totalPlacements active",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        text = "$totalPlacements",
+                        style = ShowcaseType.headlineSmall,
+                        color = showcaseColors.ink,
                     )
                 }
             }
@@ -174,12 +158,7 @@ private fun RevenueOverviewCard(
 
 @Composable
 private fun AggregateRow(line: PlacementRevenue, precisionLabel: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-    ) {
+    Plane(modifier = Modifier.fillMaxWidth(), elevation = Tokens.Elevation.flat) {
         Column(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -191,20 +170,14 @@ private fun AggregateRow(line: PlacementRevenue, precisionLabel: String) {
             ) {
                 Text(
                     text = line.placementId,
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    style = ShowcaseType.titleSmall,
+                    color = showcaseColors.ink,
                 )
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
-                ) {
-                    Text(
-                        text = formatMicrosAsCurrency(line.totalMicros, line.currency),
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                    )
-                }
+                Badge(
+                    text = formatMicrosAsCurrency(line.totalMicros, line.currency),
+                    color = showcaseColors.primary,
+                    container = showcaseColors.primarySoft,
+                )
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -213,13 +186,13 @@ private fun AggregateRow(line: PlacementRevenue, precisionLabel: String) {
             ) {
                 Text(
                     text = "${line.impressions} impressions",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = ShowcaseType.bodySmall,
+                    color = showcaseColors.inkMuted,
                 )
                 Text(
                     text = "Precision: $precisionLabel",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = ShowcaseType.labelSmall,
+                    color = showcaseColors.inkFaint,
                 )
             }
         }
@@ -228,12 +201,7 @@ private fun AggregateRow(line: PlacementRevenue, precisionLabel: String) {
 
 @Composable
 private fun RawRow(event: PaidEventEntity) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-    ) {
+    Plane(modifier = Modifier.fillMaxWidth(), elevation = Tokens.Elevation.flat) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -245,20 +213,14 @@ private fun RawRow(event: PaidEventEntity) {
             ) {
                 Text(
                     text = event.placementId,
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    style = ShowcaseType.titleSmall,
+                    color = showcaseColors.ink,
                 )
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)),
-                ) {
-                    Text(
-                        text = formatMicrosAsCurrency(event.valueMicros, event.currency),
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                }
+                Badge(
+                    text = formatMicrosAsCurrency(event.valueMicros, event.currency),
+                    color = showcaseColors.success,
+                    container = showcaseColors.surfaceSunken,
+                )
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -267,13 +229,13 @@ private fun RawRow(event: PaidEventEntity) {
             ) {
                 Text(
                     text = event.precision,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = ShowcaseType.labelSmall,
+                    color = showcaseColors.inkMuted,
                 )
                 Text(
                     text = formatTimestamp(event.at),
-                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    style = ShowcaseType.numeric,
+                    color = showcaseColors.inkFaint,
                 )
             }
         }
@@ -295,11 +257,10 @@ private fun formatTimestamp(timestampMillis: Long): String {
 
 @Composable
 private fun SectionHeading(text: String) {
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+    Eyebrow(
+        text = text,
+        color = showcaseColors.inkFaint,
+        modifier = Modifier.padding(top = Tokens.Spacing.s8, bottom = 2.dp),
     )
 }
 

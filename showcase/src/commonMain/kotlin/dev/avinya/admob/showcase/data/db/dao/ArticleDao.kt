@@ -38,6 +38,29 @@ interface ArticleDao {
     @Query("SELECT * FROM articles ORDER BY feedOrdinal ASC")
     fun pagingSource(): PagingSource<Int, ArticleEntity>
 
+    /**
+     * Discover results ordered by feed ordinal.
+     *
+     * [section] filters on exact category when non-null; [query] is the
+     * committed, normalized search string matched across title, author,
+     * section, and body. The empty query returns every article — the caller
+     * only uses this as the category landing, never as a wildcard search.
+     */
+    @Query(
+        "SELECT * FROM articles " +
+            "WHERE (:section IS NULL OR section = :section) " +
+            "AND (:query = '' OR title LIKE '%' || :query || '%' " +
+            "OR author LIKE '%' || :query || '%' " +
+            "OR section LIKE '%' || :query || '%' " +
+            "OR body LIKE '%' || :query || '%') " +
+            "ORDER BY feedOrdinal ASC",
+    )
+    fun discoverPagingSource(section: String?, query: String): PagingSource<Int, ArticleEntity>
+
+    /** Distinct editorial sections, alphabetically. */
+    @Query("SELECT DISTINCT section FROM articles ORDER BY section ASC")
+    fun sections(): Flow<List<String>>
+
     @Upsert
     suspend fun upsertProgress(progress: ReadingProgressEntity)
 
