@@ -576,8 +576,8 @@ describe('index.mdx quickstart, product facts, and iOS note', () => {
     expect(source).not.toMatch(/5-minute/i);
   });
 
-  it('keeps the install line on the canonical Maven coordinate and version 1.1.1', () => {
-    expect(source).toMatch(/implementation\(["']dev\.avinya\.ads:admob-cmp:1\.1\.1["']\)/);
+  it('keeps the install line on the canonical Maven coordinate and version 2.0.0', () => {
+    expect(source).toMatch(/implementation\(["']dev\.avinya\.ads:admob-cmp:2\.0\.0["']\)/);
   });
 
   it('preserves the gatherConsentAndInitialize(AdConfig(...)) initialization shape', () => {

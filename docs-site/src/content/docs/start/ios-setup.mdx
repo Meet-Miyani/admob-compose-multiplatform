@@ -20,10 +20,10 @@ AdMob CMP distributes Objective-C cinterop bindings in its Kotlin Multiplatform 
 1. In Xcode, open your iOS project and select **File → Add Package Dependencies...**
 2. Enter the Google Mobile Ads SPM repository URL:
    `https://github.com/googleads/swift-package-manager-google-mobile-ads.git`
-   Select the **GoogleMobileAds** product and specify version rule **Up to Next Major** with **13.x** (AdMob CMP 1.1.1 binds GMA iOS 13.7.0).
+   Select the **GoogleMobileAds** product and specify version rule **Up to Next Major** with **13.x** (AdMob CMP 2.0.0 binds GMA iOS 13.7.0).
 3. Enter the User Messaging Platform SPM repository URL:
    `https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git`
-   Select the **GoogleUserMessagingPlatform** product and specify version rule **Up to Next Major** with **3.x** (AdMob CMP 1.1.1 binds UMP iOS 3.1.0).
+   Select the **GoogleUserMessagingPlatform** product and specify version rule **Up to Next Major** with **3.x** (AdMob CMP 2.0.0 binds UMP iOS 3.1.0).
 
 </Steps>
 
@@ -109,7 +109,7 @@ Executing Kotlin/Native test tasks (such as `./gradlew :shared:iosSimulatorArm64
 ```kotlin
 // shared/build.gradle.kts
 plugins {
-    id("dev.avinya.ads.admob-cmp") version "1.1.1"
+    id("dev.avinya.ads.admob-cmp") version "2.0.0"
 }
 ```
 
