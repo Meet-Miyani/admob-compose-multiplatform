@@ -117,7 +117,7 @@ describe('FAQPage structured data removal', () => {
  */
 describe('breadcrumb labels stay short while headlines keep the keywords', () => {
   const cases = [
-    { page: 'start/quickstart', crumb: 'Quickstart', headline: 'AdMob Quickstart for Compose Multiplatform' },
+    { page: 'start/quickstart', crumb: 'Quickstart', headline: 'Quickstart: Compose Multiplatform AdMob Integration' },
     { page: 'privacy/consent', crumb: 'UMP consent', headline: 'UMP consent for AdMob on Kotlin Multiplatform' },
     { page: 'reference/diagrams-in-words', crumb: 'Diagrams in words', headline: 'Architecture diagrams described in words' },
   ];
