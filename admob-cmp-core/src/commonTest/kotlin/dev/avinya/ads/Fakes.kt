@@ -53,6 +53,7 @@ internal open class FakeFullScreenSlot(
     // callbacks, no return. Without a watchdog this holds the process-wide presentation
     // token forever and blocks every other full-screen ad.
     private val stallBeforeHandOff: Boolean = false,
+    audioController: dev.avinya.ads.internal.FullScreenAudioController? = null,
 ) : FullScreenSlotCore<String>(
     placement,
     globalEvents,
@@ -60,6 +61,7 @@ internal open class FakeFullScreenSlot(
     clock,
     onPresentationChanged,
     arbiter,
+    audioController,
     beforeShowCommit
 ) {
     val presentedAds = mutableListOf<String>()

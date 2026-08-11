@@ -8,10 +8,18 @@ package dev.avinya.ads
  *   ignored on iOS.
  * @param serverSideVerification Server-side verification options for
  *   rewarded / rewarded-interstitial formats.
+ * @param audioMuted Optional per-presentation override for ad audio mute state.
+ *   When non-null, temporarily applies to the global SDK audio configuration for the duration
+ *   of the presentation and restores on dismissal.
+ * @param audioVolume Optional per-presentation override for ad audio volume (0.0f..1.0f).
+ *   When non-null, temporarily applies to the global SDK audio configuration for the duration
+ *   of the presentation and restores on dismissal.
  */
 public data class FullScreenAdOptions(
     val immersiveMode: Boolean = false,
-    val serverSideVerification: ServerSideVerificationOptions? = null
+    val serverSideVerification: ServerSideVerificationOptions? = null,
+    val audioMuted: Boolean? = null,
+    val audioVolume: Float? = null
 )
 
 /**
