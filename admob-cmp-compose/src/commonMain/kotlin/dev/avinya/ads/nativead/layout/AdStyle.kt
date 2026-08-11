@@ -1,6 +1,7 @@
 package dev.avinya.ads.nativead.layout
 
 import androidx.compose.runtime.Immutable
+import androidx.compose.ui.text.font.FontFamily
 
 /** Alignment types used in native ad layout containers. */
 public object AdAlignment {
@@ -13,8 +14,48 @@ public object AdAlignment {
 }
 
 /**
+ * Font family for text nodes in native ad layouts.
+ *
+ * System families are guaranteed available on every platform. [Named] resolves against
+ * the platform's font registry — a PostScript name on iOS, a family name on Android — and
+ * falls back to [Default] if the name is not found.
+ *
+ * [FromCompose] bridges a Compose [FontFamily] into the layout DSL.
+ */
+@Immutable
+public sealed interface AdFontFamily {
+    /** Platform default sans-serif font. */
+    public data object Default : AdFontFamily
+    /** Explicit sans-serif font family (e.g. Roboto on Android, SF Pro on iOS). */
+    public data object SansSerif : AdFontFamily
+    /** Serif font family (e.g. Noto Serif on Android, New York on iOS). */
+    public data object Serif : AdFontFamily
+    /** Monospace font family (e.g. Roboto Mono on Android, SF Mono on iOS). */
+    public data object Monospace : AdFontFamily
+
+    /**
+     * A named font family resolved against the platform font registry.
+     *
+     * On Android, maps to `Typeface.create(name, style)`.
+     * On iOS, maps to `UIFont(name:size:)` with PostScript name lookup.
+     * Falls back to [Default] if the name is not found.
+     */
+    public data class Named(val name: String) : AdFontFamily
+
+    /**
+     * Bridges a Compose [FontFamily] into the ad layout DSL.
+     *
+     * On the Compose preview renderer, used directly. On platform renderers
+     * (Android Views / iOS UIKit), falls back safely to default or resolved typeface.
+     */
+    public data class FromCompose(
+        val fontFamily: FontFamily
+    ) : AdFontFamily
+}
+
+/**
  * Style configuration for text nodes in native ad layouts. Includes font
- * size, colour, weight, and alignment.
+ * size, colour, weight, alignment, and font family.
  */
 @Immutable
 public data class AdTextStyle(
@@ -25,7 +66,9 @@ public data class AdTextStyle(
     /** Font weight. */
     val fontWeight: AdFontWeight = AdFontWeight.Normal,
     /** Text alignment. */
-    val textAlign: AdTextAlign = AdTextAlign.Start
+    val textAlign: AdTextAlign = AdTextAlign.Start,
+    /** Font family. */
+    val fontFamily: AdFontFamily = AdFontFamily.Default
 ) {
     public companion object {
         /** Title preset (16sp, bold). */

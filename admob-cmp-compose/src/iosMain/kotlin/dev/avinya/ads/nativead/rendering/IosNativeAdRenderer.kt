@@ -11,6 +11,7 @@ import dev.avinya.ads.nativead.layout.AdButtonStyle
 import dev.avinya.ads.nativead.layout.AdClip
 import dev.avinya.ads.nativead.layout.AdContainerNode
 import dev.avinya.ads.nativead.layout.AdContentScale
+import dev.avinya.ads.nativead.layout.AdFontFamily
 import dev.avinya.ads.nativead.layout.AdFontWeight
 import dev.avinya.ads.nativead.layout.AdImageStyle
 import dev.avinya.ads.nativead.layout.AdLayoutSize
@@ -29,6 +30,11 @@ import platform.CoreGraphics.CGSizeMake
 import platform.UIKit.UIButton
 import platform.UIKit.UIColor
 import platform.UIKit.UIFont
+import platform.UIKit.UIFontDescriptorSystemDesignMonospaced
+import platform.UIKit.UIFontDescriptorSystemDesignSerif
+import platform.UIKit.UIFontWeightBold
+import platform.UIKit.UIFontWeightMedium
+import platform.UIKit.UIFontWeightRegular
 import platform.UIKit.UIImageView
 import platform.UIKit.UILabel
 import platform.UIKit.UIStackView
@@ -280,9 +286,32 @@ internal class IosNativeAdRenderer(
     }
 
     private fun modifierOf(node: AdNode): AdModifier = node.modifier
-    private fun font(style: AdTextStyle): UIFont = when (style.fontWeight) {
-        AdFontWeight.Bold, AdFontWeight.Medium -> UIFont.boldSystemFontOfSize(style.fontSizeSp.toDouble())
-        else -> UIFont.systemFontOfSize(style.fontSizeSp.toDouble())
+    private fun font(style: AdTextStyle): UIFont {
+        val size = style.fontSizeSp.toDouble()
+        val weight = when (style.fontWeight) {
+            AdFontWeight.Bold -> UIFontWeightBold
+            AdFontWeight.Medium -> UIFontWeightMedium
+            AdFontWeight.Normal -> UIFontWeightRegular
+        }
+        return when (val family = style.fontFamily) {
+            AdFontFamily.Default, AdFontFamily.SansSerif -> {
+                UIFont.systemFontOfSize(size, weight)
+            }
+            AdFontFamily.Serif -> {
+                val descriptor = UIFont.systemFontOfSize(size, weight).fontDescriptor.fontDescriptorWithDesign(UIFontDescriptorSystemDesignSerif)
+                if (descriptor != null) UIFont.fontWithDescriptor(descriptor, size) else UIFont.systemFontOfSize(size, weight)
+            }
+            AdFontFamily.Monospace -> {
+                val descriptor = UIFont.systemFontOfSize(size, weight).fontDescriptor.fontDescriptorWithDesign(UIFontDescriptorSystemDesignMonospaced)
+                if (descriptor != null) UIFont.fontWithDescriptor(descriptor, size) else UIFont.monospacedSystemFontOfSize(size, weight)
+            }
+            is AdFontFamily.Named -> {
+                UIFont.fontWithName(family.name, size) ?: UIFont.systemFontOfSize(size, weight)
+            }
+            is AdFontFamily.FromCompose -> {
+                UIFont.systemFontOfSize(size, weight)
+            }
+        }
     }
 
     private fun color(argb: Long): UIColor {
