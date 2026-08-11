@@ -144,13 +144,23 @@ public data class AdRequestOptions(
     val neighboringContentUrls: Set<String> = emptySet(),
     /** Custom request agent string. */
     val requestAgent: String? = null,
-    /** **Android only.** Ad Manager category exclusions; ignored on iOS. */
+    /**
+     * Ad Manager category exclusions. Mapped on Android via `addCategoryExclusion()`
+     * and on iOS via `GAMRequest.categoryExclusions`.
+     *
+     * Requires an Ad Manager–enabled ad unit on iOS; standard AdMob units may ignore this field.
+     */
     val categoryExclusions: Set<String> = emptySet(),
     /** Custom targeting key-value pairs. Mapped on both platforms (multi-value lists are comma-joined on iOS). */
     val customTargeting: Map<String, List<String>> = emptyMap(),
     /** Google-certified extras for mediation SDKs. */
     val googleExtras: Map<String, String> = emptyMap(),
-    /** **Android only.** Publisher-provided id; ignored on iOS. */
+    /**
+     * Publisher-provided identifier for frequency capping, audience segmentation, and attribution.
+     * Mapped on Android via `setPublisherProvidedId()` and on iOS via `GAMRequest.publisherProvidedID`.
+     *
+     * Requires an Ad Manager–enabled ad unit on iOS; standard AdMob units may ignore this field.
+     */
     val publisherProvidedId: String? = null,
     /** Placement reporting id. Mapped on both platforms (`placementID` on iOS). */
     val placementId: Long? = null,

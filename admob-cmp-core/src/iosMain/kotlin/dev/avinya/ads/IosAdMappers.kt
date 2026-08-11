@@ -21,6 +21,7 @@ import GoogleMobileAds.GADMaxAdContentRatingTeen
 import GoogleMobileAds.GADMobileAds
 import GoogleMobileAds.GADRequest
 import GoogleMobileAds.GADRequestConfiguration
+import GoogleMobileAds.GAMRequest
 import GoogleMobileAds.GADPublisherPrivacyPersonalizationStateEnabled
 import GoogleMobileAds.GADPublisherPrivacyPersonalizationStateDisabled
 import GoogleMobileAds.GADResponseInfo
@@ -33,7 +34,8 @@ import platform.Foundation.NSError
 import kotlinx.cinterop.ExperimentalForeignApi
 
 internal fun AdRequestOptions.toGADRequest(): GADRequest {
-    val request = GADRequest()
+    val needsAdManager = publisherProvidedId != null || categoryExclusions.isNotEmpty()
+    val request = if (needsAdManager) GAMRequest() else GADRequest()
     if (keywords.isNotEmpty()) request.keywords = keywords.toList()
     request.contentURL = contentUrl
     if (neighboringContentUrls.isNotEmpty()) request.neighboringContentURLStrings = neighboringContentUrls.toList()
@@ -51,9 +53,13 @@ internal fun AdRequestOptions.toGADRequest(): GADRequest {
         extras.additionalParameters = googleExtras as Map<Any?, *>
         request.registerAdNetworkExtras(extras)
     }
-    // Not available on iOS GADRequest (Android / Ad Manager only): publisherProvidedId,
-    // categoryExclusions, skipUninitializedAdapters. Documented as Android-only on
-    // AdRequestOptions.
+    if (request is GAMRequest) {
+        publisherProvidedId?.let { request.publisherProvidedID = it }
+        if (categoryExclusions.isNotEmpty()) {
+            request.categoryExclusions = categoryExclusions.toList()
+        }
+    }
+    // skipUninitializedAdapters remains Android-only; iOS GMA initializes adapters globally at SDK start.
     return request
 }
 
