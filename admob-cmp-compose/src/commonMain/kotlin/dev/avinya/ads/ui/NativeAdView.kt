@@ -11,9 +11,34 @@ import dev.avinya.ads.nativead.layout.AdLayout
 import dev.avinya.ads.nativead.layout.AdTemplates
 
 /**
- * Renders one session-owned native-ad slot. The session, not composition, creates demand and
- * owns the platform ad. A platform implementation may acquire a renderer lease only when the
- * exact [slotKey]/[placement] pair is ready; empty and failed states never load from this view.
+ * A Composable that displays a native ad bound to a specific [NativeAdSession].
+ * 
+ * **How it works:**
+ * Unlike banners, native ads separate "loading" from "rendering". The [NativeAdSession]
+ * preloads the ads in the background. When an ad is ready for this specific [slotKey], 
+ * this view binds to it and renders the UI using your provided [layout].
+ * 
+ * While the ad is loading, it displays the [loading] placeholder. If it fails, it displays
+ * the [failure] composable.
+ *
+ * **Example:**
+ * ```kotlin
+ * NativeAdView(
+ *     session = AdMob.manager.nativeAds.feedSession(),
+ *     slotKey = "item_$index",
+ *     placement = AdPlacement.Native("my_ad_unit_id"),
+ *     layout = AdTemplates.mediaCard
+ * )
+ * ```
+ * 
+ * @param session The background session managing ad loads for this screen.
+ * @param slotKey A unique identifier for this specific ad slot (e.g., a list index or item ID).
+ * @param placement The native placement configuration.
+ * @param layout The visual design of the ad (e.g., [AdTemplates.mediaCard] or a custom DSL layout).
+ * @param modifier Modifier applied to the ad's container.
+ * @param loading A placeholder Composable shown while the ad is loading or unallocated.
+ * @param failure A fallback Composable shown if the ad fails to load.
+ * @param onEvent Optional callback to listen to lifecycle events.
  */
 @Composable
 public expect fun NativeAdView(

@@ -7,6 +7,7 @@ import android.view.Gravity
 import android.widget.ImageView
 import dev.avinya.ads.nativead.layout.AdAlignment
 import dev.avinya.ads.nativead.layout.AdContentScale
+import dev.avinya.ads.nativead.layout.AdFontFamily
 import dev.avinya.ads.nativead.layout.AdFontWeight
 import dev.avinya.ads.nativead.layout.AdInsets
 import dev.avinya.ads.nativead.layout.AdTextAlign
@@ -35,11 +36,23 @@ internal fun Long.toAndroidColor(): Int = Color.argb(
     (this and 0xFF).toInt()
 )
 
-internal fun AdFontWeight.toTypeface(): Typeface = when (this) {
-    AdFontWeight.Normal -> Typeface.DEFAULT
-    AdFontWeight.Medium -> Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-    AdFontWeight.Bold -> Typeface.DEFAULT_BOLD
+internal fun AdFontWeight.toStyle(): Int = when (this) {
+    AdFontWeight.Normal -> Typeface.NORMAL
+    AdFontWeight.Medium, AdFontWeight.Bold -> Typeface.BOLD
 }
+
+internal fun AdFontFamily.toTypeface(weight: AdFontWeight): Typeface {
+    val style = weight.toStyle()
+    return when (this) {
+        AdFontFamily.Default, AdFontFamily.SansSerif -> Typeface.create(Typeface.SANS_SERIF, style)
+        AdFontFamily.Serif -> Typeface.create(Typeface.SERIF, style)
+        AdFontFamily.Monospace -> Typeface.create(Typeface.MONOSPACE, style)
+        is AdFontFamily.Named -> Typeface.create(name, style) ?: Typeface.create(Typeface.DEFAULT, style)
+        is AdFontFamily.FromCompose -> Typeface.create(Typeface.DEFAULT, style)
+    }
+}
+
+internal fun AdFontWeight.toTypeface(): Typeface = AdFontFamily.Default.toTypeface(this)
 
 internal fun AdTextAlign.toAndroidGravity(): Int = when (this) {
     AdTextAlign.Start -> Gravity.START

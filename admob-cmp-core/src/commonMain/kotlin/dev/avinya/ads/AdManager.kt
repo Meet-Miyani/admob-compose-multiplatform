@@ -15,38 +15,39 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Entry point to the ads SDK. Provides controllers for every ad format,
- * consent lifecycle management, diagnostics, and a flow of [AdEvent]s.
- * Obtain the process-wide singleton via [rememberAdManager] (Compose) or
- * `AdMob.manager(context)` (Android, outside Compose).
+ * The primary entry point to the AdMob CMP SDK. 
  *
- * Factory functions ([banner], [interstitial], [rewarded], etc.) return
- * cached controllers per placement id. Reusing the same id with a different
- * [AdPlacement] configuration throws an [IllegalStateException].
+ * This singleton manager provides access to ad format controllers, UMP consent 
+ * lifecycle flows, diagnostics, and a unified stream of [AdEvent]s.
+ * 
+ * **How to get an instance:**
+ * - In Compose: Use [rememberAdManager] at the root of your app.
+ * - Outside Compose (Android): Use `AdMob.manager(context)`.
+ * - Outside Compose (iOS): Use `IosAdMob.manager`.
  *
- * Controllers are cached for the lifetime of the manager and are **not**
- * evicted automatically. Use a small, finite set of static placement ids — do
- * **not** generate per-item ids (e.g. `"feed_item_$index"`), which would
- * accumulate controllers without bound. For repeating UI (feeds, lists), reuse
- * one placement id across items; the native pool handles per-item ads.
+ * **Best Practices for Placements:**
+ * Factory functions (like [banner], [interstitial], etc.) return cached controllers 
+ * for each unique placement ID. Because these controllers are cached for the lifetime 
+ * of the app, you should use a small, fixed set of placement IDs (e.g., `"home_banner"`, 
+ * `"feed_native"`). 
+ * 
+ * > **Warning:** Never generate dynamic placement IDs for repeating UI items 
+ * > (e.g. `"feed_item_1"`, `"feed_item_2"`), as this will leak memory. Reuse the same 
+ * > placement ID instead; the SDK handles multiple instances automatically.
  */
 public interface AdManager {
     /** Current initialization and consent state of the SDK. */
     public val status: StateFlow<AdManagerStatus>
     /**
-     * Shared flow of ad lifecycle events ([AdEvent]) for all formats.
+     * A unified stream of lifecycle events ([AdEvent]) across all your ad formats.
+     * Perfect for driving UI changes or logging analytics.
      *
-     * **Best-effort delivery, not a durable log.** There is no replay and the buffer is
-     * finite, so an event emitted with no collector attached — or during a burst that
-     * outruns a slow collector — is dropped. Nothing is retried.
-     *
-     * Only the second kind of drop is logged (tag `AdMobCMP`). An event emitted while no
-     * collector is attached is discarded **silently**: with no replay there is nothing to
-     * buffer it into, so the emission reports success and the SDK cannot observe the loss.
-     * Start collecting before the first ad operation if you need the early events.
-     *
-     * Fine for driving UI. **Do not use as the system of record for billing, revenue, or
-     * impression accounting**; reconcile against AdMob reporting instead.
+     * **Important Note:** This is a "hot" stream designed for real-time reactions, 
+     * not a durable log. If no observers are actively collecting from this flow when an 
+     * event occurs, that event is silently dropped. 
+     * 
+     * > **Billing Warning:** Do not use these events as your primary system of record 
+     * > for revenue or impression accounting. Always rely on the AdMob dashboard for billing.
      */
     public val events: SharedFlow<AdEvent>
     /** Consent lifecycle controller (UMP integration). */
@@ -111,9 +112,14 @@ internal interface FullScreenPresenceAware {
 }
 
 /**
- * Controls the consent lifecycle via Google's User Messaging Platform (UMP).
- * Call [requestConsentInfoUpdate] on every app launch and [gatherConsent] to
- * show the consent form when required. Gate ad requests on [canRequestAds].
+ * Manages the User Messaging Platform (UMP) consent lifecycle.
+ *
+ * **Standard Flow:**
+ * 1. Call [requestConsentInfoUpdate] when your app launches.
+ * 2. Call [gatherConsent] to show the privacy form if the user hasn't consented yet.
+ * 3. Observe [canRequestAds] before loading any ads.
+ * 
+ * (Alternatively, use `AdManager.gatherConsentAndInitialize()` to handle this automatically.)
  */
 public interface ConsentController {
     /** Current UMP consent status ([ConsentStatus]). */

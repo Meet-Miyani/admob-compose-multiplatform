@@ -421,6 +421,58 @@ sealed interface dev.avinya.ads.nativead.layout/AdContainerNode : dev.avinya.ads
     }
 }
 
+sealed interface dev.avinya.ads.nativead.layout/AdFontFamily { // dev.avinya.ads.nativead.layout/AdFontFamily|null[0]
+    final class FromCompose : dev.avinya.ads.nativead.layout/AdFontFamily { // dev.avinya.ads.nativead.layout/AdFontFamily.FromCompose|null[0]
+        constructor <init>(androidx.compose.ui.text.font/FontFamily) // dev.avinya.ads.nativead.layout/AdFontFamily.FromCompose.<init>|<init>(androidx.compose.ui.text.font.FontFamily){}[0]
+
+        final val fontFamily // dev.avinya.ads.nativead.layout/AdFontFamily.FromCompose.fontFamily|{}fontFamily[0]
+            final fun <get-fontFamily>(): androidx.compose.ui.text.font/FontFamily // dev.avinya.ads.nativead.layout/AdFontFamily.FromCompose.fontFamily.<get-fontFamily>|<get-fontFamily>(){}[0]
+
+        final fun component1(): androidx.compose.ui.text.font/FontFamily // dev.avinya.ads.nativead.layout/AdFontFamily.FromCompose.component1|component1(){}[0]
+        final fun copy(androidx.compose.ui.text.font/FontFamily = ...): dev.avinya.ads.nativead.layout/AdFontFamily.FromCompose // dev.avinya.ads.nativead.layout/AdFontFamily.FromCompose.copy|copy(androidx.compose.ui.text.font.FontFamily){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.nativead.layout/AdFontFamily.FromCompose.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.nativead.layout/AdFontFamily.FromCompose.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.nativead.layout/AdFontFamily.FromCompose.toString|toString(){}[0]
+    }
+
+    final class Named : dev.avinya.ads.nativead.layout/AdFontFamily { // dev.avinya.ads.nativead.layout/AdFontFamily.Named|null[0]
+        constructor <init>(kotlin/String) // dev.avinya.ads.nativead.layout/AdFontFamily.Named.<init>|<init>(kotlin.String){}[0]
+
+        final val name // dev.avinya.ads.nativead.layout/AdFontFamily.Named.name|{}name[0]
+            final fun <get-name>(): kotlin/String // dev.avinya.ads.nativead.layout/AdFontFamily.Named.name.<get-name>|<get-name>(){}[0]
+
+        final fun component1(): kotlin/String // dev.avinya.ads.nativead.layout/AdFontFamily.Named.component1|component1(){}[0]
+        final fun copy(kotlin/String = ...): dev.avinya.ads.nativead.layout/AdFontFamily.Named // dev.avinya.ads.nativead.layout/AdFontFamily.Named.copy|copy(kotlin.String){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.nativead.layout/AdFontFamily.Named.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.nativead.layout/AdFontFamily.Named.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.nativead.layout/AdFontFamily.Named.toString|toString(){}[0]
+    }
+
+    final object Default : dev.avinya.ads.nativead.layout/AdFontFamily { // dev.avinya.ads.nativead.layout/AdFontFamily.Default|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.nativead.layout/AdFontFamily.Default.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.nativead.layout/AdFontFamily.Default.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.nativead.layout/AdFontFamily.Default.toString|toString(){}[0]
+    }
+
+    final object Monospace : dev.avinya.ads.nativead.layout/AdFontFamily { // dev.avinya.ads.nativead.layout/AdFontFamily.Monospace|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.nativead.layout/AdFontFamily.Monospace.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.nativead.layout/AdFontFamily.Monospace.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.nativead.layout/AdFontFamily.Monospace.toString|toString(){}[0]
+    }
+
+    final object SansSerif : dev.avinya.ads.nativead.layout/AdFontFamily { // dev.avinya.ads.nativead.layout/AdFontFamily.SansSerif|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.nativead.layout/AdFontFamily.SansSerif.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.nativead.layout/AdFontFamily.SansSerif.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.nativead.layout/AdFontFamily.SansSerif.toString|toString(){}[0]
+    }
+
+    final object Serif : dev.avinya.ads.nativead.layout/AdFontFamily { // dev.avinya.ads.nativead.layout/AdFontFamily.Serif|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.nativead.layout/AdFontFamily.Serif.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.nativead.layout/AdFontFamily.Serif.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.nativead.layout/AdFontFamily.Serif.toString|toString(){}[0]
+    }
+}
+
 sealed interface dev.avinya.ads.nativead.layout/AdLayoutSize { // dev.avinya.ads.nativead.layout/AdLayoutSize|null[0]
     final class Fixed : dev.avinya.ads.nativead.layout/AdLayoutSize { // dev.avinya.ads.nativead.layout/AdLayoutSize.Fixed|null[0]
         constructor <init>(kotlin/Float) // dev.avinya.ads.nativead.layout/AdLayoutSize.Fixed.<init>|<init>(kotlin.Float){}[0]
@@ -861,10 +913,12 @@ final class dev.avinya.ads.nativead.layout/AdStaticText : dev.avinya.ads.nativea
 }
 
 final class dev.avinya.ads.nativead.layout/AdTextStyle { // dev.avinya.ads.nativead.layout/AdTextStyle|null[0]
-    constructor <init>(kotlin/Float = ..., kotlin/Long = ..., dev.avinya.ads.nativead.layout/AdFontWeight = ..., dev.avinya.ads.nativead.layout/AdTextAlign = ...) // dev.avinya.ads.nativead.layout/AdTextStyle.<init>|<init>(kotlin.Float;kotlin.Long;dev.avinya.ads.nativead.layout.AdFontWeight;dev.avinya.ads.nativead.layout.AdTextAlign){}[0]
+    constructor <init>(kotlin/Float = ..., kotlin/Long = ..., dev.avinya.ads.nativead.layout/AdFontWeight = ..., dev.avinya.ads.nativead.layout/AdTextAlign = ..., dev.avinya.ads.nativead.layout/AdFontFamily = ...) // dev.avinya.ads.nativead.layout/AdTextStyle.<init>|<init>(kotlin.Float;kotlin.Long;dev.avinya.ads.nativead.layout.AdFontWeight;dev.avinya.ads.nativead.layout.AdTextAlign;dev.avinya.ads.nativead.layout.AdFontFamily){}[0]
 
     final val colorArgb // dev.avinya.ads.nativead.layout/AdTextStyle.colorArgb|{}colorArgb[0]
         final fun <get-colorArgb>(): kotlin/Long // dev.avinya.ads.nativead.layout/AdTextStyle.colorArgb.<get-colorArgb>|<get-colorArgb>(){}[0]
+    final val fontFamily // dev.avinya.ads.nativead.layout/AdTextStyle.fontFamily|{}fontFamily[0]
+        final fun <get-fontFamily>(): dev.avinya.ads.nativead.layout/AdFontFamily // dev.avinya.ads.nativead.layout/AdTextStyle.fontFamily.<get-fontFamily>|<get-fontFamily>(){}[0]
     final val fontSizeSp // dev.avinya.ads.nativead.layout/AdTextStyle.fontSizeSp|{}fontSizeSp[0]
         final fun <get-fontSizeSp>(): kotlin/Float // dev.avinya.ads.nativead.layout/AdTextStyle.fontSizeSp.<get-fontSizeSp>|<get-fontSizeSp>(){}[0]
     final val fontWeight // dev.avinya.ads.nativead.layout/AdTextStyle.fontWeight|{}fontWeight[0]
@@ -876,7 +930,8 @@ final class dev.avinya.ads.nativead.layout/AdTextStyle { // dev.avinya.ads.nativ
     final fun component2(): kotlin/Long // dev.avinya.ads.nativead.layout/AdTextStyle.component2|component2(){}[0]
     final fun component3(): dev.avinya.ads.nativead.layout/AdFontWeight // dev.avinya.ads.nativead.layout/AdTextStyle.component3|component3(){}[0]
     final fun component4(): dev.avinya.ads.nativead.layout/AdTextAlign // dev.avinya.ads.nativead.layout/AdTextStyle.component4|component4(){}[0]
-    final fun copy(kotlin/Float = ..., kotlin/Long = ..., dev.avinya.ads.nativead.layout/AdFontWeight = ..., dev.avinya.ads.nativead.layout/AdTextAlign = ...): dev.avinya.ads.nativead.layout/AdTextStyle // dev.avinya.ads.nativead.layout/AdTextStyle.copy|copy(kotlin.Float;kotlin.Long;dev.avinya.ads.nativead.layout.AdFontWeight;dev.avinya.ads.nativead.layout.AdTextAlign){}[0]
+    final fun component5(): dev.avinya.ads.nativead.layout/AdFontFamily // dev.avinya.ads.nativead.layout/AdTextStyle.component5|component5(){}[0]
+    final fun copy(kotlin/Float = ..., kotlin/Long = ..., dev.avinya.ads.nativead.layout/AdFontWeight = ..., dev.avinya.ads.nativead.layout/AdTextAlign = ..., dev.avinya.ads.nativead.layout/AdFontFamily = ...): dev.avinya.ads.nativead.layout/AdTextStyle // dev.avinya.ads.nativead.layout/AdTextStyle.copy|copy(kotlin.Float;kotlin.Long;dev.avinya.ads.nativead.layout.AdFontWeight;dev.avinya.ads.nativead.layout.AdTextAlign;dev.avinya.ads.nativead.layout.AdFontFamily){}[0]
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.nativead.layout/AdTextStyle.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.avinya.ads.nativead.layout/AdTextStyle.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.avinya.ads.nativead.layout/AdTextStyle.toString|toString(){}[0]
@@ -1012,6 +1067,12 @@ final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContai
 final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContainerNode_Column$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContainerNode_Column$stableprop|#static{}dev_avinya_ads_nativead_layout_AdContainerNode_Column$stableprop[0]
 final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContainerNode_Row$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContainerNode_Row$stableprop|#static{}dev_avinya_ads_nativead_layout_AdContainerNode_Row$stableprop[0]
 final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContainerStyle$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContainerStyle$stableprop|#static{}dev_avinya_ads_nativead_layout_AdContainerStyle$stableprop[0]
+final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Default$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Default$stableprop|#static{}dev_avinya_ads_nativead_layout_AdFontFamily_Default$stableprop[0]
+final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_FromCompose$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_FromCompose$stableprop|#static{}dev_avinya_ads_nativead_layout_AdFontFamily_FromCompose$stableprop[0]
+final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Monospace$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Monospace$stableprop|#static{}dev_avinya_ads_nativead_layout_AdFontFamily_Monospace$stableprop[0]
+final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Named$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Named$stableprop|#static{}dev_avinya_ads_nativead_layout_AdFontFamily_Named$stableprop[0]
+final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_SansSerif$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_SansSerif$stableprop|#static{}dev_avinya_ads_nativead_layout_AdFontFamily_SansSerif$stableprop[0]
+final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Serif$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Serif$stableprop|#static{}dev_avinya_ads_nativead_layout_AdFontFamily_Serif$stableprop[0]
 final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdImageStyle$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdImageStyle$stableprop|#static{}dev_avinya_ads_nativead_layout_AdImageStyle$stableprop[0]
 final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdInsets$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdInsets$stableprop|#static{}dev_avinya_ads_nativead_layout_AdInsets$stableprop[0]
 final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdLayout$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdLayout$stableprop|#static{}dev_avinya_ads_nativead_layout_AdLayout$stableprop[0]
@@ -1063,6 +1124,12 @@ final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContai
 final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContainerNode_Column$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContainerNode_Column$stableprop_getter|dev_avinya_ads_nativead_layout_AdContainerNode_Column$stableprop_getter(){}[0]
 final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContainerNode_Row$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContainerNode_Row$stableprop_getter|dev_avinya_ads_nativead_layout_AdContainerNode_Row$stableprop_getter(){}[0]
 final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContainerStyle$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdContainerStyle$stableprop_getter|dev_avinya_ads_nativead_layout_AdContainerStyle$stableprop_getter(){}[0]
+final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Default$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Default$stableprop_getter|dev_avinya_ads_nativead_layout_AdFontFamily_Default$stableprop_getter(){}[0]
+final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_FromCompose$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_FromCompose$stableprop_getter|dev_avinya_ads_nativead_layout_AdFontFamily_FromCompose$stableprop_getter(){}[0]
+final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Monospace$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Monospace$stableprop_getter|dev_avinya_ads_nativead_layout_AdFontFamily_Monospace$stableprop_getter(){}[0]
+final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Named$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Named$stableprop_getter|dev_avinya_ads_nativead_layout_AdFontFamily_Named$stableprop_getter(){}[0]
+final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_SansSerif$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_SansSerif$stableprop_getter|dev_avinya_ads_nativead_layout_AdFontFamily_SansSerif$stableprop_getter(){}[0]
+final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Serif$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdFontFamily_Serif$stableprop_getter|dev_avinya_ads_nativead_layout_AdFontFamily_Serif$stableprop_getter(){}[0]
 final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdImageStyle$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdImageStyle$stableprop_getter|dev_avinya_ads_nativead_layout_AdImageStyle$stableprop_getter(){}[0]
 final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdInsets$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdInsets$stableprop_getter|dev_avinya_ads_nativead_layout_AdInsets$stableprop_getter(){}[0]
 final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdLayout$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdLayout$stableprop_getter|dev_avinya_ads_nativead_layout_AdLayout$stableprop_getter(){}[0]

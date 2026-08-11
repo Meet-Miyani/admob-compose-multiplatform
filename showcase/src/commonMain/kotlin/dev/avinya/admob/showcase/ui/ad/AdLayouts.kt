@@ -11,6 +11,7 @@ import dev.avinya.admob.showcase.ui.theme.showcaseColors
 import dev.avinya.ads.nativead.layout.AdAlignment
 import dev.avinya.ads.nativead.layout.AdButtonStyle
 import dev.avinya.ads.nativead.layout.AdContentScale
+import dev.avinya.ads.nativead.layout.AdFontFamily
 import dev.avinya.ads.nativead.layout.AdFontWeight
 import dev.avinya.ads.nativead.layout.AdImageStyle
 import dev.avinya.ads.nativead.layout.AdLayout
@@ -176,15 +177,14 @@ internal fun feedRowAdLayout(palette: ShowcasePalette): AdLayout = adLayout {
                 )
             }
 
-            // Matches ShowcaseType.titleLarge — 21sp / medium. The one thing
-            // that cannot match is the family: AdTextStyle has no fontFamily,
-            // so the headline renders sans where an article row is serif.
+            // Matches ShowcaseType.titleLarge — 21sp / medium / serif.
             headline(
                 modifier = AdModifier.fillMaxWidth(),
                 style = AdTextStyle(
                     fontSizeSp = 21f,
                     colorArgb = palette.ink.argb(),
                     fontWeight = AdFontWeight.Medium,
+                    fontFamily = AdFontFamily.Serif,
                 ),
                 maxLines = 3,
             )

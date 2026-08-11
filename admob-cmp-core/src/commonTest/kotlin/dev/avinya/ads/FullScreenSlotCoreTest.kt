@@ -756,4 +756,71 @@ class FullScreenSlotCoreTest {
             Dispatchers.resetMain()
         }
     }
+
+    @Test
+    fun `show with audio options applies overrides and restores on success`() = runTest(StandardTestDispatcher()) {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            var appliedMuted: Boolean? = null
+            var appliedVolume: Float? = null
+            var restored = false
+            val audioController = object : dev.avinya.ads.internal.FullScreenAudioController {
+                override fun applyOverrides(options: FullScreenAdOptions): dev.avinya.ads.internal.AudioRestoreHandle? {
+                    appliedMuted = options.audioMuted
+                    appliedVolume = options.audioVolume
+                    return dev.avinya.ads.internal.AudioRestoreHandle { restored = true }
+                }
+            }
+            val slot = FakeFullScreenSlot(
+                testPlacement,
+                testGlobalEvents(),
+                unblockedAdRequestError(),
+                tickClock(),
+                audioController = audioController
+            )
+            slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+            slot.load()
+
+            val options = FullScreenAdOptions(audioMuted = true, audioVolume = 0.5f)
+            val result = slot.show(options)
+
+            assertIs<AdShowResult.Shown>(result)
+            assertEquals(true, appliedMuted)
+            assertEquals(0.5f, appliedVolume)
+            assertTrue(restored)
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test
+    fun `show with audio options restores on presentation failure`() = runTest(StandardTestDispatcher()) {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            var restored = false
+            val audioController = object : dev.avinya.ads.internal.FullScreenAudioController {
+                override fun applyOverrides(options: FullScreenAdOptions): dev.avinya.ads.internal.AudioRestoreHandle? {
+                    return dev.avinya.ads.internal.AudioRestoreHandle { restored = true }
+                }
+            }
+            val slot = FakeFullScreenSlot(
+                testPlacement,
+                testGlobalEvents(),
+                unblockedAdRequestError(),
+                tickClock(),
+                audioController = audioController,
+                presentHandler = { _, _, _ -> AdShowResult.Failed(AdError.message("show failed")) }
+            )
+            slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+            slot.load()
+
+            val options = FullScreenAdOptions(audioMuted = true)
+            val result = slot.show(options)
+
+            assertIs<AdShowResult.Failed>(result)
+            assertTrue(restored)
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
 }

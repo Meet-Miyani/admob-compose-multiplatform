@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -163,7 +164,8 @@ private fun PreviewText(
             color = Color(style.colorArgb),
             fontSize = style.fontSizeSp.sp,
             fontWeight = style.fontWeight.toComposeFontWeight(),
-            textAlign = style.textAlign.toComposeTextAlign()
+            textAlign = style.textAlign.toComposeTextAlign(),
+            fontFamily = style.fontFamily.toComposeFontFamily()
         )
     )
 }
@@ -334,4 +336,13 @@ private fun AdTextAlign.toComposeTextAlign(): TextAlign = when (this) {
     AdTextAlign.Start -> TextAlign.Start
     AdTextAlign.Center -> TextAlign.Center
     AdTextAlign.End -> TextAlign.End
+}
+
+private fun AdFontFamily.toComposeFontFamily(): FontFamily = when (this) {
+    AdFontFamily.Default -> FontFamily.Default
+    AdFontFamily.SansSerif -> FontFamily.SansSerif
+    AdFontFamily.Serif -> FontFamily.Serif
+    AdFontFamily.Monospace -> FontFamily.Monospace
+    is AdFontFamily.Named -> FontFamily.Default
+    is AdFontFamily.FromCompose -> fontFamily
 }

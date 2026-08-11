@@ -24,36 +24,39 @@ public data class AdUnitIds(
 }
 
 /**
- * Defines a single ad placement — the complete configuration needed to
- * request and render ads of a given [format]. Every controller factory on
- * [AdManager] takes an [AdPlacement] and caches the resulting controller
- * by [id].
+ * A blueprint for an ad slot in your app. 
+ * 
+ * Think of an [AdPlacement] as a 1:1 mapping to an Ad Unit in your AdMob dashboard. 
+ * It holds the unique ID, the format (Banner, Native, Interstitial, etc.), and all 
+ * the configuration (retry policies, timeouts, and cache sizes) needed to load the ad.
  *
- * @param id Unique identifier for this placement. Used for controller
- *   caching and event attribution.
- * @param format The ad format this placement targets.
- * @param adUnitIds Per-platform ad-unit IDs.
- * @param requestOptions Per-request targeting and extras.
- * @param cachePolicy Cache sizing, TTL, and reload behavior.
- * @param retryPolicy Retry strategy for failed loads.
- * @param timeoutPolicy Bounds on how long a load or presentation hand-off may take
- *   before it is treated as failed.
- * @param bannerSizePolicy Banner size (only relevant for [AdFormat.Banner]).
- * @param bannerRefreshPolicy Banner auto-refresh policy (only relevant for
- *   [AdFormat.Banner]).
- * @param nativeOptions Native ad rendering options (only relevant for
- *   [AdFormat.Native]).
- * @param fullScreenOptions Full-screen ad display options (only relevant for
- *   full-screen formats).
- * @param enabled When false, the placement is skipped by composables and
- *   lookups via [List<AdPlacement>.placement].
- * @param strictTestMode When true, the placement throws at construction if any ad unit id
- *   is not a Google test ad unit. Opt-in and default false; intended for debug builds only.
- *   **Not build-type aware** — this throws wherever it is enabled, release builds included.
- *   Gate it on your own debug flag (e.g. `strictTestMode = BuildConfig.DEBUG`) rather than
- *   leaving it on in shared configuration.
- * @throws IllegalArgumentException if [id] is blank, [cachePolicy.maxSize] < 1, or
- *   [strictTestMode] is enabled and any ad unit id is not a test unit.
+ * You pass this configuration to [AdManager] (or directly to a Compose view like [BannerAdView]) 
+ * to start loading ads.
+ *
+ * **Example:**
+ * ```kotlin
+ * val HomeBanner = AdPlacement(
+ *     id = "home_banner",
+ *     format = AdFormat.Banner,
+ *     androidAdUnitId = "ca-app-pub-3940256099942544/6300978111",
+ *     iosAdUnitId = "ca-app-pub-3940256099942544/2934735716"
+ * )
+ * ```
+ *
+ * @param id A unique identifier used to cache this placement's controller. (e.g., "home_banner")
+ * @param format The ad format (Banner, Native, Interstitial, Rewarded, etc.).
+ * @param adUnitIds Your AdMob ad unit IDs for iOS and Android.
+ * @param requestOptions Optional custom targeting, keywords, or content URLs.
+ * @param cachePolicy Controls how many ads to pre-load and how long they live in memory.
+ * @param retryPolicy Controls how the SDK handles network failures when loading ads.
+ * @param timeoutPolicy Enforces maximum wait times for loading and showing ads.
+ * @param bannerSizePolicy Sizing strategy for banners (adaptive, fixed, fluid).
+ * @param bannerRefreshPolicy Controls whether the banner auto-refreshes.
+ * @param nativeOptions Layout and behavioral options for native ads.
+ * @param fullScreenOptions Display options for full-screen ads.
+ * @param enabled When false, the SDK completely ignores this placement. Useful for A/B testing or feature flags.
+ * @param strictTestMode A safety net for debugging. When `true`, the SDK throws a hard exception if you accidentally pass a production Ad Unit ID instead of a Google Test ID. Only enable this in debug builds.
+ * @throws IllegalArgumentException if [id] is blank, max cache size < 1, or if [strictTestMode] catches a live ad unit ID.
  */
 public data class AdPlacement(
     val id: String,
@@ -144,13 +147,23 @@ public data class AdRequestOptions(
     val neighboringContentUrls: Set<String> = emptySet(),
     /** Custom request agent string. */
     val requestAgent: String? = null,
-    /** **Android only.** Ad Manager category exclusions; ignored on iOS. */
+    /**
+     * Ad Manager category exclusions. Mapped on Android via `addCategoryExclusion()`
+     * and on iOS via `GAMRequest.categoryExclusions`.
+     *
+     * Requires an Ad Manager–enabled ad unit on iOS; standard AdMob units may ignore this field.
+     */
     val categoryExclusions: Set<String> = emptySet(),
     /** Custom targeting key-value pairs. Mapped on both platforms (multi-value lists are comma-joined on iOS). */
     val customTargeting: Map<String, List<String>> = emptyMap(),
     /** Google-certified extras for mediation SDKs. */
     val googleExtras: Map<String, String> = emptyMap(),
-    /** **Android only.** Publisher-provided id; ignored on iOS. */
+    /**
+     * Publisher-provided identifier for frequency capping, audience segmentation, and attribution.
+     * Mapped on Android via `setPublisherProvidedId()` and on iOS via `GAMRequest.publisherProvidedID`.
+     *
+     * Requires an Ad Manager–enabled ad unit on iOS; standard AdMob units may ignore this field.
+     */
     val publisherProvidedId: String? = null,
     /** Placement reporting id. Mapped on both platforms (`placementID` on iOS). */
     val placementId: Long? = null,

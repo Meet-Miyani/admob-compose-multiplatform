@@ -3,10 +3,13 @@ package dev.avinya.ads
 import android.app.Activity
 import android.os.Handler
 import android.os.Looper
+import dev.avinya.ads.internal.AudioRestoreHandle
+import dev.avinya.ads.internal.FullScreenAudioController
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
 import dev.avinya.ads.internal.FullScreenPresentationHandle
 import dev.avinya.ads.internal.FullScreenSlotCore
 import dev.avinya.ads.internal.RewardDelivery
+import com.google.android.libraries.ads.mobile.sdk.MobileAds
 import com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd
 import com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAdEventCallback
 import com.google.android.libraries.ads.mobile.sdk.common.Ad
@@ -30,6 +33,18 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
+internal object AndroidFullScreenAudioController : FullScreenAudioController {
+    override fun applyOverrides(options: FullScreenAdOptions): AudioRestoreHandle? {
+        if (options.audioMuted == null && options.audioVolume == null) return null
+        options.audioMuted?.let { MobileAds.setUserMutedApp(it) }
+        options.audioVolume?.let { MobileAds.setUserControlledAppVolume(it.coerceIn(0f, 1f)) }
+        return AudioRestoreHandle {
+            options.audioMuted?.let { MobileAds.setUserMutedApp(false) }
+            options.audioVolume?.let { MobileAds.setUserControlledAppVolume(1.0f) }
+        }
+    }
+}
+
 internal class AndroidInterstitialSlot(
     placement: AdPlacement,
     private val activityProvider: () -> Activity?,
@@ -42,7 +57,8 @@ internal class AndroidInterstitialSlot(
     globalEvents,
     adRequestBlockedError,
     onPresentationChanged = onPresentationChanged,
-    arbiter = arbiter
+    arbiter = arbiter,
+    audioController = AndroidFullScreenAudioController
 ), InterstitialAdController {
 
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<InterstitialAd> =
@@ -121,7 +137,8 @@ internal class AndroidRewardedSlot(
     globalEvents,
     adRequestBlockedError,
     onPresentationChanged = onPresentationChanged,
-    arbiter = arbiter
+    arbiter = arbiter,
+    audioController = AndroidFullScreenAudioController
 ), RewardedAdController {
 
     override suspend fun show(
@@ -180,7 +197,8 @@ internal class AndroidRewardedInterstitialSlot(
     globalEvents,
     adRequestBlockedError,
     onPresentationChanged = onPresentationChanged,
-    arbiter = arbiter
+    arbiter = arbiter,
+    audioController = AndroidFullScreenAudioController
 ), RewardedInterstitialAdController {
 
     override suspend fun show(
@@ -240,7 +258,8 @@ internal class AndroidAppOpenSlot(
     globalEvents,
     adRequestBlockedError,
     onPresentationChanged = onPresentationChanged,
-    arbiter = arbiter
+    arbiter = arbiter,
+    audioController = AndroidFullScreenAudioController
 ), AppOpenAdController {
 
     override fun ttl(): Duration = placement.cachePolicy.expirationPolicy.appOpenTtl

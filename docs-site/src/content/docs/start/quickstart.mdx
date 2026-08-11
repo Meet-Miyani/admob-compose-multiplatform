@@ -1,6 +1,6 @@
 ---
-title: "AdMob Quickstart for Compose Multiplatform"
-description: "End-to-end setup guide for AdMob CMP — render official test ads in Compose Multiplatform and transition cleanly to production initialisation."
+title: "Quickstart: Compose Multiplatform AdMob Integration"
+description: "Learn how to render your first Google AdMob test ad in Compose Multiplatform, and how to transition cleanly to a production release."
 sidebar:
   label: "Quickstart"
 ---
@@ -8,11 +8,11 @@ sidebar:
 import { Aside, Steps } from '@astrojs/starlight/components';
 import InitSequence from '../../../components/diagrams/InitSequence.astro';
 
-This guide walks through rendering a test ad unit on Android and iOS using Compose Multiplatform, followed by the complete configuration required for a production launch.
+This quickstart guide will show you how to render your first test ad unit on Android and iOS using Compose Multiplatform. We'll also cover the steps required to transition from a test environment to a full production launch.
 
-## Step 1: Add the facade dependency
+## 1. Add the dependency
 
-Add the umbrella library coordinate to your shared module's build script:
+First, add the core AdMob CMP library to your shared Kotlin module.
 
 ```kotlin
 // shared/build.gradle.kts
@@ -25,9 +25,9 @@ kotlin {
 }
 ```
 
-The Android dependencies for GMA Next-Gen and UMP arrive transitively via Maven. On iOS, native frameworks must be linked in Xcode via Swift Package Manager; see [iOS setup](/start/ios-setup/) for details.
+This brings in the Google Mobile Ads (GMA) Next-Gen and User Messaging Platform (UMP) SDKs automatically for Android via Maven. For iOS, you'll need to link the native frameworks in Xcode via Swift Package Manager; see our [iOS setup guide](/start/ios-setup/) for details.
 
-If your project executes Kotlin/Native unit tests (`:shared:iosSimulatorArm64Test`), also apply the Gradle plugin to prevent linker errors:
+If your project runs Kotlin/Native unit tests (`:shared:iosSimulatorArm64Test`), apply our Gradle plugin to prevent linker errors:
 
 ```kotlin
 // shared/build.gradle.kts
@@ -36,13 +36,13 @@ plugins {
 }
 ```
 
-For full version catalog instructions, see [Installation](/start/installation/).
+For full setup instructions (including version catalogs), check out the [Installation guide](/start/installation/).
 
-## Step 2: Configure test application identity
+## 2. Configure test app IDs
 
-Google Mobile Ads requires a valid Application Identifier declared in platform manifest files before initialisation. For test purposes, use Google's official test Application IDs:
+Google Mobile Ads requires a valid Application Identifier declared in your native platform files before initialisation. While developing, **always use Google's official test IDs** to avoid account suspension.
 
-On Android, add the metadata entry to `androidApp/src/main/AndroidManifest.xml`:
+On **Android**, add this metadata entry to your `androidApp/src/main/AndroidManifest.xml`:
 
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -54,16 +54,18 @@ On Android, add the metadata entry to `androidApp/src/main/AndroidManifest.xml`:
 </manifest>
 ```
 
-On iOS, add the application identifier to `iosApp/iosApp/Info.plist`:
+On **iOS**, add the application identifier to your `iosApp/iosApp/Info.plist`:
 
 ```xml
 <key>GADApplicationIdentifier</key>
 <string>ca-app-pub-3940256099942544~1458002511</string>
 ```
 
-## Step 3: Create AdManager and show a test banner
+## 3. Show your first test banner
 
-In your top-level `@Composable` entry point, obtain the process-wide `AdManager` singleton using `rememberAdManager()` and trigger test initialisation inside a `LaunchedEffect`:
+Now let's render an ad! In your top-level `@Composable` entry point, you'll grab the process-wide `AdManager` singleton using `rememberAdManager()`. 
+
+Use a `LaunchedEffect` to initialize it with test configuration, and then display a `BannerAdView`.
 
 ```kotlin
 import androidx.compose.runtime.CompositionLocalProvider
@@ -99,7 +101,7 @@ fun MainAdScreen() {
             format = AdFormat.Banner,
             androidAdUnitId = TestAdIds.ANDROID_BANNER,
             iosAdUnitId = TestAdIds.IOS_BANNER,
-            strictTestMode = true,
+            strictTestMode = true, // Protects you from serving live ads in debug
         )
     }
 
@@ -117,32 +119,32 @@ fun MainAdScreen() {
 }
 ```
 
-Setting `strictTestMode = true` ensures that the placement throws an exception if configured with a non-test ad unit ID in debug builds.
+> **Tip**: Setting `strictTestMode = true` on the placement acts as a safety net. It will throw an exception if you accidentally deploy a non-test ad unit ID in a debug build!
 
-## Step 4: Verify the test ad renders
+## 4. Verify the ad renders
 
-Run the application on an Android emulator or iOS simulator:
-1. Verify that `adManager.status` transitions from `AdManagerStatus.Initializing` to `AdManagerStatus.Ready`.
-2. Confirm that the `BannerAdView` displays Google's "Nice job! This is an ad title" test banner overlay.
-3. Inspect console logs for `Test banner loaded successfully`.
+Run your application on an Android emulator or iOS simulator. 
+1. The `adManager.status` should transition from `Initializing` to `Ready`.
+2. A banner saying **"Nice job! This is an ad title"** will appear on the screen.
+3. Check your console logs for the `Test banner loaded successfully` message.
 
 ---
 
-## Moving to production
+## Going to Production
 
-Transitioning from a local test setup to a production distribution involves configuring legal consent flows, platform tracking, and control-plane requirements.
+Transitioning from local tests to a live app requires setting up legal consent flows (like GDPR) and Apple's App Tracking Transparency (ATT).
 
-### What is the correct initialisation order?
+### The Initialization Sequence
 
-Production ad requests in GDPR regions or on iOS require explicit handling of user consent and App Tracking Transparency (ATT). The canonical sequence mirrors the library's demo startup flow:
+Production ad requests in GDPR regions or on iOS require explicit user consent. The SDK manages this flow in a strict sequence:
 
 <InitSequence />
 
-1. **User Messaging Platform (UMP)**: Gathers European Economic Area (EEA) and UK privacy consent.
+1. **User Messaging Platform (UMP)**: Asks for European Economic Area (EEA) and UK privacy consent.
 2. **App Tracking Transparency (ATT)**: On iOS, requests authorization to access the Identifier for Advertisers (IDFA).
-3. **Google Mobile Ads Initialisation**: Initialises ad serving according to user consent choices.
+3. **GMA Initialization**: Initialises the Google Mobile Ads SDK based on the user's choices.
 
-To enforce this order, register an `AdInitializationHook` targeting the `BeforeMobileAdsInitialize` phase. This hook executes conditionally on iOS prior to native SDK initialisation:
+To handle this cleanly, you can register an `AdInitializationHook` that runs right before native SDK initialization to prompt for ATT on iOS:
 
 ```kotlin
 @Composable
@@ -162,7 +164,7 @@ fun ProductionApp() {
                         config: AdConfig,
                     ) {
                         if (phase == AdInitializationPhase.BeforeMobileAdsInitialize) {
-                            // Prompt for ATT on iOS prior to native GMA initialisation
+                            // Prompt for ATT on iOS
                             adManager.tracking.requestAuthorization()
                         }
                     }
@@ -172,7 +174,7 @@ fun ProductionApp() {
     }
 
     LaunchedEffect(adManager, config) {
-        // Gather UMP consent (shows form if required) and initialise
+        // Automatically gathers UMP consent (showing a form if required) and then initialises
         adManager.initialize(
             config = config,
             consentMode = ConsentMode.GatherBeforeInitialize,
@@ -191,36 +193,36 @@ fun ProductionApp() {
 }
 ```
 
-On Android, `adManager.tracking.requestAuthorization()` resolves immediately as `AdTrackingAuthorization.NotApplicable`.
+*(Note: On Android, `requestAuthorization()` resolves immediately as `NotApplicable`, so it's safe to run on both platforms).*
 
-### Production checklist
+### Production Launch Checklist
 
-Replacing test IDs with production strings is only one part of preparing for release. Complete the following control-plane steps before distributing your application:
+Before shipping to the App Store and Google Play, make sure you've completed these steps:
 
 <Steps>
 
 1. **Register Applications in AdMob Console**
-   Create separate Android and iOS app entries in your Google AdMob account to obtain production Application IDs.
+   Create separate Android and iOS app entries in your Google AdMob account to get your production Application IDs.
 
 2. **Create Production Ad Units**
-   Generate placement-specific Ad Unit IDs for Banner, Interstitial, Rewarded, or Native formats in the AdMob console.
+   Generate placement-specific Ad Unit IDs for your ad formats (Banner, Interstitial, Rewarded, Native) in the AdMob console.
 
-3. **Configure AdMob Privacy & Messaging**
-   Set up GDPR/TCF consent forms and US state privacy messages in the AdMob console so UMP can present valid consent dialogs.
+3. **Configure Privacy & Messaging**
+   Set up GDPR/TCF consent forms and US state privacy messages in the AdMob console. UMP needs this to present valid consent dialogs.
 
-4. **Update Application Metadata & Code Configurations**
-   Replace sample Application IDs in `AndroidManifest.xml` and `Info.plist`, and update `AdPlacement` identifiers in shared Kotlin code.
+4. **Update Metadata & Code**
+   Replace the sample Application IDs in your `AndroidManifest.xml` and `Info.plist`, and inject your live `AdPlacement` identifiers into your Kotlin code.
 
 5. **Configure iOS App Tracking Transparency**
-   Add `NSUserTrackingUsageDescription` to `Info.plist` and confirm the `requestAuthorization()` hook executes before native initialisation.
+   Add `NSUserTrackingUsageDescription` to your `Info.plist`. Double-check that your `requestAuthorization()` hook executes before native initialisation.
 
 6. **Complete Store Privacy Disclosures**
-   Fill out Google Play Data Safety and Apple App Store Privacy Nutrition Labels reflecting SDK data practices. See [Play Data safety](/privacy/play-data-safety/).
+   Fill out Google Play Data Safety and Apple App Store Privacy Nutrition Labels detailing how the SDK uses data. (Read our [Play Data safety guide](/privacy/play-data-safety/)).
 
 7. **Register Test Devices**
-   Add developer test device IDs via `GlobalRequestConfiguration.testDeviceIds` or `AdDebugOptions.testDeviceIds` to test live ad units safely without risking account suspension for invalid impressions.
+   To safely test live ad units during development without risking an account ban, add your physical device IDs via `GlobalRequestConfiguration.testDeviceIds` or `AdDebugOptions.testDeviceIds`.
 
 8. **Validate Release Builds**
-   Perform final validation using signed release builds on physical devices across both platforms.
+   Test your signed release builds on physical iOS and Android devices before submitting!
 
 </Steps>

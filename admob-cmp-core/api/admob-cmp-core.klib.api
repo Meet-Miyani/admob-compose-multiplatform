@@ -1563,8 +1563,12 @@ final class dev.avinya.ads/BannerGeometry { // dev.avinya.ads/BannerGeometry|nul
 }
 
 final class dev.avinya.ads/FullScreenAdOptions { // dev.avinya.ads/FullScreenAdOptions|null[0]
-    constructor <init>(kotlin/Boolean = ..., dev.avinya.ads/ServerSideVerificationOptions? = ...) // dev.avinya.ads/FullScreenAdOptions.<init>|<init>(kotlin.Boolean;dev.avinya.ads.ServerSideVerificationOptions?){}[0]
+    constructor <init>(kotlin/Boolean = ..., dev.avinya.ads/ServerSideVerificationOptions? = ..., kotlin/Boolean? = ..., kotlin/Float? = ...) // dev.avinya.ads/FullScreenAdOptions.<init>|<init>(kotlin.Boolean;dev.avinya.ads.ServerSideVerificationOptions?;kotlin.Boolean?;kotlin.Float?){}[0]
 
+    final val audioMuted // dev.avinya.ads/FullScreenAdOptions.audioMuted|{}audioMuted[0]
+        final fun <get-audioMuted>(): kotlin/Boolean? // dev.avinya.ads/FullScreenAdOptions.audioMuted.<get-audioMuted>|<get-audioMuted>(){}[0]
+    final val audioVolume // dev.avinya.ads/FullScreenAdOptions.audioVolume|{}audioVolume[0]
+        final fun <get-audioVolume>(): kotlin/Float? // dev.avinya.ads/FullScreenAdOptions.audioVolume.<get-audioVolume>|<get-audioVolume>(){}[0]
     final val immersiveMode // dev.avinya.ads/FullScreenAdOptions.immersiveMode|{}immersiveMode[0]
         final fun <get-immersiveMode>(): kotlin/Boolean // dev.avinya.ads/FullScreenAdOptions.immersiveMode.<get-immersiveMode>|<get-immersiveMode>(){}[0]
     final val serverSideVerification // dev.avinya.ads/FullScreenAdOptions.serverSideVerification|{}serverSideVerification[0]
@@ -1572,7 +1576,9 @@ final class dev.avinya.ads/FullScreenAdOptions { // dev.avinya.ads/FullScreenAdO
 
     final fun component1(): kotlin/Boolean // dev.avinya.ads/FullScreenAdOptions.component1|component1(){}[0]
     final fun component2(): dev.avinya.ads/ServerSideVerificationOptions? // dev.avinya.ads/FullScreenAdOptions.component2|component2(){}[0]
-    final fun copy(kotlin/Boolean = ..., dev.avinya.ads/ServerSideVerificationOptions? = ...): dev.avinya.ads/FullScreenAdOptions // dev.avinya.ads/FullScreenAdOptions.copy|copy(kotlin.Boolean;dev.avinya.ads.ServerSideVerificationOptions?){}[0]
+    final fun component3(): kotlin/Boolean? // dev.avinya.ads/FullScreenAdOptions.component3|component3(){}[0]
+    final fun component4(): kotlin/Float? // dev.avinya.ads/FullScreenAdOptions.component4|component4(){}[0]
+    final fun copy(kotlin/Boolean = ..., dev.avinya.ads/ServerSideVerificationOptions? = ..., kotlin/Boolean? = ..., kotlin/Float? = ...): dev.avinya.ads/FullScreenAdOptions // dev.avinya.ads/FullScreenAdOptions.copy|copy(kotlin.Boolean;dev.avinya.ads.ServerSideVerificationOptions?;kotlin.Boolean?;kotlin.Float?){}[0]
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/FullScreenAdOptions.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.avinya.ads/FullScreenAdOptions.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.avinya.ads/FullScreenAdOptions.toString|toString(){}[0]

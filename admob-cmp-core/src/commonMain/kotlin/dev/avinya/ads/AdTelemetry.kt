@@ -102,12 +102,10 @@ public sealed interface AdEvent {
     /**
      * An ad impression was recorded.
      *
-     * @property adInstanceId For native-ad events, the coordinator-created identity of
-     *   the specific leased ad this impression belongs to, or `null` if it cannot be resolved
-     *   (the ad was already released, or this event came from a format with only one ad per
-     *   controller, where attribution is unambiguous without an id). A `NativeAdView` bound
-     *   to a different token must ignore an event whose `adInstanceId` doesn't match its own
-     *   — see P1-8: without this, every row on a shared placement received every ad's events.
+     * @property adInstanceId For native ads, this identifies the specific ad instance 
+     *   that triggered the event. This allows views in a scrolling list to ignore events 
+     *   belonging to other items in the same placement. For single-ad formats (like banners), 
+     *   this is typically `null`.
      */
     public data class Impression(
         override val placementId: String,
@@ -143,26 +141,61 @@ public sealed interface AdEvent {
     ) : AdEvent
 
     /**
-     * Native ad video lifecycle events. Currently emitted on iOS only — the Android
-     * Next-Gen GMA SDK does not yet expose video lifecycle callbacks; Android support
-     * will be added when that API ships.
+     * Emitted when native ad video playback starts for the first time.
+     *
+     * **Platform Availability:**
+     * - **iOS:** Emitted via `GADVideoControllerDelegate.videoControllerDidPlayVideo`.
+     * - **Android:** Not yet emitted — the GMA Next-Gen SDK does not expose video lifecycle
+     *   callbacks. Support will be added when that API ships upstream.
      */
     public data class VideoStarted(
         override val placementId: String,
         val adInstanceId: String? = null,
     ) : AdEvent
+
+    /**
+     * Emitted when native ad video playback resumes after being paused.
+     *
+     * **Platform Availability:**
+     * - **iOS:** Emitted via `GADVideoControllerDelegate.videoControllerDidPlayVideo`.
+     * - **Android:** Upstream limitation (GMA Next-Gen SDK omits video callbacks).
+     */
     public data class VideoPlayed(
         override val placementId: String,
         val adInstanceId: String? = null,
     ) : AdEvent
+
+    /**
+     * Emitted when native ad video playback pauses.
+     *
+     * **Platform Availability:**
+     * - **iOS:** Emitted via `GADVideoControllerDelegate.videoControllerDidPauseVideo`.
+     * - **Android:** Upstream limitation (GMA Next-Gen SDK omits video callbacks).
+     */
     public data class VideoPaused(
         override val placementId: String,
         val adInstanceId: String? = null,
     ) : AdEvent
+
+    /**
+     * Emitted when native ad video playback completes.
+     *
+     * **Platform Availability:**
+     * - **iOS:** Emitted via `GADVideoControllerDelegate.videoControllerDidEndVideoPlayback`.
+     * - **Android:** Upstream limitation (GMA Next-Gen SDK omits video callbacks).
+     */
     public data class VideoEnded(
         override val placementId: String,
         val adInstanceId: String? = null,
     ) : AdEvent
+
+    /**
+     * Emitted when native ad video is muted or unmuted.
+     *
+     * **Platform Availability:**
+     * - **iOS:** Emitted via `GADVideoControllerDelegate.videoControllerDidMuteVideo` / `DidUnmuteVideo`.
+     * - **Android:** Upstream limitation (GMA Next-Gen SDK omits video callbacks).
+     */
     public data class VideoMuted(
         override val placementId: String,
         val muted: Boolean,

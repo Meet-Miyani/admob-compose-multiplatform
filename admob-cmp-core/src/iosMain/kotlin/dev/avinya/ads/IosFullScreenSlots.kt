@@ -6,9 +6,12 @@ import GoogleMobileAds.GADAppOpenAd
 import GoogleMobileAds.GADFullScreenContentDelegateProtocol
 import GoogleMobileAds.GADFullScreenPresentingAdProtocol
 import GoogleMobileAds.GADInterstitialAd
+import GoogleMobileAds.GADMobileAds
 import GoogleMobileAds.GADRewardedAd
 import GoogleMobileAds.GADRewardedInterstitialAd
 import GoogleMobileAds.GADResponseInfo
+import dev.avinya.ads.internal.AudioRestoreHandle
+import dev.avinya.ads.internal.FullScreenAudioController
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
 import dev.avinya.ads.internal.FullScreenPresentationHandle
 import dev.avinya.ads.internal.FullScreenSlotCore
@@ -25,6 +28,20 @@ import platform.Foundation.NSError
 import platform.Foundation.NSRecursiveLock
 import platform.darwin.NSObject
 
+internal object IosFullScreenAudioController : FullScreenAudioController {
+    override fun applyOverrides(options: FullScreenAdOptions): AudioRestoreHandle? {
+        if (options.audioMuted == null && options.audioVolume == null) return null
+        val previousMuted = GADMobileAds.sharedInstance.applicationMuted
+        val previousVolume = GADMobileAds.sharedInstance.applicationVolume
+        options.audioMuted?.let { GADMobileAds.sharedInstance.applicationMuted = it }
+        options.audioVolume?.let { GADMobileAds.sharedInstance.applicationVolume = it.coerceIn(0f, 1f) }
+        return AudioRestoreHandle {
+            GADMobileAds.sharedInstance.applicationMuted = previousMuted
+            GADMobileAds.sharedInstance.applicationVolume = previousVolume
+        }
+    }
+}
+
 internal class IosInterstitialSlot(
     placement: AdPlacement,
     globalEvents: MutableSharedFlow<AdEvent>,
@@ -36,7 +53,8 @@ internal class IosInterstitialSlot(
     globalEvents,
     adRequestBlockedError,
     onPresentationChanged = onPresentationChanged,
-    arbiter = arbiter
+    arbiter = arbiter,
+    audioController = IosFullScreenAudioController
 ), InterstitialAdController {
     private val delegates = FullScreenDelegateStore<GADInterstitialAd>()
 
@@ -132,7 +150,8 @@ internal class IosRewardedSlot(
     globalEvents,
     adRequestBlockedError,
     onPresentationChanged = onPresentationChanged,
-    arbiter = arbiter
+    arbiter = arbiter,
+    audioController = IosFullScreenAudioController
 ), RewardedAdController {
     private val delegates = FullScreenDelegateStore<GADRewardedAd>()
 
@@ -246,7 +265,8 @@ internal class IosRewardedInterstitialSlot(
     globalEvents,
     adRequestBlockedError,
     onPresentationChanged = onPresentationChanged,
-    arbiter = arbiter
+    arbiter = arbiter,
+    audioController = IosFullScreenAudioController
 ), RewardedInterstitialAdController {
     private val delegates = FullScreenDelegateStore<GADRewardedInterstitialAd>()
 
@@ -360,7 +380,8 @@ internal class IosAppOpenSlot(
     globalEvents,
     adRequestBlockedError,
     onPresentationChanged = onPresentationChanged,
-    arbiter = arbiter
+    arbiter = arbiter,
+    audioController = IosFullScreenAudioController
 ), AppOpenAdController {
     private val delegates = FullScreenDelegateStore<GADAppOpenAd>()
 

@@ -202,7 +202,7 @@ internal class AndroidNativeAdLayoutRenderer(
                 disableDirectInteractionForNativeAdAsset()
                 setTextColor(node.style.textStyle.colorArgb.toAndroidColor())
                 textSize = node.style.textStyle.fontSizeSp
-                typeface = node.style.textStyle.fontWeight.toTypeface()
+                typeface = node.style.textStyle.fontFamily.toTypeface(node.style.textStyle.fontWeight)
                 setPadding(dp(node.style.horizontalPaddingDp), paddingTop, dp(node.style.horizontalPaddingDp), paddingBottom)
                 background = roundedDrawable(density, node.style.backgroundArgb, node.style.cornerRadiusDp)
                 applyViewStyle(this, node.modifier)
@@ -312,7 +312,7 @@ internal class AndroidNativeAdLayoutRenderer(
     private fun TextView.applyTextStyle(style: AdTextStyle, maxLines: Int?) {
         setTextColor(style.colorArgb.toAndroidColor())
         textSize = style.fontSizeSp
-        typeface = style.fontWeight.toTypeface()
+        typeface = style.fontFamily.toTypeface(style.fontWeight)
         gravity = style.textAlign.toAndroidGravity()
         maxLines?.let { this.maxLines = it }
         includeFontPadding = false

@@ -47,7 +47,13 @@ public fun AdPlacements.placement(id: String): AdPlacement? = items.placement(id
 
 /**
  * Returns the process-wide singleton [AdManager] for use in Compose.
- * On Android, resolves the instance from the application context.
+ * 
+ * **Best Practice:**
+ * Call this once at the root of your app and pass it down via [LocalAdManager] 
+ * (using `CompositionLocalProvider`). This ensures all your nested screens and 
+ * ad views share the same initialized SDK instance.
+ *
+ * On Android, this safely resolves the instance from the application context.
  */
 @Composable
 public expect fun rememberAdManager(): AdManager

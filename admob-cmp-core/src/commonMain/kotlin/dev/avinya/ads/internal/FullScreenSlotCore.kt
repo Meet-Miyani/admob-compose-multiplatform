@@ -108,6 +108,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     internal val clock: () -> Instant = { Clock.System.now() },
     private val onPresentationChanged: (Int) -> Unit,
     private val arbiter: FullScreenPresentationArbiter,
+    private val audioController: FullScreenAudioController? = null,
     // Test-only interleaving seam; no-op in production. Runs immediately before show()'s
     // selection transaction, which is the last point at which a coroutine can suspend before
     // the cache removal and arbiter acquisition commit together. There is no suspension point
@@ -330,6 +331,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
 
         val loaded = checkNotNull(preparation.selectedAd)
         val handle = checkNotNull(preparation.presentation)
+        val audioRestore = audioController?.applyOverrides(options)
         return try {
             val timedOutBeforeHandOff = AtomicBoolean(false)
             val result = coroutineScope {
@@ -400,6 +402,8 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             val error = AdError.message(t.message ?: "Full-screen ad presentation failed.")
             emit(AdEvent.ShowFailed(placement.id, error))
             AdShowResult.Failed(error)
+        } finally {
+            audioRestore?.restore()
         }
     }
 
