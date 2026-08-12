@@ -39,17 +39,15 @@ the current Gradle plugin unnecessary:
 What shipping it would mean for a consumer, concretely: no
 `dev.avinya.ads.admob-cmp` plugin, no manually-added Swift
 packages in Xcode, and one added one-time `integrateLinkagePackage`
-step. It would raise the Kotlin floor for every consumer and
-would therefore ship as **2.0.0**, with the 1.x line continuing
-to receive fixes for as long as the ecosystem lags.
+step. Version 2.0.0 has already shipped without this migration.
+Because adopting SwiftPM import would raise the Kotlin floor and
+change consumer setup, it will be considered only for a future
+breaking release after every gate below passes. No version or
+date is promised.
 
-The 1.x line is not abandoned when 2.0.0 ships; it
-is maintained in parallel until the migration is provably
-complete for every consumer. The cost of a parallel line is
-small relative to the cost of a forced migration, and the
-library has stated this as policy in the
-[contributing guide](/project/contributing/) so the maintenance
-window is committed, not implied.
+The current Gradle plugin remains the supported integration path.
+Any future migration proposal must include a written compatibility
+and support policy before a release is selected.
 
 ## Prerequisite migration gates
 

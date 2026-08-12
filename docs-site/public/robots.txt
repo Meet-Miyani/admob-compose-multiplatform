@@ -1,24 +1,27 @@
 # https://ads.avinya.dev/robots.txt
 #
 # AdMob CMP documentation. Everything here is public documentation for an
-# Apache-2.0 Kotlin library, and a large share of SDK integration now happens
-# through a coding assistant. AI crawlers are therefore explicitly welcome —
-# see /llms.txt and /llms-full.txt for machine-readable bundles.
+# Apache-2.0 Kotlin library. Search engines and answer engines may retrieve and
+# cite it, while training-only crawlers may not use it for model training.
 #
 # This file is authored, not managed. If Cloudflare's managed robots.txt ever
 # prepends AI-training Disallow directives or a restrictive Content-Signal
 # header to this response, that toggle has been switched on at the zone level
-# and must be switched back off. See docs/superpowers/plans/2026-07-31-documentation-site-foundation.md, Task 5.
+# and must be switched back off. See Cloudflare's managed robots.txt documentation.
 
-# Content Signals Policy — deliberately permissive on every axis.
-Content-Signal: search=yes, ai-input=yes, ai-train=yes
-
+# Content Signals Policy: discoverable and citable, not training material.
 User-agent: *
+Content-Signal: search=yes, ai-input=yes, ai-train=no, use=reference
 Allow: /
 
-# Named AI and answer-engine crawlers, allowed explicitly so that an audit of
-# this file shows intent rather than an omission.
-User-agent: GPTBot
+# Search and answer-engine crawlers.
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Applebot
 Allow: /
 
 User-agent: OAI-SearchBot
@@ -27,16 +30,10 @@ Allow: /
 User-agent: ChatGPT-User
 Allow: /
 
-User-agent: ClaudeBot
-Allow: /
-
 User-agent: Claude-User
 Allow: /
 
 User-agent: Claude-SearchBot
-Allow: /
-
-User-agent: anthropic-ai
 Allow: /
 
 User-agent: PerplexityBot
@@ -45,40 +42,26 @@ Allow: /
 User-agent: Perplexity-User
 Allow: /
 
-User-agent: Google-Extended
-Allow: /
+# Training-oriented crawlers.
+User-agent: GPTBot
+Disallow: /
 
-User-agent: Applebot
-Allow: /
+User-agent: ClaudeBot
+Disallow: /
 
-User-agent: Applebot-Extended
-Allow: /
-
-User-agent: Amazonbot
-Allow: /
-
-User-agent: meta-externalagent
-Allow: /
+User-agent: anthropic-ai
+Disallow: /
 
 User-agent: CCBot
-Allow: /
-
-User-agent: cohere-ai
-Allow: /
+Disallow: /
 
 User-agent: Bytespider
-Allow: /
+Disallow: /
 
-User-agent: DuckAssistBot
-Allow: /
+User-agent: Applebot-Extended
+Disallow: /
 
-User-agent: YouBot
-Allow: /
-
-User-agent: Diffbot
-Allow: /
-
-User-agent: Timpibot
-Allow: /
+User-agent: Google-Extended
+Disallow: /
 
 Sitemap: https://ads.avinya.dev/sitemap-index.xml

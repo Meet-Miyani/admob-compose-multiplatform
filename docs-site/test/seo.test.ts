@@ -99,6 +99,9 @@ describe('softwareSourceCodeJsonLd', () => {
     expect(ld.codeRepository).toBe(REPO);
     expect(ld.runtimePlatform).toEqual(['Android', 'iOS']);
     expect(ld.license).toBe('https://www.apache.org/licenses/LICENSE-2.0.txt');
+    expect(ld.description).toBe(
+      'Open-source Kotlin Multiplatform and Compose Multiplatform SDK for Google AdMob on Android and iOS, with banner, interstitial, rewarded, rewarded interstitial, app-open, and native ads.'
+    );
   });
 });
 

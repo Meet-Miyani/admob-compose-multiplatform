@@ -811,7 +811,7 @@ describe('LandingFooter.astro contracts', () => {
     expect(body).toMatch(/href="\/start\/installation\/"/);
     expect(body).toMatch(/href="\/reference\/compatibility\/"/);
     expect(body).toMatch(/href="\/project\/roadmap\/"/);
-    expect(body).toMatch(/href="\/api\/"/);
+    expect(body).toMatch(/href="\/reference\/api\/"/);
   });
 
   it('GitHub link uses the canonical repoUrl value', () => {

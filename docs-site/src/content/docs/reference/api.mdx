@@ -1,0 +1,33 @@
+---
+title: "AdMob CMP API Reference for Kotlin Multiplatform"
+description: "Browse the AdMob CMP Kotlin Multiplatform API by module, then open the generated Dokka reference for every public declaration."
+sidebar:
+  label: "API reference"
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## API reference
+
+AdMob CMP exposes one Kotlin Multiplatform API for Google AdMob on Android and iOS. Most applications should depend on the `dev.avinya.ads:admob-cmp` facade and begin with the [Quickstart](/start/quickstart/); use the generated reference when you need exact signatures, types, or platform availability.
+
+<CardGrid>
+  <LinkCard title="Facade API" href="/api/admob-cmp/" description="The single-coordinate entry point that re-exports the core and Compose modules for application consumers." />
+  <LinkCard title="Core API" href="/api/admob-cmp-core/" description="AdManager, placements, consent, controllers, events, caching, retry, and native sessions." />
+  <LinkCard title="Compose API" href="/api/admob-cmp-compose/" description="rememberAdManager, BannerAdView, NativeAdView, native layout DSL, and app-open coordination." />
+</CardGrid>
+
+The generated Dokka pages remain crawlable for navigation and tooling but are marked `noindex, follow`. This authored page is the canonical search entry point because it explains how the modules fit together and links each declaration back to the task-oriented guides.
+
+## Which module should I use?
+
+| Need | Module |
+|---|---|
+| Standard Kotlin Multiplatform or Compose Multiplatform integration | `dev.avinya.ads:admob-cmp` |
+| Controllers and state without Compose UI | `dev.avinya.ads:admob-cmp-core` |
+| Compose views and composition helpers | `dev.avinya.ads:admob-cmp-compose` |
+| Kotlin/Native iOS test-executable linkage | Apply plugin `dev.avinya.ads.admob-cmp` in the consuming build |
+
+The Gradle plugin is build tooling rather than runtime API, so it has no Dokka module. It downloads and links the Google Mobile Ads and UMP iOS frameworks when a consumer runs Kotlin/Native test executables; the [Installation guide](/start/installation/) shows when it is required.
+
+For setup requirements and supported toolchain versions, see [Installation](/start/installation/) and [Compatibility](/reference/compatibility/).

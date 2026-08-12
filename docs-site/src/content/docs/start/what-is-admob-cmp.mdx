@@ -1,6 +1,6 @@
 ---
-title: "What is AdMob CMP? Compose Multiplatform Ads SDK"
-description: "Add Google AdMob to your Compose Multiplatform app with one dependency. Support for Android, iOS, and UMP consent out of the box."
+title: "Kotlin Multiplatform AdMob SDK for Android and iOS"
+description: "AdMob CMP provides one Kotlin Multiplatform API for six Google AdMob formats, consent state, and ad lifecycle handling on Android and iOS."
 sidebar:
   label: "What is AdMob CMP?"
 ---
@@ -10,19 +10,19 @@ import PlatformMatrix from '../../../components/diagrams/PlatformMatrix.astro';
 
 ## What is AdMob CMP?
 
-AdMob CMP is a Kotlin Multiplatform (KMP) SDK that makes it easy to add Google AdMob to your Compose Multiplatform apps. It provides a unified Kotlin API for Google Mobile Ads (GMA) and User Messaging Platform (UMP) consent, letting you manage ad lifecycles, load states, and privacy compliance using declarative UI patterns you already know.
+AdMob CMP is an open-source Kotlin Multiplatform (KMP) SDK for Google AdMob in Compose Multiplatform applications. It provides one shared Kotlin API for Google Mobile Ads (GMA), User Messaging Platform (UMP) consent state, ad loading, presentation, and revenue events on Android and iOS.
 
-Instead of writing custom expect/actual bindings for iOS and Android separately, you can use one dependency—`dev.avinya.ads:admob-cmp:2.0.0`—to render ads across both platforms.
+Instead of maintaining separate Android and iOS ad abstractions, add `dev.avinya.ads:admob-cmp:2.0.0` and call the same controllers from `commonMain`. Native application IDs, store disclosures, consent configuration, and iOS package setup remain the application's responsibility.
 
 ## Why use AdMob CMP?
 
-Adding ads to a KMP project usually involves wrestling with native iOS dependencies, complex platform state synchronization, and strict GDPR consent lifecycles. AdMob CMP solves these headaches out of the box:
+The SDK standardizes the parts of an AdMob integration that otherwise need separate platform implementations:
 
-1. **Write Once, Monetize Anywhere**: Manage your ads entirely in shared Kotlin code. No need to write separate Swift and Kotlin integrations.
-2. **Built for Compose**: Native support for Compose Multiplatform with composables like `BannerAdView` and `NativeAdView`.
-3. **Built-in GDPR/UMP Consent**: Automatically gathers European Economic Area (EEA) and UK privacy consent before making ad network requests, preventing policy violations.
-4. **Unified Event Streams**: Listen to ad events (like `Loaded`, `Clicked`, `Paid`) across both platforms through a single, clean `StateFlow`.
-5. **Smart State Management**: Controllers survive UI recompositions automatically, preventing accidental ad reloads.
+1. **Shared controllers**: Load and show ads from common Kotlin without duplicating controller logic in Swift and Android source sets.
+2. **Compose surfaces**: Render banners and native ads with `BannerAdView` and `NativeAdView`.
+3. **Explicit consent modes**: Gather UMP consent before initialization, initialize only when consent already permits requests, or deliberately skip the SDK-managed consent step. The application still owns its consent message configuration, legal assessment, and store disclosures.
+4. **Unified state and events**: Observe load state through `StateFlow` and receive lifecycle, click, impression, and paid events through `AdEvent`.
+5. **Stable composition ownership**: `rememberAdManager()` and remembered controller lookups avoid recreation during recomposition. A controller or native session only outlives navigation disposal when the application owns it above that disposable destination.
 
 ## Ad formats supported
 
@@ -53,7 +53,7 @@ The library is split into two primary modules:
 
 Platform specificities remain strictly isolated. Manifest metadata (`AndroidManifest.xml`) and application identity (`Info.plist`) stay native, while all ad management happens in your shared Kotlin code.
 
-> **Note on Medation**: To prevent dependency lock-in, third-party mediation adapters (like Meta or Unity) are not bundled. You must add them directly to your native Android/iOS projects.
+> **Mediation adapters are application dependencies.** Third-party adapters such as Meta or Unity are not bundled; add the required adapter to each native Android and iOS project.
 
 ## Ready to build?
 

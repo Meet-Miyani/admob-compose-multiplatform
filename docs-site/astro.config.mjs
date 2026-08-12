@@ -17,7 +17,7 @@ const SITE = 'https://ads.avinya.dev';
 const REPO = 'https://github.com/Meet-Miyani/admob-compose-multiplatform';
 const SITE_TITLE = 'AdMob CMP';
 const SITE_DESCRIPTION =
-  'Plug-and-play AdMob for Compose Multiplatform: banner, interstitial, rewarded, app-open and native ads with UMP consent on Android and iOS.';
+  'Open-source AdMob SDK for Kotlin and Compose Multiplatform: banner, interstitial, rewarded, rewarded interstitial, app-open and native ads on Android and iOS.';
 
 // Both inert until the corresponding Cloudflare Pages build env var is set —
 // no placeholder tags ship to production without a real token.
@@ -195,8 +195,8 @@ export default defineConfig({
             },
             {
               label: 'API reference',
-              url: 'https://ads.avinya.dev/api/',
-              description: 'Generated Dokka HTML for every public declaration.',
+              url: 'https://ads.avinya.dev/reference/api/',
+              description: 'Authored API reference guide with links to the generated Dokka declarations.',
             },
           ],
           promote: ['index*', 'start/what-is-admob-cmp*', 'start/quickstart*', 'start/installation*'],
@@ -206,7 +206,7 @@ export default defineConfig({
           customSets: [
             {
               label: 'Ad formats',
-              description: 'Every ad format guide: banner, interstitial, rewarded, app-open, native.',
+              description: 'Every ad format guide: banner, interstitial, rewarded, rewarded interstitial, app-open, native.',
               paths: ['formats/**'],
             },
             {
@@ -272,15 +272,11 @@ export default defineConfig({
             { slug: 'reference/compatibility' },
             { slug: 'reference/troubleshooting' },
             { slug: 'reference/changelog' },
+            { slug: 'reference/api' },
             // Previously reachable only through the per-diagram "described in
             // words" links in DiagramFigure.astro, so it had no navigational
             // entry point at all despite being one of the longest pages.
             { slug: 'reference/diagrams-in-words' },
-            {
-              label: 'API reference (Dokka)',
-              link: '/api/',
-              attrs: { target: '_blank', rel: 'noopener' },
-            },
           ],
         },
         {
@@ -296,18 +292,14 @@ export default defineConfig({
       ],
     }),
     sitemap({
-      // `/og/*.png` are image endpoints, not pages. `/api/**` is a generated
-      // Dokka dump copied in via `public/`; only its entry point is listed.
-      // The /api/ entry must be listed, so the filter is "exclude everything under
-      // /api/ except the entry point itself" — the plan's filter would have excluded
-      // /api/ entirely, which broke the build verifier.
+      // `/og/*.png` are image endpoints, not pages. `/api/**` is generated
+      // Dokka output; the authored `/reference/api/` guide is indexed instead.
       // `/dev/` is the noindex diagram review gallery (Plan 4). It must not
       // appear in the sitemap of an SEO-focused host.
       filter: (page) =>
         !page.includes('/og/') &&
-        (page === `${SITE}/api/` || !page.includes('/api/')) &&
+        !new URL(page).pathname.startsWith('/api/') &&
         !page.includes('/dev/'),
-      customPages: [`${SITE}/api/`],
       changefreq: 'weekly',
     }),
   ],

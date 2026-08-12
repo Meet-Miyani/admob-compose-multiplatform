@@ -106,7 +106,7 @@ export function softwareSourceCodeJsonLd(siteUrl: string, repoUrl: string): obje
     name: 'AdMob CMP',
     alternateName: 'dev.avinya.ads:admob-cmp',
     description:
-      'Plug-and-play AdMob for Compose Multiplatform: banner, interstitial, rewarded, rewarded interstitial, app-open and native ads with UMP consent on Android and iOS.',
+      'Open-source Kotlin Multiplatform and Compose Multiplatform SDK for Google AdMob on Android and iOS, with banner, interstitial, rewarded, rewarded interstitial, app-open, and native ads.',
     url: absolute(siteUrl, '/'),
     codeRepository: repoUrl,
     programmingLanguage: 'Kotlin',
