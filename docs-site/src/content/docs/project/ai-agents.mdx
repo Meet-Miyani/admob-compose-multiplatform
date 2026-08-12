@@ -59,9 +59,15 @@ publishes three bundles:
 | [`/llms-full.txt`](/llms-full.txt) | Full bundle. Every page, in order, for complete offline context. |
 | [`/llms-small.txt`](/llms-small.txt) | Trimmed bundle, with project and changelog pages excluded for tighter context windows. |
 
-In addition, the generated API reference is available at [`/api/`](/api/).
+The [API reference guide](/reference/api/) links to the generated Dokka declarations for exact signatures and platform availability.
 
 Diagram components ship with prose equivalents that are included in the `llms.txt` bundle, allowing text-only models to process diagram contents without visual rendering.
+
+## Search access and model training
+
+The documentation site's crawler policy allows conventional search crawlers and explicitly permits retrieval by OAI-SearchBot, ChatGPT-User, Claude-SearchBot, Claude-User, PerplexityBot, and Perplexity-User. Training-oriented crawlers such as GPTBot, ClaudeBot, `anthropic-ai`, CCBot, Bytespider, Applebot-Extended, and Google-Extended are blocked.
+
+Google-Extended is separate from Googlebot, so blocking it does not prevent normal Google Search crawling or eligibility for Google's search features. However, Google uses the same token to control some Gemini Apps grounding and model-improvement uses. The project's no-training policy therefore also limits that Gemini Apps grounding path. `llms.txt` remains a convenience for tools that choose to read it; it is not a special Google ranking signal.
 
 ## Common integration pitfalls
 

@@ -7,7 +7,9 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Platforms](https://img.shields.io/badge/Platforms-Android%20%7C%20iOS-3DDC84)](#compatibility)
 
-One Kotlin API for **AdMob on Compose Multiplatform**. Write your ad code once in `commonMain` and get banner, interstitial, rewarded, rewarded interstitial, app-open, and native ads on both Android and iOS. AdMob CMP wraps the Google Mobile Ads Next-Gen SDK on Android and the Google Mobile Ads iOS SDK, keeps AdMob's own vocabulary (`AdValue`, `ResponseInfo`, adaptive banner sizes, UMP consent states, native asset names), and replaces the listener-style surface with suspend functions, `StateFlow` state, and one sealed `AdEvent` stream. UMP consent, iOS App Tracking Transparency ordering, paid/revenue events, and mediation are built into the initialization flow rather than bolted on.
+AdMob CMP is an open-source Kotlin Multiplatform SDK for Google AdMob in Compose Multiplatform apps. Use one `commonMain` API for banner, interstitial, rewarded, rewarded interstitial, app-open, and native ads on Android and iOS.
+
+The SDK wraps Google Mobile Ads Next-Gen on Android and Google Mobile Ads on iOS while preserving familiar AdMob concepts such as `AdValue`, `ResponseInfo`, adaptive banner sizes, UMP consent states, and native asset names. Its shared API uses suspend functions, `StateFlow` state, and a sealed `AdEvent` stream, with consent, ATT ordering, paid events, and mediation integrated into initialization.
 
 > **Brand, repository, coordinate.** The library is branded **AdMob CMP**, the repository is **`admob-compose-multiplatform`**, and the Maven coordinate is **`dev.avinya.ads:admob-cmp`**. The coordinate has not changed across any release and will not change.
 
@@ -17,14 +19,14 @@ One Kotlin API for **AdMob on Compose Multiplatform**. Write your ad code once i
 
 ```kotlin
 // commonMain
-implementation("dev.avinya.ads:admob-cmp:1.1.1")
+implementation("dev.avinya.ads:admob-cmp:2.0.0")
 ```
 
 If your project runs Kotlin/Native tests (`:yourModule:iosSimulatorArm64Test`), also apply the Gradle plugin. Without it the test link fails with `Undefined symbols … _OBJC_CLASS_$_GAD*`, because a Kotlin/Native test executable has no Xcode to resolve the Swift packages for it:
 
 ```kotlin
 plugins {
-    id("dev.avinya.ads.admob-cmp") version "1.1.1"
+    id("dev.avinya.ads.admob-cmp") version "2.0.0"
 }
 ```
 
@@ -141,7 +143,7 @@ Use a static, finite placement id and stable model-owned slot keys. Never genera
 - **The iOS test link actually works.** The `dev.avinya.ads.admob-cmp` Gradle plugin links Google Mobile Ads and UMP into Kotlin/Native test executables, which is the difference between `:iosSimulatorArm64Test` passing and failing with `Undefined symbols … _OBJC_CLASS_$_GAD*`.
 - **Revenue and mediation are exposed.** Paid events carry `AdValue` and `ResponseInfo`; mediation adapters get initialization hooks.
 - **Test safety fails closed.** `AdPlacement.strictTestMode` throws at construction if a placement points at a production ad unit — turn it on in debug builds.
-- **The public ABI is frozen** and enforced in CI by Kotlin ABI validation, so upgrades do not silently break you.
+- **The public ABI is frozen** and checked locally by `./scripts/release-readiness.sh`, because CI does not run SDK or ABI verification.
 
 ## Compatibility
 
@@ -149,12 +151,13 @@ Use a static, finite placement id and stable model-owned slot keys. Never genera
 
 | admob-cmp | Kotlin | Compose Multiplatform | Android `minSdk` | iOS deployment target |
 |---|---|---|---|---|
+| 2.0.0 | 2.3.20 | 1.11.1 | 26 | 15.0 |
 | 1.1.1 | 2.3.20 | 1.11.1 | 26 | 15.0 |
 | 1.1.0 | 2.3.20 | 1.11.1 | 26 | 15.0 |
 | 1.0.2 | 2.3.20 | 1.11.1 | 26 | 15.0 |
 | 1.0.0 | 2.3.20 | 1.11.1 | 26 | 15.0 |
 
-Underlying Google SDKs bound by 1.1.1:
+Underlying Google SDKs bound by 2.0.0:
 
 | SDK | Version |
 |---|---|

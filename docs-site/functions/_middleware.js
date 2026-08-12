@@ -39,8 +39,8 @@ export function isProductionPreviewHost(hostname) {
 }
 
 /**
- * True for a generated Dokka page *below* `/api/`, false for the `/api/` entry
- * point itself.
+ * True for every generated Dokka page under `/api/`, including its module
+ * index. The authored, indexable entry point lives at `/reference/api/`.
  *
  * The Dokka dump is ~940 HTML files against 27 authored pages, so it is the
  * overwhelming majority of the crawlable surface — and it is machine output:
@@ -50,18 +50,12 @@ export function isProductionPreviewHost(hostname) {
  * that actually answers the query.
  *
  * `noindex, follow` rather than `nofollow`: these pages stay crawlable, so link
- * equity still flows through them and AI crawlers (see robots.txt and
- * /llms.txt, where the API reference is deliberately advertised) keep full
- * access. Only the index entry is withheld.
- *
- * The entry point stays indexable because it is the one `/api/` URL listed in
- * the sitemap — see the `customPages` entry in astro.config.mjs. The dump is
- * generated at release time and is not in the repository, so this header is the
- * only place the rule can live.
+ * equity still flows through them and tools can read the complete declaration
+ * reference. The dump is generated at release time and is not in the
+ * repository, so this header is the only place the rule can live.
  */
 export function isGeneratedApiPage(pathname) {
-  if (!pathname.startsWith(API_PREFIX)) return false;
-  return pathname !== API_PREFIX && pathname !== `${API_PREFIX}index.html`;
+  return pathname.startsWith(API_PREFIX);
 }
 
 /** Response headers are immutable, so a tagged copy is the only way to set one. */

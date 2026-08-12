@@ -17,7 +17,8 @@ async function listRoutes(dir, prefix = '/') {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (['api', 'pagefind', '_astro', 'og', 'fonts'].includes(entry.name)) continue;
+      const generatedRootDirectory = prefix === '/' && ['api', 'pagefind', '_astro', 'og', 'fonts'].includes(entry.name);
+      if (generatedRootDirectory) continue;
       routes.push(...(await listRoutes(full, `${prefix}${entry.name}/`)));
     } else if (entry.name === 'index.html') {
       routes.push(prefix);

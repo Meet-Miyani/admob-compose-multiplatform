@@ -95,9 +95,9 @@ describe('host guard routing', () => {
 });
 
 describe('generated Dokka pages are kept out of the index', () => {
-  it('treats the /api/ entry point as a real page', () => {
+  it('treats the entire /api/ tree as generated', () => {
     for (const path of ['/api/', '/api/index.html']) {
-      expect(isGeneratedApiPage(path), path).toBe(false);
+      expect(isGeneratedApiPage(path), path).toBe(true);
     }
   });
 
@@ -128,10 +128,10 @@ describe('generated Dokka pages are kept out of the index', () => {
     expect(await response.text()).toContain('<!doctype html>');
   });
 
-  it('leaves the /api/ entry point indexable — it is the URL in the sitemap', async () => {
+  it('noindexes the /api/ entry point while keeping links crawlable', async () => {
     const response = await onRequest(contextFor(`https://${CANONICAL}/api/`));
     expect(response.status).toBe(200);
-    expect(response.headers.get('X-Robots-Tag')).toBeNull();
+    expect(response.headers.get('X-Robots-Tag')).toBe('noindex, follow');
   });
 });
 

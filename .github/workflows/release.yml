@@ -309,7 +309,12 @@ jobs:
             echo "Release $version already exists — skipping release creation."
             exit 0
           fi
+          notes="$(printf '%s\n\n%s\n\n%s\n\n%s' \
+            "AdMob CMP $version is an open-source Kotlin Multiplatform and Compose Multiplatform SDK for Google AdMob on Android and iOS." \
+            "Install the Maven artifact \`dev.avinya.ads:admob-cmp:$version\`. It supports banner, interstitial, rewarded, rewarded interstitial, app-open, and native ads. See the [documentation](https://ads.avinya.dev/start/quickstart/) and [compatibility guide](https://ads.avinya.dev/reference/compatibility/)." \
+            "**Two Maven Central staging deployments were created and still require manual release in [Central Portal](https://central.sonatype.com/publishing/deployments):** one for the library, one for the Gradle plugin. Until both are released, this GitHub release refers to artifacts that are not yet publicly available." \
+            "## Changes")"
           gh release create "$version" \
-            --title "$version" \
-            --notes "**Two Maven Central staging deployments were created and still require manual release in [Central Portal](https://central.sonatype.com/publishing/deployments):** one for the library, one for the Gradle plugin. Until both are released, this GitHub release refers to artifacts that are not yet publicly available." \
+            --title "AdMob CMP $version — Compose Multiplatform AdMob SDK" \
+            --notes "$notes" \
             --generate-notes

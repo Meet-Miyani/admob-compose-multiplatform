@@ -15,6 +15,7 @@
     "test": "vitest run",
     "verify": "node scripts/verify-build.mjs && node scripts/audit-content.mjs",
     "audit:content": "node scripts/audit-content.mjs",
+    "audit:live-seo": "node scripts/audit-live-seo.mjs",
     "check:theme": "node scripts/check-theme.mjs",
     "check:overflow": "node scripts/check-overflow.mjs"
   },

@@ -43,17 +43,21 @@ const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
 check(locs.length >= 26, `sitemap lists ${locs.length} URLs (expected at least 26)`);
 check(locs.every((l) => l.startsWith(`${SITE}/`)), 'every sitemap URL is on https://ads.avinya.dev');
 check(!sitemap.includes('pages.dev'), 'sitemap contains no *.pages.dev URL');
-check(locs.includes(`${SITE}/api/`), 'sitemap includes the /api/ entry point');
+check(locs.includes(`${SITE}/reference/api/`), 'sitemap includes the authored API reference guide');
+check(!locs.some((l) => new URL(l).pathname.startsWith('/api/')), 'sitemap excludes generated Dokka URLs');
 check(!locs.some((l) => l.includes('/og/')), 'sitemap excludes the /og/ image endpoints');
 check(!locs.some((l) => l.includes('/docs/')), 'no URL carries a /docs/ prefix');
 
 console.log('robots.txt');
 const robots = await readFile(path.join(DIST, 'robots.txt'), 'utf8');
-check(/^User-agent: \*\nAllow: \/$/m.test(robots), 'robots.txt allows all user agents');
-check(!/^Disallow: \S/m.test(robots), 'robots.txt contains no Disallow rule');
-check(robots.includes('ai-train=yes'), 'robots.txt Content-Signal permits AI training');
-check(robots.includes('User-agent: GPTBot'), 'robots.txt names GPTBot explicitly');
-check(robots.includes('User-agent: ClaudeBot'), 'robots.txt names ClaudeBot explicitly');
+check(
+  /^User-agent: \*\nContent-Signal: search=yes, ai-input=yes, ai-train=no, use=reference\nAllow: \/$/m.test(robots),
+  'robots.txt attaches content signals to an allow-all wildcard policy'
+);
+check(robots.includes('search=yes, ai-input=yes, ai-train=no, use=reference'), 'robots.txt permits search and citation but not AI training');
+check(/User-agent: OAI-SearchBot\nAllow: \//.test(robots), 'robots.txt allows OAI-SearchBot');
+check(/User-agent: GPTBot\nDisallow: \//.test(robots), 'robots.txt blocks GPTBot training');
+check(/User-agent: ClaudeBot\nDisallow: \//.test(robots), 'robots.txt blocks ClaudeBot training');
 check(robots.includes(`Sitemap: ${SITE}/sitemap-index.xml`), 'robots.txt points at the sitemap index');
 
 console.log('llms.txt');
@@ -71,6 +75,7 @@ check(llms.includes('trademarks of Google LLC'), 'llms.txt carries the trademark
 
 console.log('api reference');
 check(existsSync(path.join(DIST, 'api', 'index.html')), 'the Dokka reference is published at /api/');
+check(existsSync(path.join(DIST, 'reference', 'api', 'index.html')), 'the authored API reference guide is published at /reference/api/');
 
 console.log('per-page SEO');
 const pages = await listHtmlPages(DIST);

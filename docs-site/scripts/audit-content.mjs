@@ -33,7 +33,8 @@ const validUrls = new Set(
   files.map((f) => '/' + f.slice(DOCS.length + 1).replace(/\.mdx$/, '') + '/')
 );
 validUrls.add('/');
-validUrls.add('/api/');
+// Generated Dokka routes are valid link targets but are not authored pages.
+const isGeneratedApiUrl = (url) => url.startsWith('/api/');
 
 const LEAKED_DIRECTIVES = /\bThis\s+section\s+must\b|\bOne\s+short\s+paragraph\b|\bShow\s+it:\b|\bexactly\s+as\s+implemented\b/i;
 
@@ -65,7 +66,7 @@ for (const file of files) {
     const url = m[1] ?? m[2];
     if (url.startsWith('/llms')) continue;
     if (!url.endsWith('/')) problems.push(`${file}: internal link missing trailing slash — ${url}`);
-    else if (!validUrls.has(url)) problems.push(`${file}: internal link has no page — ${url}`);
+    else if (!validUrls.has(url) && !isGeneratedApiUrl(url)) problems.push(`${file}: internal link has no page — ${url}`);
   }
 }
 
