@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.ui.kit
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -86,14 +88,14 @@ fun SearchField(
 
         Box(modifier = Modifier.weight(1f)) {
             if (query.isEmpty()) {
-                Text(text = placeholder, style = ShowcaseType.bodyMedium, color = palette.inkFaint)
+                Text(text = placeholder, style = MaterialTheme.typography.bodyMedium, color = palette.inkFaint)
             }
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
                 singleLine = true,
                 interactionSource = interactionSource,
-                textStyle = ShowcaseType.bodyMedium.copy(color = palette.ink),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = palette.ink),
                 cursorBrush = SolidColor(palette.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(
@@ -159,7 +161,7 @@ fun Pill(
     val palette = showcaseColors
     Text(
         text = label,
-        style = ShowcaseType.labelMedium,
+        style = MaterialTheme.typography.labelMedium,
         color = if (selected) palette.onAccentInk else palette.inkMuted,
         modifier = modifier
             .clip(ShowcaseShapes.control)

@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.feature.rewards
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -228,7 +230,7 @@ fun RewardsScreen(
                                         SectionEyebrow(article.section)
                                         Text(
                                             text = article.title,
-                                            style = ShowcaseType.titleMedium,
+                                            style = MaterialTheme.typography.titleMedium,
                                             color = palette.ink,
                                         )
                                     }
@@ -275,7 +277,7 @@ private fun BalanceCard(balance: Int) {
             Eyebrow(text = "Balance")
             Text(
                 text = "$balance",
-                style = ShowcaseType.displayLarge,
+                style = MaterialTheme.typography.displayLarge,
                 color = palette.ink,
             )
             Text(
@@ -284,7 +286,7 @@ private fun BalanceCard(balance: Int) {
                 } else {
                     "coins available to spend"
                 },
-                style = ShowcaseType.bodySmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = palette.inkMuted,
             )
         }
@@ -296,7 +298,7 @@ private fun UnavailableNote(message: String) {
     SunkenPanel(modifier = Modifier.fillMaxWidth().padding(top = Tokens.Spacing.s12)) {
         Text(
             text = message,
-            style = ShowcaseType.bodySmall,
+            style = MaterialTheme.typography.bodySmall,
             color = showcaseColors.inkMuted,
             modifier = Modifier.padding(Tokens.Spacing.s12),
         )

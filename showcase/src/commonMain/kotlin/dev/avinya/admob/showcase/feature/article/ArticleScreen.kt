@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.feature.article
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -391,7 +393,7 @@ private fun UnlockCard(
             Badge(text = "Premium")
             Text(
                 text = "Keep reading",
-                style = ShowcaseType.headlineSmall,
+                style = MaterialTheme.typography.headlineSmall,
                 color = palette.ink,
             )
             Text(
@@ -402,7 +404,7 @@ private fun UnlockCard(
                     "Ads are switched off, so unlocking with an ad isn't available. " +
                         "You can still spend coins you've earned."
                 },
-                style = ShowcaseType.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium,
                 color = palette.inkMuted,
             )
             PrimaryButton(
@@ -428,7 +430,7 @@ private fun UnlockCard(
 private fun Paragraph(text: String) {
     Text(
         text = text,
-        style = ShowcaseType.bodyLarge,
+        style = MaterialTheme.typography.bodyLarge,
         color = showcaseColors.ink,
         modifier = Modifier
             .fillMaxWidth()
@@ -458,7 +460,7 @@ private fun ArticleHeader(article: ArticleEntity) {
 
         ArticleLabels(article)
 
-        Text(text = article.title, style = ShowcaseType.displaySmall, color = palette.ink)
+        Text(text = article.title, style = MaterialTheme.typography.displaySmall, color = palette.ink)
 
         MetaLine(
             parts = listOf(

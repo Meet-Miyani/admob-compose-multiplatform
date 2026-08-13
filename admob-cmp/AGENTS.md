@@ -109,31 +109,51 @@ val layout = adLayout {
         callToAction(modifier = AdModifier.fillMaxWidth())
     }
 }
-// Own this above individual rows; keys come from the feed model, never indexes.
+// Own this above individual rows/cells; keys come from the feed model, never indexes.
 val session = rememberNativeAdFeedSession(
     sessionKey = "home-feed",
     listState = listState,
     itemCount = items.size,
     slotAt = { index -> (items[index] as? FeedItem.NativeSlot)?.slot },
 )
-NativeAdView(session = session, slotKey = "feed_3", placement = placement, layout = layout)
+items(items, key = { it.key }) { item ->
+    if (item is FeedItem.NativeSlot) {
+        NativeAdView(session = session, slotKey = item.slot.key, placement = placement, layout = layout)
+    }
+}
 ```
+
+For a `LazyVerticalGrid`/`LazyHorizontalGrid`, pass `gridState = gridState` to the corresponding
+`rememberNativeAdFeedSession` overload. Use the same stable model key for the lazy item and its
+`NativeAdSlot`; a stable Compose key by itself does not retain a native ad outside the session.
 
 DSL nodes are functions with named args (`headline(maxLines = 2)`), NOT
 property-assignment blocks. `adBadge()` is policy-required (validator warns).
+The call-to-action node styles the button but always displays the creative-provided CTA text as
+supplied. `NativeAdView.modifier` owns the loaded and placeholder footprint; loading/failure
+content should not repeat the row/cell sizing modifier.
 The manager owns native platform objects; applications report stable `NativeAdSlot`s through
 `NativeAdSession.updateWindow`, while `NativeAdView` obtains the single internal renderer
 lease. Do not preload, acquire, release, or retain platform objects yourself. A default session
-retains three active records (previous/current/next), one inactive anchor, with a process-wide
-soft limit of four and hard limit of six loaded-plus-reserved ads. `cachePolicy.expirationPolicy
-.nativeTtl` remains the per-placement TTL (one hour by default); native `maxSize` and
-`reloadAfterShow` are ignored.
+retains three active records (previous/current/next) and one inactive anchor. All native sessions
+share one process-wide governor with a soft limit of four and hard limit of six
+loaded-plus-reserved ads; those limits are not per feed. `cachePolicy.expirationPolicy.nativeTtl`
+remains the per-placement TTL (one hour by default), while `AdCachePolicy.maxSize` and
+`reloadAfterShow` are independent full-screen cache controls and do not size native sessions.
 
 Leaving a tab calls `deactivate()` and keeps the bounded inactive anchor. Call `close()` only
 when the logical destination is permanently discarded. Session metadata is reaped after 30
 minutes inactive. `NativeAdSession.state` supplies `Empty`, `Loading`, `Ready`, `Mounted`,
 `Retained`, and `Failed` slot states; preserve row geometry for loading and failure rather than
 removing an ad row.
+
+For custom native-ad typography, prefer
+`AdFontFamily.FromCompose(resourceBackedFontFamily)`. Preview uses the Compose family directly;
+Android applies Compose's resolved `Typeface`, and iOS registers loaded resource bytes with
+CoreText before constructing `UIFont`. Consumers do not add Android font XML, `UIAppFonts`, or
+platform font names. Keep `AdFontFamily.Named` for advanced fonts already installed or externally
+registered. Any unavailable, unsupported, or corrupt Compose family falls back to the current
+platform system font.
 
 > **Platform gap — native video events on Android.** iOS emits five video events
 > (`VideoStarted`, `VideoPlayed`, `VideoPaused`, `VideoEnded`, `VideoMuted`) via

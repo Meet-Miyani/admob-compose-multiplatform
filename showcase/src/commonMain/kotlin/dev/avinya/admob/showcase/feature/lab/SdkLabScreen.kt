@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.feature.lab
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -57,7 +59,7 @@ fun SdkLabScreen(
                 ) {
                     Text(
                         text = status.headline(),
-                        style = ShowcaseType.titleLarge,
+                        style = MaterialTheme.typography.titleLarge,
                         color = when (status) {
                             is AdManagerStatus.Ready -> palette.success
                             is AdManagerStatus.Failed -> palette.danger
@@ -67,7 +69,7 @@ fun SdkLabScreen(
                     Text(
                         text = "Every placement below uses an official Google test ad unit, " +
                             "with strict test mode on so a production id fails closed.",
-                        style = ShowcaseType.bodySmall,
+                        style = MaterialTheme.typography.bodySmall,
                         color = palette.inkMuted,
                     )
                 }

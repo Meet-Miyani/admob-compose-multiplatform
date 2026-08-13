@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.feature.library
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -213,7 +215,7 @@ private fun ReadingProgress(progress: Float, modifier: Modifier = Modifier) {
         ProgressRule(fraction = clamped, modifier = Modifier.weight(1f))
         Text(
             text = if (clamped >= 1f) "Finished" else "${(clamped * 100).toInt()}%",
-            style = ShowcaseType.labelSmall,
+            style = MaterialTheme.typography.labelSmall,
             color = palette.inkMuted,
         )
     }
@@ -262,14 +264,14 @@ private fun AdFreeNote(modifier: Modifier = Modifier) {
             Column(verticalArrangement = Arrangement.spacedBy(Tokens.Spacing.s4)) {
                 Text(
                     text = "No ads on this screen",
-                    style = ShowcaseType.titleSmall,
+                    style = MaterialTheme.typography.titleSmall,
                     color = palette.ink,
                 )
                 Text(
                     text = "Ads belong where you discover and read, not where you " +
                         "manage what you already own. Restraint is part of a good " +
                         "integration, so this screen has zero placements.",
-                    style = ShowcaseType.bodySmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = palette.inkMuted,
                 )
             }

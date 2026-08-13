@@ -50,6 +50,12 @@ app on Android. It lives in `ui/theme/` (palette, tokens, type, shapes) and
   (`surfaceTint` is transparent) so depth reads identically in light and dark.
 - **Controls are hand-built.** A Material `Switch` or `RadioButton` carries an
   unmistakably Android silhouette; `ui/kit/Controls.kt` draws its own.
+- **Newsreader editorial typography.** Display, headline, `titleLarge`, and
+  `titleMedium` roles use the Newsreader variable font from Google Fonts,
+  declared at weights 400, 500, 600, and 700 through Compose Resources. Body,
+  label, control, metadata, disclosure, and CTA roles remain system sans-serif.
+  The bundled font is licensed under the SIL Open Font License 1.1; its text is
+  packaged at `composeResources/files/licenses/NEWSREADER-OFL.txt`.
 
 Contrast floors for every rendered pairing are asserted in
 `ShowcaseContrastTest` — 7:1 for primary ink, 4.5:1 for everything else that
@@ -134,10 +140,11 @@ SDK Lab → Native renders one creative through five layouts — `AdTemplates`
 compact, medium, and feedCard, plus the app's own two — and shows the live
 `AdLayoutValidator` report for the selected one.
 
-One thing the DSL cannot match: `AdTextStyle` carries size, colour, weight and
-alignment but no font family, so an ad headline renders sans-serif where an
-editorial headline is serif. Closing that gap needs a `fontFamily` field on the
-SDK's public `AdTextStyle`.
+The ad headline family comes from `MaterialTheme.typography.titleLarge` and is
+passed to `AdTextStyle` through `AdFontFamily.FromCompose`. The SDK resolves the
+same Compose resource font for Android Views and registers its bytes internally
+for UIKit, so the consumer needs no Android font XML, iOS `UIAppFonts`, or
+platform-specific font name.
 
 ### Rewarded ads
 

@@ -139,6 +139,8 @@ public open class AdLayoutScope internal constructor() {
 
     /**
      * Binds the native ad's call-to-action button asset.
+     * The renderer displays the creative-provided call-to-action text as supplied; this node
+     * controls its layout and appearance, not its wording.
      *
      * @param modifier Layout modifier for the button.
      * @param style Button style (defaults to filled).

@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.feature.lab
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -195,7 +197,7 @@ fun DiagnosticsLabScreen(
                             text = "Clearing the onboarding flag is the only way to see the " +
                                 "consent flow and the first-session app-open block again " +
                                 "without wiping app data.",
-                            style = ShowcaseType.bodySmall,
+                            style = MaterialTheme.typography.bodySmall,
                             color = palette.inkMuted,
                         )
                     }
@@ -210,7 +212,7 @@ fun DiagnosticsLabScreen(
                     if (recentEvents.isEmpty()) {
                         Text(
                             text = "No events recorded yet.",
-                            style = ShowcaseType.bodyMedium,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = palette.inkMuted,
                         )
                     } else {

@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.feature.onboarding
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -115,14 +117,14 @@ private fun WelcomePanel(onContinue: () -> Unit) {
         Eyebrow(text = "Fieldnotes")
         Text(
             text = "Culture and technology, read daily.",
-            style = ShowcaseType.displayMedium,
+            style = MaterialTheme.typography.displayMedium,
             color = palette.ink,
             modifier = Modifier.widthIn(max = 480.dp),
         )
         Text(
             text = "A working demonstration of the admob-cmp SDK, built as a real " +
                 "reading app rather than a gallery of buttons.",
-            style = ShowcaseType.bodyLarge,
+            style = MaterialTheme.typography.bodyLarge,
             color = palette.inkMuted,
             modifier = Modifier.widthIn(max = 480.dp),
         )
@@ -168,7 +170,7 @@ private fun AdsChoicePanel(
         Eyebrow(text = "Before we start")
         Text(
             text = "Ads pay for Fieldnotes.",
-            style = ShowcaseType.displayMedium,
+            style = MaterialTheme.typography.displayMedium,
             color = palette.ink,
             modifier = Modifier.widthIn(max = 480.dp),
         )
@@ -176,7 +178,7 @@ private fun AdsChoicePanel(
             text = "If you turn ads on, we'll ask for the consent your region requires " +
                 "using Google's own privacy form — this app never stores that choice " +
                 "itself. You can change it at any time in Profile.",
-            style = ShowcaseType.bodyLarge,
+            style = MaterialTheme.typography.bodyLarge,
             color = palette.inkMuted,
             modifier = Modifier.widthIn(max = 480.dp),
         )
@@ -225,7 +227,7 @@ private fun PreparingPanel(
         Eyebrow(text = "Setting up")
         Text(
             text = "Getting things ready.",
-            style = ShowcaseType.displayMedium,
+            style = MaterialTheme.typography.displayMedium,
             color = palette.ink,
             modifier = Modifier.widthIn(max = 480.dp),
         )
@@ -233,7 +235,7 @@ private fun PreparingPanel(
             text = "The order matters: consent resolves, then tracking, then the SDK " +
                 "initialises. Requesting an ad before that would forfeit personalisation " +
                 "for the whole session.",
-            style = ShowcaseType.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium,
             color = palette.inkMuted,
             modifier = Modifier.widthIn(max = 480.dp),
         )
@@ -252,7 +254,7 @@ private fun PreparingPanel(
         if (state.step == OnboardingStep.Failed && startup is StartupState.Failed) {
             Text(
                 text = startup.message,
-                style = ShowcaseType.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium,
                 color = palette.danger,
                 modifier = Modifier.padding(top = Tokens.Spacing.s8),
             )
@@ -300,8 +302,8 @@ private fun Highlight(icon: ImageVector, title: String, detail: String) {
             modifier = Modifier.size(20.dp).padding(top = 2.dp),
         )
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(text = title, style = ShowcaseType.titleSmall, color = palette.ink)
-            Text(text = detail, style = ShowcaseType.bodySmall, color = palette.inkMuted)
+            Text(text = title, style = MaterialTheme.typography.titleSmall, color = palette.ink)
+            Text(text = detail, style = MaterialTheme.typography.bodySmall, color = palette.inkMuted)
         }
     }
 }
@@ -333,8 +335,8 @@ private fun StepRow(label: String, detail: String, status: StepStatus) {
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(text = label, style = ShowcaseType.titleSmall, color = palette.ink)
-            Text(text = detail, style = ShowcaseType.bodySmall, color = palette.inkMuted)
+            Text(text = label, style = MaterialTheme.typography.titleSmall, color = palette.ink)
+            Text(text = detail, style = MaterialTheme.typography.bodySmall, color = palette.inkMuted)
         }
     }
 }

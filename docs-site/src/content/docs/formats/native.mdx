@@ -20,7 +20,7 @@ Use one named session for each logical feed owner. Keep that owner above individ
 may leave composition during recycling or a tab switch without implying that its native record
 must be destroyed.
 
-## A LazyColumn feed
+## Lazy list and grid feeds
 
 Put a stable ad-slot key in the feed model—derived from neighbouring content identity, never from
 the list index, page number, or a loaded ad. The viewport adapter scans the measured list and
@@ -53,8 +53,8 @@ LazyColumn(state = listState) {
                 placement = placement,
                 layout = AdTemplates.feedCard,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp),
-                loading = { NativeAdLoadingPlaceholder(Modifier.fillMaxWidth().height(180.dp)) },
-                failure = { NativeAdLoadingPlaceholder(Modifier.fillMaxWidth().height(180.dp)) },
+                loading = { NativeAdLoadingPlaceholder() },
+                failure = { NativeAdLoadingPlaceholder() },
             )
             is FeedItem.Content -> ContentRow(item)
         }
@@ -62,10 +62,43 @@ LazyColumn(state = listState) {
 }
 ```
 
-Keep an empty, loading, or failed ad row at the same minimum footprint as a loaded row. Removing
-it and adding it later moves the reader's scroll position. `NativeAdSession.state` reports each
-slot as `Empty`, `Loading`, `Ready`, `Mounted`, `Retained`, or `Failed`; the composable does not
-start loads and it never exposes a platform ad.
+`NativeAdView` applies its outer `modifier` to the loaded renderer and to invalid, empty, loading,
+failed, and renderer-contention placeholders. Put the stable row/cell footprint there; custom
+`loading` and `failure` content should draw within that container rather than repeat its sizing
+modifier. Removing the row and adding it later moves the reader's scroll position.
+
+For a grid, use the `LazyGridState` overload. It reports the grid's measured item indexes through
+the same bounded viewport adapter:
+
+```kotlin
+val gridState = rememberLazyGridState()
+val gridSession = rememberNativeAdFeedSession(
+    sessionKey = "discover-grid",
+    gridState = gridState,
+    itemCount = feed.size,
+    slotAt = { index -> (feed[index] as? FeedItem.NativeSlot)?.let { NativeAdSlot(it.key, placement) } },
+)
+
+LazyVerticalGrid(columns = GridCells.Adaptive(180.dp), state = gridState) {
+    items(feed, key = { it.stableKey }) { item ->
+        when (item) {
+            is FeedItem.NativeSlot -> NativeAdView(
+                session = gridSession,
+                slotKey = item.key,
+                placement = placement,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp),
+            )
+            is FeedItem.Content -> ContentCard(item)
+        }
+    }
+}
+```
+
+The lazy item key and `NativeAdSlot.key` should come from the same stable model identity. Stable
+Compose keys preserve lazy-item identity, but they do not own or retain native platform objects;
+the named session does. `NativeAdSession.state` reports each slot as `Empty`, `Loading`, `Ready`,
+`Mounted`, `Retained`, or `Failed`; the composable does not start loads and never exposes a
+platform ad.
 
 ## Inline article placement
 
@@ -101,16 +134,17 @@ session owns the non-serializable platform objects.
 ## Capacity, retention, and requests
 
 The default active session retains three records: one behind, the current visible slot, and one
-ahead. The process-wide governor has a soft limit of four and a hard limit of six **loaded plus
-reserved** ads. Visible demand may use hard-limit headroom; speculative work cannot pass the soft
-limit. An inactive session retains at most one anchor, and inactive session metadata expires after
-30 minutes. Memory pressure trims non-mounted records; mounted ads are never selected as victims.
+ahead. Every list, grid, and inline session in the process shares one governor with a soft limit of
+four and a hard limit of six **loaded plus reserved** ads; each session does not get its own four
+or six. Visible demand may use hard-limit headroom; speculative work cannot pass the soft limit.
+An inactive session retains at most one anchor, and inactive session metadata expires after 30
+minutes. Memory pressure trims non-mounted records; mounted ads are never selected as victims.
 
-`AdCachePolicy.maxSize` and `reloadAfterShow` do not control native-session capacity. Configure
-the per-placement `cachePolicy.expirationPolicy.nativeTtl` instead; its default is one hour. A
-reload after eviction, TTL expiry, consent invalidation, clear, or memory pressure is expected.
-A reload merely because a row recycled or a tab temporarily detached is not: verify stable session
-and slot keys first.
+`AdCachePolicy.maxSize` and `reloadAfterShow` are full-screen cache controls and remain independent
+of native-session capacity. Configure the per-placement
+`cachePolicy.expirationPolicy.nativeTtl` instead; its default is one hour. A reload after eviction,
+TTL expiry, consent invalidation, clear, or memory pressure is expected. A reload merely because a
+row recycled or a tab temporarily detached is not: verify stable session and slot keys first.
 
 `NativeAdOptions.batching` controls request shape, not retention. `Sequential` is the default and
 the only safe option for mediated or unknown inventory. `GoogleOnly` is an explicit assertion of
@@ -123,7 +157,8 @@ demand.
 ## Layout DSL and media
 
 Build custom layouts once with `remember`; DSL nodes are functions with named arguments, and
-`adBadge()` is policy-required.
+`adBadge()` is policy-required. `callToAction` controls appearance and insets; Android and iOS
+display the creative-provided CTA text as supplied rather than replacing or uppercasing it.
 
 ```kotlin
 val layout = remember {
@@ -143,6 +178,70 @@ The `Ready`, `Mounted`, and `Retained` states carry `NativeMediaInfo` when avail
 row to reserve the creative's aspect ratio before attaching a renderer. Events are attached to a
 specific admitted ad generation: stale callbacks and stale renderer releases cannot affect a
 replacement record.
+
+## Share Compose-resource typography with native ads
+
+Use the same resource-backed `FontFamily` for Material text and selected native-ad text. Declare
+each weight the app requests, even when they all point to one variable-font file:
+
+```kotlin
+@Composable
+fun EditorialNativeAd(
+    session: NativeAdSession,
+    slot: NativeAdSlot,
+    modifier: Modifier = Modifier,
+) {
+    val regular = Font(Res.font.newsreader_variable, FontWeight.Normal)
+    val medium = Font(Res.font.newsreader_variable, FontWeight.Medium)
+    val semiBold = Font(Res.font.newsreader_variable, FontWeight.SemiBold)
+    val bold = Font(Res.font.newsreader_variable, FontWeight.Bold)
+    val editorialFamily = remember(regular, medium, semiBold, bold) {
+        FontFamily(regular, medium, semiBold, bold)
+    }
+    val typography = remember(editorialFamily) {
+        Typography(
+            headlineLarge = Typography().headlineLarge.copy(fontFamily = editorialFamily),
+            titleLarge = Typography().titleLarge.copy(fontFamily = editorialFamily),
+        )
+    }
+    val nativeLayout = remember(editorialFamily) {
+        adLayout {
+            column {
+                headline(
+                    maxLines = 2,
+                    style = AdTextStyle(
+                        fontSizeSp = 21f,
+                        fontWeight = AdFontWeight.Bold,
+                        fontFamily = AdFontFamily.FromCompose(editorialFamily),
+                    ),
+                )
+                body(maxLines = 3) // Keeps the default system sans-serif family.
+                adBadge()
+            }
+        }
+    }
+
+    MaterialTheme(typography = typography) {
+        NativeAdView(
+            session = session,
+            slotKey = slot.key,
+            placement = slot.placement,
+            layout = nativeLayout,
+            modifier = modifier,
+        )
+    }
+}
+```
+
+`AdFontFamily.FromCompose` is the recommended resource-font path. Android resolves the requested
+family and weight through Compose and applies the resulting `Typeface`; iOS reads the loaded
+Compose font bytes, registers them internally with CoreText, and creates a matching `UIFont`.
+Consumers do not need Android font XML, iOS `UIAppFonts`, or platform-specific names.
+
+`AdFontFamily.Named` remains available for advanced cases where the font is already installed or
+externally registered. Unsupported, corrupt, or not-yet-loaded Compose families fall back to the
+platform system font without throwing. Compose/Skia, Android Views, and UIKit can still differ
+slightly in font metrics and line breaking even when they use the same font file.
 
 <Aside type="caution">
 Android GMA Next-Gen has no native-video callback surface. iOS emits native video events through

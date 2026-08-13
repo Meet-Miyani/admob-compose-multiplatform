@@ -3,15 +3,12 @@
 package dev.avinya.ads.ui
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
@@ -26,6 +23,7 @@ import dev.avinya.ads.nativead.NativeAdSlotState
 import dev.avinya.ads.nativead.acquireAndroidRenderLease
 import dev.avinya.ads.nativead.layout.AdLayout
 import dev.avinya.ads.nativead.rendering.AndroidNativeAdLayoutRenderer
+import dev.avinya.ads.nativead.rendering.rememberResolvedComposeFonts
 
 @Composable
 public actual fun NativeAdView(
@@ -39,16 +37,27 @@ public actual fun NativeAdView(
     onEvent: (AdEvent) -> Unit,
 ) {
     if (!placement.enabled || placement.format != AdFormat.Native || layout.validation.errors.isNotEmpty()) {
-        loading()
+        NativeAdPlaceholder(modifier, loading)
         return
     }
 
     val slotState = session.state.collectAsState().value.slots[slotKey]
     val rendererId = remember(session, slotKey) { "android-native-renderer-${nextAndroidRendererId++}" }
-    var lease by remember(session, slotKey, placement, rendererId) { mutableStateOf<AndroidNativeAdRenderLease?>(null) }
+    val leaseOwner = if (slotState.canRenderNativeAd()) {
+        remember(session, slotKey, placement, rendererId) {
+            NativeAdRenderLeaseOwner(
+                acquire = { session.acquireAndroidRenderLease(slotKey, placement, rendererId) },
+                release = AndroidNativeAdRenderLease::release,
+            )
+        }
+    } else {
+        null
+    }
+    val lease = leaseOwner?.lease()
     val manager = LocalAdManager.current
     val currentLease by rememberUpdatedState(lease)
     val currentOnEvent by rememberUpdatedState(onEvent)
+    val resolvedComposeFonts = rememberResolvedComposeFonts(layout)
 
     LaunchedEffect(manager, placement.id) {
         manager.events.collect { event ->
@@ -58,30 +67,21 @@ public actual fun NativeAdView(
         }
     }
 
-    LaunchedEffect(session, slotKey, placement, rendererId, slotState) {
-        if (slotState.canRenderNativeAd()) {
-            if (lease == null) lease = session.acquireAndroidRenderLease(slotKey, placement, rendererId)
-        } else {
-            lease = null
-        }
-    }
-
-    DisposableEffect(lease) {
-        val leaseToRelease = lease
-        onDispose { leaseToRelease?.release() }
-    }
-
     when (slotState) {
-        is NativeAdSlotState.Failed -> failure(slotState.error)
+        is NativeAdSlotState.Failed -> NativeAdPlaceholder(modifier) { failure(slotState.error) }
         is NativeAdSlotState.Ready, is NativeAdSlotState.Retained, is NativeAdSlotState.Mounted -> {
             val mountedLease = lease
             if (mountedLease == null) {
-                loading()
+                NativeAdPlaceholder(modifier, loading)
             } else {
-                key(mountedLease.adInstanceId, layout.identity) {
+                key(mountedLease.adInstanceId, layout.identity, resolvedComposeFonts) {
                     AndroidView(
                         factory = { context ->
-                            AndroidNativeAdLayoutRenderer(context, mountedLease.ad).render(layout)
+                            AndroidNativeAdLayoutRenderer(
+                                context = context,
+                                nativeAd = mountedLease.ad,
+                                resolvedComposeFonts = resolvedComposeFonts,
+                            ).render(layout)
                         },
                         onRelease = ::releaseAndroidNativeAdHost,
                         modifier = modifier,
@@ -89,7 +89,7 @@ public actual fun NativeAdView(
                 }
             }
         }
-        else -> loading()
+        else -> NativeAdPlaceholder(modifier, loading)
     }
 }
 

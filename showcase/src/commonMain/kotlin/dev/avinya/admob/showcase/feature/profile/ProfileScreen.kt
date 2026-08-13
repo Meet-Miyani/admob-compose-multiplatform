@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.feature.profile
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -182,7 +184,7 @@ fun ProfileScreen(
                             Text(
                                 text = "Fieldnotes is a working demonstration of the admob-cmp " +
                                     "SDK. Every placement uses an official Google test ad unit.",
-                                style = ShowcaseType.bodySmall,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = showcaseColors.inkMuted,
                                 modifier = Modifier.padding(top = Tokens.Spacing.s12),
                             )
@@ -231,7 +233,7 @@ private fun SummaryStat(
     emphasis: androidx.compose.ui.graphics.Color = showcaseColors.ink,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Tokens.Spacing.s2)) {
-        Text(text = value, style = ShowcaseType.headlineMedium, color = emphasis)
+        Text(text = value, style = MaterialTheme.typography.headlineMedium, color = emphasis)
         Eyebrow(text = label, color = showcaseColors.inkFaint)
     }
 }
@@ -264,7 +266,7 @@ private fun ConsentSummary(
             } else {
                 Text(
                     text = "No consent form is required for your region right now.",
-                    style = ShowcaseType.bodySmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = palette.inkMuted,
                     modifier = Modifier.padding(top = Tokens.Spacing.s4),
                 )

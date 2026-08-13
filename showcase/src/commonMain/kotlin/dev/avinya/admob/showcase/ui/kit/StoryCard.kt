@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.ui.kit
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,7 +102,7 @@ private fun HeroStory(
                 StoryLabels(story)
                 Text(
                     text = story.title,
-                    style = ShowcaseType.headlineMedium,
+                    style = MaterialTheme.typography.headlineMedium,
                     color = palette.ink,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
@@ -108,7 +110,7 @@ private fun HeroStory(
                 if (story.snippet.isNotBlank()) {
                     Text(
                         text = story.snippet,
-                        style = ShowcaseType.bodyMedium,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = palette.inkMuted,
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
@@ -155,7 +157,7 @@ private fun StandardStory(
             StoryLabels(story)
             Text(
                 text = story.title,
-                style = ShowcaseType.titleLarge,
+                style = MaterialTheme.typography.titleLarge,
                 color = palette.ink,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
@@ -163,7 +165,7 @@ private fun StandardStory(
             if (story.snippet.isNotBlank()) {
                 Text(
                     text = story.snippet,
-                    style = ShowcaseType.bodySmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = palette.inkMuted,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -227,7 +229,7 @@ private fun CompactStory(
         ) {
             Text(
                 text = story.title,
-                style = ShowcaseType.titleMedium,
+                style = MaterialTheme.typography.titleMedium,
                 color = palette.ink,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.feature.lab
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -88,7 +90,7 @@ fun AppOpenLabScreen(
                     text = "A production integration would use a far longer cooldown — hours, " +
                         "not a minute. These values are short so the behaviour is observable " +
                         "by hand.",
-                    style = ShowcaseType.bodySmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = palette.inkMuted,
                 )
             }
@@ -154,7 +156,7 @@ fun AppOpenLabScreen(
                 if (lastDecision == null) {
                     Text(
                         text = "No decision recorded yet.",
-                        style = ShowcaseType.bodyMedium,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = palette.inkMuted,
                     )
                 } else {
@@ -199,8 +201,8 @@ private fun Gate(label: String, detail: String, passing: Boolean) {
                     .background(if (passing) palette.success else palette.danger),
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = label, style = ShowcaseType.bodyMedium, color = palette.ink)
-                Text(text = detail, style = ShowcaseType.bodySmall, color = palette.inkMuted)
+                Text(text = label, style = MaterialTheme.typography.bodyMedium, color = palette.ink)
+                Text(text = detail, style = MaterialTheme.typography.bodySmall, color = palette.inkMuted)
             }
             Text(
                 text = if (passing) "pass" else "blocks",
