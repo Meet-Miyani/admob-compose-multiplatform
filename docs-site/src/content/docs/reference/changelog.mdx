@@ -12,11 +12,12 @@ import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 All published artifacts live under `dev.avinya.ads` on Maven Central:
 `admob-cmp`, `admob-cmp-core`, `admob-cmp-compose`, and the
 `dev.avinya.ads.admob-cmp.gradle.plugin` marker. The current
-release is **2.0.0**.
+release is **2.0.1**.
 
 | Version | Status | Highlights |
 |---|---|---|
-| 2.0.0 | Current | Release 2.0.0 |
+| 2.0.1 | Current | Native-ad custom fonts, renderer parity, synchronous leases, and grid sessions |
+| 2.0.0 | Superseded | Release 2.0.0 |
 | 1.1.1 | Superseded | Banner and native state-machine fixes, main-thread confinement of SDK metadata reads, stricter test-mode warning |
 | 1.1.0 | Superseded | Gradle test plugin, explicit banner geometry inputs, refresh option replaying |
 | 1.0.2 | Superseded | Module split into `admob-cmp-core` and `admob-cmp-compose` |
@@ -25,6 +26,13 @@ release is **2.0.0**.
 
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
+
+## What changed in 2.0.1?
+
+- **Compose resource fonts in native ads:** `AdFontFamily.FromCompose` now resolves resource-backed families in Android Views and UIKit without duplicate platform font configuration.
+- **More reliable native rendering:** render leases are acquired synchronously with abandoned-composition cleanup, and loading, failure, and validation states preserve the caller's slot modifier.
+- **Renderer parity:** preview, Android, and iOS now share image-background precedence and CTA inset behavior while retaining creative-provided CTA text.
+- **Grid feed sessions:** `rememberNativeAdFeedSession` now accepts `LazyGridState` and shares the existing bounded viewport retention and prefetch policy.
 
 ## What changed in 2.0.0?
 

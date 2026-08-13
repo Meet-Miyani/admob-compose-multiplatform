@@ -38,7 +38,7 @@ Most Compose Multiplatform applications should depend on the umbrella coordinate
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation("dev.avinya.ads:admob-cmp:2.0.0")
+            implementation("dev.avinya.ads:admob-cmp:2.0.1")
         }
     }
 }
@@ -50,8 +50,8 @@ The umbrella artifact includes both `admob-cmp-core` and `admob-cmp-compose`.
 
 For projects that do not use Compose Multiplatform or require decoupled architectures, the underlying modules can be imported individually:
 
-- `dev.avinya.ads:admob-cmp-core:2.0.0`: Contains core controllers (`AdManager`, `BannerAdController`, `InterstitialAdController`), lifecycle state machines, ad caching, retry policies, and platform adapters. Has no Compose Multiplatform dependencies.
-- `dev.avinya.ads:admob-cmp-compose:2.0.0`: Contains Compose Multiplatform composables (`rememberAdManager()`, `BannerAdView`, `NativeAdView`). Depends on `admob-cmp-core`.
+- `dev.avinya.ads:admob-cmp-core:2.0.1`: Contains core controllers (`AdManager`, `BannerAdController`, `InterstitialAdController`), lifecycle state machines, ad caching, retry policies, and platform adapters. Has no Compose Multiplatform dependencies.
+- `dev.avinya.ads:admob-cmp-compose:2.0.1`: Contains Compose Multiplatform composables (`rememberAdManager()`, `BannerAdView`, `NativeAdView`). Depends on `admob-cmp-core`.
 
 ## Version catalog configuration
 
@@ -60,7 +60,7 @@ For multi-module Gradle projects, manage library dependencies and plugin definit
 ```toml
 # gradle/libs.versions.toml
 [versions]
-admob-cmp = "2.0.0"
+admob-cmp = "2.0.1"
 
 [libraries]
 admob-cmp = { module = "dev.avinya.ads:admob-cmp", version.ref = "admob-cmp" }
@@ -95,7 +95,7 @@ To resolve Kotlin/Native test linking, apply the `dev.avinya.ads.admob-cmp` Grad
 ```kotlin
 // shared/build.gradle.kts
 plugins {
-    id("dev.avinya.ads.admob-cmp") version "2.0.0"
+    id("dev.avinya.ads.admob-cmp") version "2.0.1"
 }
 ```
 
