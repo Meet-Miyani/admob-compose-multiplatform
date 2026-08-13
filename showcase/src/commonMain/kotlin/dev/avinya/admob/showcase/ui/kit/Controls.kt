@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.ui.kit
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -84,7 +86,7 @@ fun PrimaryButton(
         } else if (icon != null) {
             Icon(icon, contentDescription = null, tint = palette.onAccentInk, modifier = Modifier.size(18.dp))
         }
-        Text(text = label, style = ShowcaseType.labelLarge, color = palette.onAccentInk)
+        Text(text = label, style = MaterialTheme.typography.labelLarge, color = palette.onAccentInk)
     }
 }
 
@@ -118,7 +120,7 @@ fun GhostButton(
         if (icon != null) {
             Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
         }
-        Text(text = label, style = ShowcaseType.labelLarge, color = content)
+        Text(text = label, style = MaterialTheme.typography.labelLarge, color = content)
     }
 }
 
@@ -133,7 +135,7 @@ fun TextAction(
     val palette = showcaseColors
     Text(
         text = label,
-        style = ShowcaseType.labelLarge,
+        style = MaterialTheme.typography.labelLarge,
         color = if (enabled) palette.primary else palette.inkFaint,
         modifier = modifier
             .clip(ShowcaseShapes.chip)
@@ -211,15 +213,15 @@ fun ActionRow(
         ) {
             Text(
                 text = label,
-                style = ShowcaseType.bodyLarge,
+                style = MaterialTheme.typography.bodyLarge,
                 color = if (enabled) palette.ink else palette.inkFaint,
             )
             if (detail != null) {
-                Text(text = detail, style = ShowcaseType.bodySmall, color = palette.inkMuted)
+                Text(text = detail, style = MaterialTheme.typography.bodySmall, color = palette.inkMuted)
             }
         }
         if (trailing != null) {
-            Text(text = trailing, style = ShowcaseType.labelMedium, color = palette.inkMuted)
+            Text(text = trailing, style = MaterialTheme.typography.labelMedium, color = palette.inkMuted)
         }
         Icon(
             imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
@@ -248,13 +250,13 @@ fun StatRow(
     ) {
         Text(
             text = label,
-            style = ShowcaseType.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium,
             color = palette.inkMuted,
             modifier = Modifier.weight(1f),
         )
         Text(
             text = value,
-            style = ShowcaseType.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium,
             color = valueColor,
             modifier = Modifier.weight(1f),
         )
@@ -311,11 +313,11 @@ fun ToggleRow(
         ) {
             Text(
                 text = label,
-                style = ShowcaseType.bodyLarge,
+                style = MaterialTheme.typography.bodyLarge,
                 color = if (enabled) palette.ink else palette.inkFaint,
             )
             if (detail != null) {
-                Text(text = detail, style = ShowcaseType.bodySmall, color = palette.inkMuted)
+                Text(text = detail, style = MaterialTheme.typography.bodySmall, color = palette.inkMuted)
             }
         }
 
@@ -397,9 +399,9 @@ fun ChoiceRow(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(Tokens.Spacing.s2),
         ) {
-            Text(text = label, style = ShowcaseType.bodyLarge, color = palette.ink)
+            Text(text = label, style = MaterialTheme.typography.bodyLarge, color = palette.ink)
             if (detail != null) {
-                Text(text = detail, style = ShowcaseType.bodySmall, color = palette.inkMuted)
+                Text(text = detail, style = MaterialTheme.typography.bodySmall, color = palette.inkMuted)
             }
         }
     }

@@ -24,10 +24,13 @@ import dev.avinya.ads.nativead.layout.AdTextStyle
 import dev.avinya.ads.nativead.layout.AdVisibilityPolicy
 import dev.avinya.ads.nativead.layout.AdDisplay
 import dev.avinya.ads.nativead.layout.AdInsets
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import kotlinx.cinterop.cValue
 import platform.CoreGraphics.CGAffineTransformMakeTranslation
 import platform.CoreGraphics.CGSizeMake
 import platform.UIKit.UIButton
+import platform.UIKit.UIButtonConfiguration
 import platform.UIKit.UIColor
 import platform.UIKit.UIFont
 import platform.UIKit.UIFontDescriptorSystemDesignMonospaced
@@ -43,12 +46,15 @@ import platform.UIKit.UIViewController
 import platform.UIKit.NSLayoutConstraint
 import platform.UIKit.UIViewContentMode
 import platform.UIKit.UIEdgeInsets
+import platform.UIKit.NSDirectionalEdgeInsets
 import platform.UIKit.UILayoutConstraintAxis
 import platform.UIKit.NSTextAlignment
 
 internal class IosNativeAdRenderer(
     private val nativeAd: GADNativeAd,
-    private val nativeView: GADNativeAdView
+    private val nativeView: GADNativeAdView,
+    private val density: Density,
+    private val composeFontResolver: IosComposeFontResolver = DefaultIosComposeFontResolver,
 ) {
     fun render(node: AdNode): UIView = when (node) {
         is AdContainerNode.Row -> renderStack(node.children, axis = UILayoutConstraintAxisHorizontal, spacing = node.spacingDp, modifier = node.modifier)
@@ -134,6 +140,9 @@ internal class IosNativeAdRenderer(
         val imageView = UIImageView(image)
         imageView.contentMode = contentMode(node.style.contentScale)
         imageView.clipsToBounds = true
+        imageView.backgroundColor = color(
+            resolveNativeAdBackgroundArgb(node.modifier, node.style.backgroundArgb) ?: 0x00000000,
+        )
         nativeView.iconView = imageView
         applyModifier(node.modifier, imageView)
         return imageView
@@ -143,6 +152,9 @@ internal class IosNativeAdRenderer(
         val mediaView = GADMediaView()
         mediaView.mediaContent = nativeAd.mediaContent
         mediaView.clipsToBounds = true
+        mediaView.backgroundColor = color(
+            resolveNativeAdBackgroundArgb(node.modifier, node.style.backgroundArgb) ?: 0x00000000,
+        )
         nativeView.mediaView = mediaView
         applyModifier(node.modifier, mediaView)
         return mediaView
@@ -152,14 +164,28 @@ internal class IosNativeAdRenderer(
         val title = nativeAd.callToAction
         if (title == null || title.isEmpty()) return missingView(node.modifier, node.visibilityPolicy)
         val button = platform.UIKit.UIButton.buttonWithType(platform.UIKit.UIButtonTypeSystem)
-        button.setTitle(title, platform.UIKit.UIControlStateNormal)
+        val insets = resolveCallToActionContentInsets(node.modifier, node.style)
+        val configuration = UIButtonConfiguration.plainButtonConfiguration().apply {
+            this.title = title
+            baseForegroundColor = color(node.style.textStyle.colorArgb)
+            baseBackgroundColor = color(
+                resolveNativeAdBackgroundArgb(node.modifier, node.style.backgroundArgb) ?: 0x00000000,
+            )
+            background.cornerRadius = node.style.cornerRadiusDp.toDouble()
+            contentInsets = cValue<NSDirectionalEdgeInsets> {
+                top = insets.topDp.toDouble()
+                leading = insets.startDp.toDouble()
+                bottom = insets.bottomDp.toDouble()
+                trailing = insets.endDp.toDouble()
+            }
+        }
+        button.configuration = configuration
         button.titleLabel?.font = font(node.style.textStyle)
-        button.setTitleColor(color(node.style.textStyle.colorArgb), platform.UIKit.UIControlStateNormal)
-        button.backgroundColor = color(node.style.backgroundArgb)
-        button.layer.cornerRadius = node.style.cornerRadiusDp.toDouble()
+        button.contentHorizontalAlignment = platform.UIKit.UIControlContentHorizontalAlignmentCenter
+        button.contentVerticalAlignment = platform.UIKit.UIControlContentVerticalAlignmentCenter
         button.userInteractionEnabled = false
         nativeView.callToActionView = button
-        applyModifier(node.modifier, button)
+        applyModifier(node.modifier.withoutPadding(), button)
         return button
     }
 
@@ -309,7 +335,16 @@ internal class IosNativeAdRenderer(
                 UIFont.fontWithName(family.name, size) ?: UIFont.systemFontOfSize(size, weight)
             }
             is AdFontFamily.FromCompose -> {
-                UIFont.systemFontOfSize(size, weight)
+                composeFontResolver.resolve(
+                    family = family.fontFamily,
+                    requestedWeight = when (style.fontWeight) {
+                        AdFontWeight.Bold -> FontWeight.Bold
+                        AdFontWeight.Medium -> FontWeight.Medium
+                        AdFontWeight.Normal -> FontWeight.Normal
+                    },
+                    size = size,
+                    density = density,
+                ) ?: UIFont.systemFontOfSize(size, weight)
             }
         }
     }

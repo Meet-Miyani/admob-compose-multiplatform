@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.ui.inspector
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -109,7 +111,7 @@ private fun PlacementCard(placement: AdPlacement, manager: AdManager) {
             ) {
                 Text(
                     text = placement.id,
-                    style = ShowcaseType.titleSmall,
+                    style = MaterialTheme.typography.titleSmall,
                     color = palette.ink,
                 )
                 Badge(
@@ -159,7 +161,7 @@ private fun LiveSection(loadState: AdLoadState) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = "Load status", style = ShowcaseType.bodyMedium, color = palette.inkMuted)
+        Text(text = "Load status", style = MaterialTheme.typography.bodyMedium, color = palette.inkMuted)
         AdLoadStateBadge(loadState)
     }
 
@@ -171,7 +173,7 @@ private fun LiveSection(loadState: AdLoadState) {
             StatRow(label = "Error code", value = loadState.error.code ?: "—")
             Text(
                 text = loadState.error.message,
-                style = ShowcaseType.bodySmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = palette.danger,
             )
         }
@@ -267,13 +269,13 @@ private fun CopyableUnitIdRow(label: String, unitId: String) {
     ) {
         Text(
             text = label,
-            style = ShowcaseType.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium,
             color = palette.inkMuted,
             modifier = Modifier.weight(1f),
         )
         Text(
             text = unitId,
-            style = ShowcaseType.labelSmall,
+            style = MaterialTheme.typography.labelSmall,
             color = palette.ink,
         )
         CopyButton(

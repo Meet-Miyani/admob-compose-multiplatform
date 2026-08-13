@@ -41,14 +41,20 @@ internal fun AdFontWeight.toStyle(): Int = when (this) {
     AdFontWeight.Medium, AdFontWeight.Bold -> Typeface.BOLD
 }
 
-internal fun AdFontFamily.toTypeface(weight: AdFontWeight): Typeface {
+internal fun AdFontFamily.toTypeface(
+    weight: AdFontWeight,
+    resolvedComposeFonts: ResolvedComposeFonts = ResolvedComposeFonts.Empty,
+): Typeface {
     val style = weight.toStyle()
     return when (this) {
         AdFontFamily.Default, AdFontFamily.SansSerif -> Typeface.create(Typeface.SANS_SERIF, style)
         AdFontFamily.Serif -> Typeface.create(Typeface.SERIF, style)
         AdFontFamily.Monospace -> Typeface.create(Typeface.MONOSPACE, style)
         is AdFontFamily.Named -> Typeface.create(name, style) ?: Typeface.create(Typeface.DEFAULT, style)
-        is AdFontFamily.FromCompose -> Typeface.create(Typeface.DEFAULT, style)
+        is AdFontFamily.FromCompose -> {
+            resolvedComposeValueOrNull(weight, resolvedComposeFonts) as? Typeface
+                ?: Typeface.create(Typeface.DEFAULT, style)
+        }
     }
 }
 

@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.ui.kit
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -75,13 +77,13 @@ fun SectionTitle(
             ) {
                 Text(
                     text = title,
-                    style = ShowcaseType.headlineSmall,
+                    style = MaterialTheme.typography.headlineSmall,
                     color = palette.ink,
                 )
                 if (caption != null) {
                     Text(
                         text = caption,
-                        style = ShowcaseType.bodySmall,
+                        style = MaterialTheme.typography.bodySmall,
                         color = palette.inkMuted,
                     )
                 }
@@ -153,7 +155,7 @@ fun MetaLine(
     if (visible.isEmpty()) return
     Text(
         text = visible.joinToString("  ·  "),
-        style = ShowcaseType.labelMedium,
+        style = MaterialTheme.typography.labelMedium,
         color = color,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,

@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.ui.inspector
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -97,7 +99,7 @@ private fun AndroidVideoGapBanner() {
                     "not delivered on Android — the GMA Next-Gen SDK exposes no equivalent " +
                     "to iOS's GADVideoControllerDelegate. This is an upstream gap, not a " +
                     "showcase omission.",
-                style = ShowcaseType.bodySmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = palette.inkMuted,
             )
         }
@@ -118,7 +120,7 @@ private fun EventRow(row: EventRow) {
             ) {
                 Text(
                     text = row.placementId,
-                    style = ShowcaseType.titleSmall,
+                    style = MaterialTheme.typography.titleSmall,
                     color = showcaseColors.ink,
                 )
                 EventTypeBadge(type = row.type)
@@ -127,7 +129,7 @@ private fun EventRow(row: EventRow) {
             if (row.reason != null) {
                 Text(
                     text = row.reason,
-                    style = ShowcaseType.bodySmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = showcaseColors.inkMuted,
                 )
             }

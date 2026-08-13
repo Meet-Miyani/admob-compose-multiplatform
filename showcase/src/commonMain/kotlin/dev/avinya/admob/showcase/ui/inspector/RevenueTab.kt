@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.ui.inspector
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -123,7 +125,7 @@ private fun RevenueOverviewCard(
                 }
                 Text(
                     text = "Revenue and eCPM",
-                    style = ShowcaseType.titleSmall,
+                    style = MaterialTheme.typography.titleSmall,
                     color = showcaseColors.ink,
                 )
             }
@@ -136,7 +138,7 @@ private fun RevenueOverviewCard(
                     Eyebrow(text = "Paid impressions", color = showcaseColors.inkFaint)
                     Text(
                         text = "$totalImpressions",
-                        style = ShowcaseType.headlineSmall,
+                        style = MaterialTheme.typography.headlineSmall,
                         color = showcaseColors.ink,
                     )
                 }
@@ -147,7 +149,7 @@ private fun RevenueOverviewCard(
                     Eyebrow(text = "Active placements", color = showcaseColors.inkFaint)
                     Text(
                         text = "$totalPlacements",
-                        style = ShowcaseType.headlineSmall,
+                        style = MaterialTheme.typography.headlineSmall,
                         color = showcaseColors.ink,
                     )
                 }
@@ -170,7 +172,7 @@ private fun AggregateRow(line: PlacementRevenue, precisionLabel: String) {
             ) {
                 Text(
                     text = line.placementId,
-                    style = ShowcaseType.titleSmall,
+                    style = MaterialTheme.typography.titleSmall,
                     color = showcaseColors.ink,
                 )
                 Badge(
@@ -186,12 +188,12 @@ private fun AggregateRow(line: PlacementRevenue, precisionLabel: String) {
             ) {
                 Text(
                     text = "${line.impressions} impressions",
-                    style = ShowcaseType.bodySmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = showcaseColors.inkMuted,
                 )
                 Text(
                     text = "Precision: $precisionLabel",
-                    style = ShowcaseType.labelSmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = showcaseColors.inkFaint,
                 )
             }
@@ -213,7 +215,7 @@ private fun RawRow(event: PaidEventEntity) {
             ) {
                 Text(
                     text = event.placementId,
-                    style = ShowcaseType.titleSmall,
+                    style = MaterialTheme.typography.titleSmall,
                     color = showcaseColors.ink,
                 )
                 Badge(
@@ -229,7 +231,7 @@ private fun RawRow(event: PaidEventEntity) {
             ) {
                 Text(
                     text = event.precision,
-                    style = ShowcaseType.labelSmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = showcaseColors.inkMuted,
                 )
                 Text(

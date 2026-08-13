@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.feature.lab
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -174,7 +176,7 @@ private fun SlotStateNote(session: NativeAdSession, slotKey: String) {
             Text(
                 text = "Nothing is rendered until the SDK reports the slot renderable — " +
                     "no permanent placeholder, on purpose.",
-                style = ShowcaseType.bodySmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = showcaseColors.inkMuted,
             )
         }
@@ -194,21 +196,21 @@ private fun ValidationReport(layout: AdLayout) {
             if (report.errors.isEmpty() && report.warnings.isEmpty()) {
                 Text(
                     text = "No findings — headline, ad badge, and AdChoices space are all present.",
-                    style = ShowcaseType.bodySmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = palette.success,
                 )
             }
             report.errors.forEach { issue ->
                 Text(
                     text = "error · ${issue.code}: ${issue.message}",
-                    style = ShowcaseType.bodySmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = palette.danger,
                 )
             }
             report.warnings.forEach { issue ->
                 Text(
                     text = "warning · ${issue.code}: ${issue.message}",
-                    style = ShowcaseType.bodySmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = palette.accent,
                 )
             }

@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.feature.lab
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -111,7 +113,7 @@ fun PrivacyLabScreen(
                     } else {
                         Text(
                             text = "Not required for this region and consent state.",
-                            style = ShowcaseType.bodyMedium,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = palette.inkMuted,
                         )
                     }
@@ -203,7 +205,7 @@ fun PrivacyLabScreen(
                         ).forEachIndexed { index, step ->
                             Text(
                                 text = "${index + 1}.  $step",
-                                style = ShowcaseType.bodyMedium,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = palette.ink,
                             )
                         }

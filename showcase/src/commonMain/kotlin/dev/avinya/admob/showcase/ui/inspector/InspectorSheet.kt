@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.ui.inspector
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -161,7 +163,7 @@ private fun StatusDot(label: String, color: Color) {
                 .clip(CircleShape)
                 .background(color),
         )
-        Text(text = label, style = ShowcaseType.labelMedium, color = showcaseColors.inkMuted)
+        Text(text = label, style = MaterialTheme.typography.labelMedium, color = showcaseColors.inkMuted)
     }
 }
 

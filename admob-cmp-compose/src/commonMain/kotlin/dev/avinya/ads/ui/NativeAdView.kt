@@ -23,21 +23,24 @@ import dev.avinya.ads.nativead.layout.AdTemplates
  *
  * **Example:**
  * ```kotlin
+ * val slot = NativeAdSlot("article:${item.id}", nativePlacement)
  * NativeAdView(
- *     session = AdMob.manager.nativeAds.feedSession(),
- *     slotKey = "item_$index",
- *     placement = AdPlacement.Native("my_ad_unit_id"),
- *     layout = AdTemplates.mediaCard
+ *     session = session,
+ *     slotKey = slot.key,
+ *     placement = slot.placement,
+ *     layout = AdTemplates.mediaCard,
+ *     modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp),
  * )
  * ```
  * 
  * @param session The background session managing ad loads for this screen.
- * @param slotKey A unique identifier for this specific ad slot (e.g., a list index or item ID).
+ * @param slotKey A stable model-owned identifier for this ad slot. Never use a list/grid index.
  * @param placement The native placement configuration.
  * @param layout The visual design of the ad (e.g., [AdTemplates.mediaCard] or a custom DSL layout).
- * @param modifier Modifier applied to the ad's container.
- * @param loading A placeholder Composable shown while the ad is loading or unallocated.
- * @param failure A fallback Composable shown if the ad fails to load.
+ * @param modifier Modifier applied to the rendered ad and every placeholder container. Put the
+ * stable row/cell footprint here rather than repeating it inside [loading] or [failure].
+ * @param loading Placeholder content shown while the ad is loading or unallocated.
+ * @param failure Fallback content shown if the ad fails to load.
  * @param onEvent Optional callback to listen to lifecycle events.
  */
 @Composable

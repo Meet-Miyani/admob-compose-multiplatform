@@ -44,6 +44,7 @@ internal fun ShowcaseTheme(
     val dark = themeMode.isDark(systemInDark = isSystemInDarkTheme())
     val palette = if (dark) ShowcaseDarkPalette else ShowcaseLightPalette
     val colors = if (dark) ShowcaseDarkColors else ShowcaseLightColors
+    val typography = buildShowcaseTypography(rememberNewsreaderFontFamily())
 
     CompositionLocalProvider(
         LocalShowcasePalette provides palette,
@@ -51,7 +52,7 @@ internal fun ShowcaseTheme(
     ) {
         MaterialTheme(
             colorScheme = colors,
-            typography = ShowcaseTypography,
+            typography = typography,
             shapes = ShowcaseMaterialShapes,
             content = content,
         )

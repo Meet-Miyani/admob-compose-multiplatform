@@ -16,9 +16,9 @@ public object AdAlignment {
 /**
  * Font family for text nodes in native ad layouts.
  *
- * System families are guaranteed available on every platform. [Named] resolves against
- * the platform's font registry — a PostScript name on iOS, a family name on Android — and
- * falls back to [Default] if the name is not found.
+ * System families are guaranteed available on every platform. [FromCompose] is the
+ * recommended path for fonts packaged with Compose Resources. [Named] is an advanced
+ * escape hatch for fonts already installed or registered with the platform.
  *
  * [FromCompose] bridges a Compose [FontFamily] into the layout DSL.
  */
@@ -45,8 +45,11 @@ public sealed interface AdFontFamily {
     /**
      * Bridges a Compose [FontFamily] into the ad layout DSL.
      *
-     * On the Compose preview renderer, used directly. On platform renderers
-     * (Android Views / iOS UIKit), falls back safely to default or resolved typeface.
+     * Preview uses the family directly. Android resolves it through Compose and applies
+     * the resolved `Typeface`. iOS registers bytes from a resource-backed Compose family
+     * with CoreText and creates the matching `UIFont`. No Android font XML, iOS
+     * `UIAppFonts`, or platform font name is required. Unsupported, unavailable, or
+     * corrupt families fall back to the platform system font without throwing.
      */
     public data class FromCompose(
         val fontFamily: FontFamily

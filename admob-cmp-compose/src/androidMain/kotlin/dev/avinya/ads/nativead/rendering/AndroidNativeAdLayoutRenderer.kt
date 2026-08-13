@@ -33,6 +33,7 @@ import kotlin.math.roundToInt
 internal class AndroidNativeAdLayoutRenderer(
     private val context: Context,
     private val nativeAd: NativeAd,
+    private val resolvedComposeFonts: ResolvedComposeFonts = ResolvedComposeFonts.Empty,
     private val existingRoot: NativeAdView? = null
 ) {
     private val density: Float = context.resources.displayMetrics.density
@@ -187,13 +188,17 @@ internal class AndroidNativeAdLayoutRenderer(
                 setImageDrawable(nativeAd.icon?.drawable)
                 scaleType = node.style.contentScale.toAndroidScaleType()
                 adjustViewBounds = true
-                applyViewStyle(this, node.modifier)
+                val backgroundArgb = resolveNativeAdDrawableBackgroundArgb(node.modifier, node.style.backgroundArgb)
+                setBackgroundColor(backgroundArgb.toAndroidColor())
+                applyViewStyle(this, node.modifier, backgroundArgb)
                 applyMissingVisibility(nativeAd.icon, node.visibilityPolicy)
                 nativeAdView.iconView = this
             }
             is AdAssetNode.Media -> MediaView(context).apply {
                 imageScaleType = node.style.contentScale.toAndroidScaleType()
-                applyViewStyle(this, node.modifier)
+                val backgroundArgb = resolveNativeAdDrawableBackgroundArgb(node.modifier, node.style.backgroundArgb)
+                setBackgroundColor(backgroundArgb.toAndroidColor())
+                applyViewStyle(this, node.modifier, backgroundArgb)
                 renderedMediaView = this
             }
             is AdAssetNode.CallToAction -> Button(context).apply {
@@ -202,10 +207,21 @@ internal class AndroidNativeAdLayoutRenderer(
                 disableDirectInteractionForNativeAdAsset()
                 setTextColor(node.style.textStyle.colorArgb.toAndroidColor())
                 textSize = node.style.textStyle.fontSizeSp
-                typeface = node.style.textStyle.fontFamily.toTypeface(node.style.textStyle.fontWeight)
-                setPadding(dp(node.style.horizontalPaddingDp), paddingTop, dp(node.style.horizontalPaddingDp), paddingBottom)
-                background = roundedDrawable(density, node.style.backgroundArgb, node.style.cornerRadiusDp)
-                applyViewStyle(this, node.modifier)
+                typeface = node.style.textStyle.fontFamily.toTypeface(
+                    node.style.textStyle.fontWeight,
+                    resolvedComposeFonts,
+                )
+                val backgroundArgb = resolveNativeAdDrawableBackgroundArgb(node.modifier, node.style.backgroundArgb)
+                background = roundedDrawable(density, backgroundArgb, node.style.cornerRadiusDp)
+                applyViewStyle(this, node.modifier.withoutPadding(), backgroundArgb)
+                val insets = resolveCallToActionContentInsets(node.modifier, node.style)
+                setPadding(
+                    dp(insets.startDp),
+                    dp(insets.topDp),
+                    dp(insets.endDp),
+                    dp(insets.bottomDp),
+                )
+                gravity = Gravity.CENTER
                 applyMissingVisibility(nativeAd.callToAction?.takeIf { it.isNotBlank() }, node.visibilityPolicy)
                 nativeAdView.callToActionView = this
             }
@@ -259,7 +275,11 @@ internal class AndroidNativeAdLayoutRenderer(
         params.bottomMargin += dp(modifier.margin.bottomDp)
     }
 
-    private fun applyViewStyle(view: View, modifier: AdModifier) {
+    private fun applyViewStyle(
+        view: View,
+        modifier: AdModifier,
+        backgroundArgb: Long? = modifier.backgroundArgb,
+    ) {
         view.visibility = when (modifier.display) {
             AdDisplay.Visible -> View.VISIBLE
             AdDisplay.Invisible -> View.INVISIBLE
@@ -278,7 +298,7 @@ internal class AndroidNativeAdLayoutRenderer(
         if (modifier.backgroundArgb != null || modifier.borderColorArgb != null || modifier.cornerRadiusDp != null || modifier.borderRadiusDp != null) {
             view.background = roundedDrawable(
                 density = density,
-                colorArgb = modifier.backgroundArgb ?: 0x00000000,
+                colorArgb = backgroundArgb ?: 0x00000000,
                 radiusDp = modifier.cornerRadiusDp ?: modifier.borderRadiusDp ?: 0f,
                 borderWidthDp = modifier.borderWidthDp,
                 borderColorArgb = modifier.borderColorArgb
@@ -312,7 +332,7 @@ internal class AndroidNativeAdLayoutRenderer(
     private fun TextView.applyTextStyle(style: AdTextStyle, maxLines: Int?) {
         setTextColor(style.colorArgb.toAndroidColor())
         textSize = style.fontSizeSp
-        typeface = style.fontFamily.toTypeface(style.fontWeight)
+        typeface = style.fontFamily.toTypeface(style.fontWeight, resolvedComposeFonts)
         gravity = style.textAlign.toAndroidGravity()
         maxLines?.let { this.maxLines = it }
         includeFontPadding = false

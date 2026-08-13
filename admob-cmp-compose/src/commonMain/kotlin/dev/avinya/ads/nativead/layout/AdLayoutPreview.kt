@@ -35,6 +35,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import dev.avinya.ads.nativead.rendering.resolveCallToActionContentInsets
+import dev.avinya.ads.nativead.rendering.resolveNativeAdBackgroundArgb
+import dev.avinya.ads.nativead.rendering.withoutPadding
 
 /**
  * Renders an [AdLayout] with sample preview data for Compose previews /
@@ -131,9 +134,15 @@ private fun RenderAdLayoutPreviewNode(
         is AdStaticText -> PreviewText(node.text, node.style, node.maxLines, nodeModifier)
         is AdAssetNode.Headline -> PreviewText(data.headline, node.style, node.maxLines, nodeModifier, node.visibilityPolicy)
         is AdAssetNode.Body -> PreviewText(data.body, node.style, node.maxLines, nodeModifier, node.visibilityPolicy)
-        is AdAssetNode.CallToAction -> PreviewButton(data.callToAction, node.style, nodeModifier, node.visibilityPolicy)
-        is AdAssetNode.Icon -> PreviewIcon(nodeModifier, data.hasIcon, node.visibilityPolicy)
-        is AdAssetNode.Media -> PreviewMedia(nodeModifier, data.hasMedia, node.style, node.visibilityPolicy)
+        is AdAssetNode.CallToAction -> PreviewButton(
+            text = data.callToAction,
+            style = node.style,
+            nodeModifier = node.modifier,
+            modifier = modifier.then(node.modifier.withoutPadding().toComposeModifier()),
+            visibilityPolicy = node.visibilityPolicy,
+        )
+        is AdAssetNode.Icon -> PreviewIcon(nodeModifier, node.modifier, node.style, data.hasIcon, node.visibilityPolicy)
+        is AdAssetNode.Media -> PreviewMedia(nodeModifier, node.modifier, data.hasMedia, node.style, node.visibilityPolicy)
         is AdAssetNode.Advertiser -> PreviewText(data.advertiser, node.style, node.maxLines, nodeModifier, node.visibilityPolicy)
         is AdAssetNode.Price -> PreviewText(data.price, node.style, node.maxLines, nodeModifier, node.visibilityPolicy)
         is AdAssetNode.Store -> PreviewText(data.store, node.style, node.maxLines, nodeModifier, node.visibilityPolicy)
@@ -174,6 +183,7 @@ private fun PreviewText(
 private fun PreviewButton(
     text: String?,
     style: AdButtonStyle,
+    nodeModifier: AdModifier,
     modifier: Modifier,
     visibilityPolicy: AdVisibilityPolicy
 ) {
@@ -181,11 +191,13 @@ private fun PreviewButton(
         MissingPreviewAsset(modifier, visibilityPolicy)
         return
     }
+    val insets = resolveCallToActionContentInsets(nodeModifier, style)
+    val backgroundArgb = resolveNativeAdBackgroundArgb(nodeModifier, style.backgroundArgb)
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(style.cornerRadiusDp.dp))
-            .background(Color(style.backgroundArgb))
-            .padding(horizontal = style.horizontalPaddingDp.dp, vertical = 10.dp),
+            .background(backgroundArgb?.let(::Color) ?: Color.Transparent)
+            .padding(insets.startDp.dp, insets.topDp.dp, insets.endDp.dp, insets.bottomDp.dp),
         contentAlignment = Alignment.Center
     ) {
         PreviewText(text, style.textStyle, 1, Modifier)
@@ -195,6 +207,8 @@ private fun PreviewButton(
 @Composable
 private fun PreviewIcon(
     modifier: Modifier,
+    nodeModifier: AdModifier,
+    style: AdImageStyle,
     hasIcon: Boolean,
     visibilityPolicy: AdVisibilityPolicy
 ) {
@@ -202,9 +216,10 @@ private fun PreviewIcon(
         MissingPreviewAsset(modifier, visibilityPolicy)
         return
     }
+    val backgroundArgb = resolveNativeAdBackgroundArgb(nodeModifier, style.backgroundArgb)
     Box(
         modifier = modifier
-            .background(Color(0xFFE8F0FE))
+            .background(backgroundArgb?.let(::Color) ?: Color.Transparent)
             .border(1.dp, Color(0xFFD2E3FC), RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {
@@ -215,6 +230,7 @@ private fun PreviewIcon(
 @Composable
 private fun PreviewMedia(
     modifier: Modifier,
+    nodeModifier: AdModifier,
     hasMedia: Boolean,
     style: AdImageStyle,
     visibilityPolicy: AdVisibilityPolicy
@@ -229,7 +245,9 @@ private fun PreviewMedia(
         AdContentScale.FillBounds -> modifier
     }
     Box(
-        modifier = mediaModifier.background(style.backgroundArgb?.let { Color(it) } ?: Color(0xFFE8EAED)),
+        modifier = mediaModifier.background(
+            resolveNativeAdBackgroundArgb(nodeModifier, style.backgroundArgb)?.let(::Color) ?: Color.Transparent,
+        ),
         contentAlignment = Alignment.Center
     ) {
         BasicText(

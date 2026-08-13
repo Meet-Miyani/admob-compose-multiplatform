@@ -2,8 +2,10 @@ package dev.avinya.admob.showcase.ui.ad
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import dev.avinya.admob.showcase.ui.theme.ShowcasePalette
 import dev.avinya.admob.showcase.ui.theme.Tokens
@@ -45,7 +47,8 @@ private fun Color.argb(): Long = toArgb().toLong() and 0xFFFFFFFFL
 @Composable
 fun rememberFeedAdLayout(): AdLayout {
     val palette = showcaseColors
-    return remember(palette) { feedAdLayout(palette) }
+    val headlineFamily = MaterialTheme.typography.titleLarge.fontFamily ?: FontFamily.Serif
+    return remember(palette, headlineFamily) { feedAdLayout(palette, headlineFamily) }
 }
 
 /**
@@ -63,7 +66,8 @@ fun rememberFeedAdLayout(): AdLayout {
 @Composable
 fun rememberFeedRowAdLayout(): AdLayout {
     val palette = showcaseColors
-    return remember(palette) { feedRowAdLayout(palette) }
+    val headlineFamily = MaterialTheme.typography.titleLarge.fontFamily ?: FontFamily.Serif
+    return remember(palette, headlineFamily) { feedRowAdLayout(palette, headlineFamily) }
 }
 
 /**
@@ -73,10 +77,11 @@ fun rememberFeedRowAdLayout(): AdLayout {
 @Composable
 fun rememberInlineAdLayout(): AdLayout {
     val palette = showcaseColors
-    return remember(palette) { inlineAdLayout(palette) }
+    val headlineFamily = MaterialTheme.typography.titleLarge.fontFamily ?: FontFamily.Serif
+    return remember(palette, headlineFamily) { inlineAdLayout(palette, headlineFamily) }
 }
 
-internal fun feedAdLayout(palette: ShowcasePalette): AdLayout {
+internal fun feedAdLayout(palette: ShowcasePalette, headlineFamily: FontFamily): AdLayout {
     val badge = badgeStyle(palette)
     return adLayout {
         column(modifier = AdModifier.fillMaxWidth(), spacing = 12.dp) {
@@ -118,7 +123,7 @@ internal fun feedAdLayout(palette: ShowcasePalette): AdLayout {
             ) {
                 icon(modifier = AdModifier.size(44.dp).cornerRadius(10.dp))
                 column(modifier = AdModifier.weight(1f), spacing = 4.dp) {
-                    headline(style = title(palette), maxLines = 2)
+                    headline(style = title(palette, headlineFamily), maxLines = 2)
                     body(style = body(palette), maxLines = 2)
                     row(spacing = 8.dp) {
                         starRating(style = caption(palette))
@@ -136,7 +141,7 @@ internal fun feedAdLayout(palette: ShowcasePalette): AdLayout {
     }
 }
 
-internal fun feedRowAdLayout(palette: ShowcasePalette): AdLayout = adLayout {
+internal fun feedRowAdLayout(palette: ShowcasePalette, headlineFamily: FontFamily): AdLayout = adLayout {
     // Mirrors `StoryCard`'s Standard row exactly: text column on the left with
     // eyebrow / headline / standfirst / meta, and a 120.dp square on the right,
     // both top-aligned with 16.dp between them.
@@ -177,19 +182,19 @@ internal fun feedRowAdLayout(palette: ShowcasePalette): AdLayout = adLayout {
                 )
             }
 
-            // Matches ShowcaseType.titleLarge — 21sp / medium / serif.
+            // Matches MaterialTheme.typography.titleLarge — 21sp / medium / serif.
             headline(
                 modifier = AdModifier.fillMaxWidth(),
                 style = AdTextStyle(
                     fontSizeSp = 21f,
                     colorArgb = palette.ink.argb(),
                     fontWeight = AdFontWeight.Medium,
-                    fontFamily = AdFontFamily.Serif,
+                    fontFamily = AdFontFamily.FromCompose(headlineFamily),
                 ),
                 maxLines = 3,
             )
 
-            // Matches ShowcaseType.bodySmall — 13sp, muted, two lines.
+            // Matches MaterialTheme.typography.bodySmall — 13sp, muted, two lines.
             body(
                 modifier = AdModifier.fillMaxWidth(),
                 style = AdTextStyle(fontSizeSp = 13f, colorArgb = palette.inkMuted.argb()),
@@ -233,7 +238,7 @@ internal fun feedRowAdLayout(palette: ShowcasePalette): AdLayout = adLayout {
     }
 }
 
-internal fun inlineAdLayout(palette: ShowcasePalette): AdLayout = adLayout {
+internal fun inlineAdLayout(palette: ShowcasePalette, headlineFamily: FontFamily): AdLayout = adLayout {
     column(modifier = AdModifier.fillMaxWidth(), spacing = 12.dp) {
         row(
             modifier = AdModifier.fillMaxWidth(),
@@ -265,7 +270,7 @@ internal fun inlineAdLayout(palette: ShowcasePalette): AdLayout = adLayout {
         ) {
             icon(modifier = AdModifier.size(48.dp).cornerRadius(10.dp))
             column(modifier = AdModifier.weight(1f), spacing = 4.dp) {
-                headline(style = title(palette), maxLines = 2)
+                headline(style = title(palette, headlineFamily), maxLines = 2)
                 body(style = body(palette), maxLines = 2)
             }
         }
@@ -282,10 +287,11 @@ private fun badgeStyle(palette: ShowcasePalette) = AdTextStyle(
     fontWeight = AdFontWeight.Bold,
 )
 
-private fun title(palette: ShowcasePalette) = AdTextStyle(
+private fun title(palette: ShowcasePalette, headlineFamily: FontFamily) = AdTextStyle(
     fontSizeSp = 17f,
     colorArgb = palette.ink.argb(),
     fontWeight = AdFontWeight.Bold,
+    fontFamily = AdFontFamily.FromCompose(headlineFamily),
 )
 
 private fun body(palette: ShowcasePalette) = AdTextStyle(

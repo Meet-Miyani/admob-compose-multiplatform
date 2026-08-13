@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.ui.kit
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -111,7 +113,7 @@ private fun TabCell(tab: TabItem, modifier: Modifier = Modifier) {
         )
         Text(
             text = tab.label,
-            style = ShowcaseType.labelSmall,
+            style = MaterialTheme.typography.labelSmall,
             color = content,
             modifier = Modifier.padding(top = 2.dp),
         )
@@ -193,6 +195,6 @@ private fun RailCell(tab: TabItem) {
             tint = content,
             modifier = Modifier.size(22.dp),
         )
-        Text(text = tab.label, style = ShowcaseType.labelSmall, color = content)
+        Text(text = tab.label, style = MaterialTheme.typography.labelSmall, color = content)
     }
 }

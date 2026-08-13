@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.ui.kit
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -63,7 +65,7 @@ fun LoadingState(
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(Tokens.Spacing.s24),
     ) {
-        Text(text = label, style = ShowcaseType.labelMedium, color = palette.inkMuted)
+        Text(text = label, style = MaterialTheme.typography.labelMedium, color = palette.inkMuted)
         repeat(rows) { index ->
             Column(
                 modifier = Modifier.fillMaxWidth().alpha(pulse),
@@ -157,13 +159,13 @@ private fun StateBlock(
         }
         Text(
             text = title,
-            style = ShowcaseType.headlineSmall,
+            style = MaterialTheme.typography.headlineSmall,
             color = palette.ink,
             textAlign = TextAlign.Center,
         )
         Text(
             text = message,
-            style = ShowcaseType.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium,
             color = palette.inkMuted,
             textAlign = TextAlign.Center,
             modifier = Modifier.width(320.dp),

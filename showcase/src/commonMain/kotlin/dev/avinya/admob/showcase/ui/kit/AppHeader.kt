@@ -1,5 +1,7 @@
 package dev.avinya.admob.showcase.ui.kit
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -104,7 +106,7 @@ fun AppHeader(
                 }
                 Text(
                     text = title,
-                    style = ShowcaseType.titleSmall,
+                    style = MaterialTheme.typography.titleSmall,
                     color = palette.ink,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -135,9 +137,9 @@ fun AppHeader(
                     ),
                 verticalArrangement = Arrangement.spacedBy(Tokens.Spacing.s2),
             ) {
-                Text(text = title, style = ShowcaseType.displaySmall, color = palette.ink)
+                Text(text = title, style = MaterialTheme.typography.displaySmall, color = palette.ink)
                 if (subtitle != null) {
-                    Text(text = subtitle, style = ShowcaseType.bodySmall, color = palette.inkMuted)
+                    Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = palette.inkMuted)
                 }
             }
         }
