@@ -76,7 +76,12 @@ internal fun inlineAdLayout(palette: ShowcasePalette, headlineFamily: FontFamily
     }
 }
 
-@Preview
+@Preview(
+    name = "Light",
+    showBackground = true,
+    backgroundColor = 0xFFFBF9F5,
+    widthDp = 390,
+)
 @Composable
 private fun InlineAdLayoutLightPreview() {
     ShowcaseTheme(themeMode = ThemeMode.Light) {
@@ -93,7 +98,12 @@ private fun InlineAdLayoutLightPreview() {
     }
 }
 
-@Preview
+@Preview(
+    name = "Dark",
+    showBackground = true,
+    backgroundColor = 0xFF111110,
+    widthDp = 390,
+)
 @Composable
 private fun InlineAdLayoutDarkPreview() {
     ShowcaseTheme(themeMode = ThemeMode.Dark) {

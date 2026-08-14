@@ -114,7 +114,12 @@ internal fun feedRowAdLayout(palette: ShowcasePalette, headlineFamily: FontFamil
         }
     }
 
-@Preview
+@Preview(
+    name = "Light",
+    showBackground = true,
+    backgroundColor = 0xFFFBF9F5,
+    widthDp = 390,
+)
 @Composable
 private fun FeedRowAdLayoutLightPreview() {
     ShowcaseTheme(themeMode = ThemeMode.Light) {
@@ -131,7 +136,12 @@ private fun FeedRowAdLayoutLightPreview() {
     }
 }
 
-@Preview
+@Preview(
+    name = "Dark",
+    showBackground = true,
+    backgroundColor = 0xFF111110,
+    widthDp = 390,
+)
 @Composable
 private fun FeedRowAdLayoutDarkPreview() {
     ShowcaseTheme(themeMode = ThemeMode.Dark) {
