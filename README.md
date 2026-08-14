@@ -1,4 +1,4 @@
-![AdMob CMP Header Banner](.github/readme-header.png)
+![AdMob CMP — Compose Multiplatform AdMob SDK for Android and iOS](.github/readme-header.png)
 
 # AdMob CMP — Compose Multiplatform AdMob SDK for Android and iOS
 
@@ -6,14 +6,20 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Platforms](https://img.shields.io/badge/Platforms-Android%20%7C%20iOS-3DDC84)](#compatibility)
+[![API reference](https://img.shields.io/badge/docs-API%20reference-1793D1)](https://ads.avinya.dev/reference/api/)
+
+**[Quickstart](#30-second-quickstart) · [Ad formats](#ad-formats) · [Compatibility](#compatibility) · [Showcase](#showcase-app--fieldnotes) · [Contributing](#contributing)**
 
 AdMob CMP is an open-source Kotlin Multiplatform SDK for Google AdMob in Compose Multiplatform apps. Use one `commonMain` API for banner, interstitial, rewarded, rewarded interstitial, app-open, and native ads on Android and iOS.
 
 The SDK wraps Google Mobile Ads Next-Gen on Android and Google Mobile Ads on iOS while preserving familiar AdMob concepts such as `AdValue`, `ResponseInfo`, adaptive banner sizes, UMP consent states, and native asset names. Its shared API uses suspend functions, `StateFlow` state, and a sealed `AdEvent` stream, with consent, ATT ordering, paid events, and mediation integrated into initialization.
 
+> [!NOTE]
 > **Brand, repository, coordinate.** The library is branded **AdMob CMP**, the repository is **`admob-compose-multiplatform`**, and the Maven coordinate is **`dev.avinya.ads:admob-cmp`**. The coordinate has not changed across any release and will not change.
 
-**Documentation: [ads.avinya.dev](https://ads.avinya.dev)** · [Quickstart](https://ads.avinya.dev/start/quickstart/) · [Installation](https://ads.avinya.dev/start/installation/) · [iOS setup](https://ads.avinya.dev/start/ios-setup/) · [Troubleshooting](https://ads.avinya.dev/reference/troubleshooting/)
+**Documentation: [ads.avinya.dev](https://ads.avinya.dev)** · [What is AdMob CMP?](https://ads.avinya.dev/start/what-is-admob-cmp/) · [Quickstart](https://ads.avinya.dev/start/quickstart/) · [Installation](https://ads.avinya.dev/start/installation/) · [iOS setup](https://ads.avinya.dev/start/ios-setup/) · [Troubleshooting](https://ads.avinya.dev/reference/troubleshooting/)
+
+Coming from a hand-rolled `expect class AdManager`? See the [migration guide](https://ads.avinya.dev/start/migrate-from-expect-actual/).
 
 ## Install
 
@@ -22,13 +28,14 @@ The SDK wraps Google Mobile Ads Next-Gen on Android and Google Mobile Ads on iOS
 implementation("dev.avinya.ads:admob-cmp:2.0.1")
 ```
 
-If your project runs Kotlin/Native tests (`:yourModule:iosSimulatorArm64Test`), also apply the Gradle plugin. Without it the test link fails with `Undefined symbols … _OBJC_CLASS_$_GAD*`, because a Kotlin/Native test executable has no Xcode to resolve the Swift packages for it:
-
-```kotlin
-plugins {
-    id("dev.avinya.ads.admob-cmp") version "2.0.1"
-}
-```
+> [!IMPORTANT]
+> If your project runs Kotlin/Native tests (`:yourModule:iosSimulatorArm64Test`), also apply the Gradle plugin. Without it the test link fails with `Undefined symbols … _OBJC_CLASS_$_GAD*`, because a Kotlin/Native test executable has no Xcode to resolve the Swift packages for it:
+>
+> ```kotlin
+> plugins {
+>     id("dev.avinya.ads.admob-cmp") version "2.0.1"
+> }
+> ```
 
 Platform setup — the Android manifest entry, and on iOS the two Swift packages plus `Info.plist` keys — is required. Follow the [Android setup](https://ads.avinya.dev/start/android-setup/) and [iOS setup](https://ads.avinya.dev/start/ios-setup/) guides, then verify with `./gradlew :admob-cmp-core:doctorIos`.
 
@@ -134,7 +141,8 @@ val session = rememberNativeAdFeedSession(
 NativeAdView(session = session, slotKey = "after-article-3", placement = nativePlacement, layout = layout)
 ```
 
-Use a static, finite placement id and stable model-owned slot keys. Never generate either from a row index. The default active session retains three records; the process-wide governor bounds loaded plus reserved ads at soft 4 / hard 6. A temporary tab exit deactivates the session and retains one anchor; permanently discarded destinations close it. Per-placement native TTL remains one hour by default.
+> [!WARNING]
+> Use a static, finite placement id and stable model-owned slot keys. Never generate either from a row index. The default active session retains three records; the process-wide governor bounds loaded plus reserved ads at soft 4 / hard 6. A temporary tab exit deactivates the session and retains one anchor; permanently discarded destinations close it. Per-placement native TTL remains one hour by default.
 
 ## Why AdMob CMP
 
@@ -179,9 +187,9 @@ Underlying Google SDKs bound by 2.0.1:
 
 Full guides, diagrams, and the generated API reference live at **[ads.avinya.dev](https://ads.avinya.dev)**.
 
-- [Quickstart](https://ads.avinya.dev/start/quickstart/) — a rendering test ad in five minutes
+- [What is AdMob CMP?](https://ads.avinya.dev/start/what-is-admob-cmp/) · [Quickstart](https://ads.avinya.dev/start/quickstart/) — a rendering test ad in five minutes
 - [Installation](https://ads.avinya.dev/start/installation/) — Gradle, version catalog, and the Gradle plugin
-- [Android setup](https://ads.avinya.dev/start/android-setup/) · [iOS setup](https://ads.avinya.dev/start/ios-setup/)
+- [Android setup](https://ads.avinya.dev/start/android-setup/) · [iOS setup](https://ads.avinya.dev/start/ios-setup/) · [Migrate from expect/actual](https://ads.avinya.dev/start/migrate-from-expect-actual/)
 - [Banner](https://ads.avinya.dev/formats/banner/) · [Interstitial](https://ads.avinya.dev/formats/interstitial/) · [Rewarded](https://ads.avinya.dev/formats/rewarded/) · [App-open](https://ads.avinya.dev/formats/app-open/) · [Native](https://ads.avinya.dev/formats/native/)
 - [UMP consent](https://ads.avinya.dev/privacy/consent/) · [App Tracking Transparency](https://ads.avinya.dev/privacy/app-tracking-transparency/) · [Play Data safety](https://ads.avinya.dev/privacy/play-data-safety/)
 - [Mediation](https://ads.avinya.dev/advanced/mediation/) · [Revenue events](https://ads.avinya.dev/advanced/revenue-events/) · [Caching, retry and timeouts](https://ads.avinya.dev/advanced/caching-retry-timeouts/) · [Test safety](https://ads.avinya.dev/advanced/test-safety/)
@@ -191,7 +199,8 @@ Full guides, diagrams, and the generated API reference live at **[ads.avinya.dev
 
 Integrating with an AI coding agent? Point it at [`admob-cmp/AGENTS.md`](admob-cmp/AGENTS.md) and <https://ads.avinya.dev/llms.txt> — the latter is the canonical, machine-readable bundle of the full site.
 
-## Repository layout
+<details>
+<summary><strong>Repository layout</strong></summary>
 
 This repository is the SDK plus a Kotlin Multiplatform demo that exercises it.
 
@@ -203,6 +212,8 @@ This repository is the SDK plus a Kotlin Multiplatform demo that exercises it.
 | `admob-cmp-gradle-plugin/` | Links Google Mobile Ads and UMP into Kotlin/Native test executables |
 | `shared/`, `androidApp/`, `iosApp/`, `desktopApp/`, `webApp/` | The demo application. Ads render on the Android and iOS targets; desktop and web build without the ad surface. |
 
+</details>
+
 ## Running the demo
 
 Android and iOS open directly into the AdMob debug console, which exercises every format against Google's official sample ad units with `strictTestMode` validation on every placement.
@@ -213,7 +224,8 @@ Android and iOS open directly into the AdMob debug console, which exercises ever
 ./gradlew :webApp:wasmJsBrowserDevelopmentRun # Web (no ads)
 ```
 
-For iOS, open [`iosApp/`](iosApp) in Xcode and run. Compose Multiplatform requires **Xcode 26** (and the iOS 26 SDK) because of `UIViewLayoutRegion` linkage.
+> [!IMPORTANT]
+> For iOS, open [`iosApp/`](iosApp) in Xcode and run. Compose Multiplatform requires **Xcode 26** (and the iOS 26 SDK) because of `UIViewLayoutRegion` linkage.
 
 Tests:
 
@@ -226,107 +238,22 @@ Tests:
 
 ## Contributing
 
-Issues and pull requests are welcome. Questions, integration help, and feature ideas belong in [Discussions](https://github.com/Meet-Miyani/admob-compose-multiplatform/discussions).
+Issues are open for bugs and feature ideas. This repository runs **no SDK tests in CI**, by design — verification is local and is the contributor's responsibility. Before opening a PR, run `./scripts/release-readiness.sh` and get a clean `READINESS: PASS`; a pass is a prerequisite for asking the owner to open the PR, not authorization to open it unilaterally.
 
-The public ABI is frozen. Additive changes are fine; any breaking change needs a written migration plan. After any public API change, run `./gradlew :admob-cmp-core:updateKotlinAbi` and commit the regenerated `api/*.klib.api` dump. Nothing in CI checks this — `checkKotlinAbi` runs only in `./scripts/release-readiness.sh`.
-
-### Before you open a PR
-
-This repository runs **no SDK tests in CI**, by design. The single
-[`.github/workflows/release.yml`](.github/workflows/release.yml) workflow runs
-only on `master` and on `workflow_dispatch`, and it only publishes, tags, and
-deploys. There is no pull-request CI and no verification job in the pipeline,
-so nothing checks a branch before *or* after merge. Verification is local and
-is the contributor's responsibility:
-
-1. Run `./scripts/release-readiness.sh` on macOS with **Xcode 26** installed.
-   It runs the Android host tests, the publication-metadata and Central
-   task-graph checks, the iOS tests and klib ABI check, the Maven Local
-   round trip, the Xcode consumer build, and the docs build. It exits with
-   `READINESS: PASS` on success and names the first failing section on
-   failure. Use `--skip-docs` for changes that do not touch the published
-   modules, `gradle/libs.versions.toml`, `gradle.properties`, or
-   `docs-site/`.
-2. There is no remote fallback. If you cannot run the script (no macOS, no
-   Xcode 26), say so in the PR rather than describing it as verified.
-3. Tagging, GitHub release creation, Maven Central publishing, and Cloudflare
-   deployment all happen automatically on merge to `master` when
-   `VERSION_NAME` has been bumped in both `gradle.properties` files. Two
-   Maven Central staging deployments still need a manual release in
-   [Central Portal](https://central.sonatype.com/publishing/deployments)
-   before the artifacts are publicly available — this is deliberate, because
-   Maven Central coordinates are immutable, and it is the last point at which
-   a bad release can be stopped.
+Full contributor guide, including the public-ABI rules and the release procedure: **[CONTRIBUTING.md](CONTRIBUTING.md)** and [ads.avinya.dev/project/contributing/](https://ads.avinya.dev/project/contributing/).
 
 ## Showcase app — Fieldnotes
 
-`showcase/` is a product-shaped Compose Multiplatform reference app named
-**Fieldnotes**. It demonstrates the SDK in real product flows with retained
-top-level navigation, a procedural editorial design system, and an in-app
-SDK Lab and telemetry Inspector.
+`showcase/` is a product-shaped Compose Multiplatform reference module named **Fieldnotes**. It exercises every ad format in real product flows — a chronological feed with interleaved native slots, section browsing, a rewarded coin economy, and an interstitial gated on natural transitions — with an in-app SDK Lab and telemetry Inspector. It is a **consumer** of `admob-cmp`; reusable ad lifecycle behavior belongs in the SDK, not in sample-only workarounds.
 
-It is a **consumer** of `admob-cmp`; reusable ad lifecycle behavior belongs
-in the SDK rather than in sample-only workarounds.
+> [!NOTE]
+> `showcase/` is currently a library module with its own test suite, not a launchable app — `androidApp`/`iosApp` embed the separate `shared` debug console described in [Running the demo](#running-the-demo). Explore Fieldnotes through its source under `showcase/src/`:
+>
+> ```bash
+> ./gradlew :showcase:testAndroidHostTest :showcase:iosSimulatorArm64Test :showcase:compileKotlinIosSimulatorArm64 --no-configuration-cache
+> ```
 
-### Destinations
-
-- **Today** — curated chronological feed. Native slots interleaved (first
-  after 4 stories, then every 8) using `rememberNativeAdFeedSession`. Feeds
-  carry zero banners.
-- **Discover** — section browsing and local search. Native slots in query and
-  category result feeds with query-scoped sessions debounced and closed on query
-  change.
-- **Library** — saved, in-progress, and unlocked stories. **Zero ads, by design**
-  — demonstrating integration restraint.
-- **Profile** — appearance, privacy options, ATT status, consent debug tools,
-  and entry points to Rewards and the SDK Lab.
-- **Rewards** — secondary destination off Profile. Premium story unlocks via
-  a coin economy; rewarded ads and rewarded interstitials with idempotent
-  wallet credits driven by `onRewardEarned`.
-- **SDK Lab** — secondary destination off Profile. Exercises every supported
-  format in isolation (Banner, Native layouts & validator, Full screen,
-  App open gates, Privacy/ATT, and Diagnostics).
-- **Article** — full-screen reader. Inline native ad after the first section,
-  an anchored collapsible banner at the bottom, and an interstitial on exit
-  governed by `AdPolicy`.
-
-### Telemetry Inspector
-
-Available from the top bar (when enabled in Profile) as a modal bottom sheet:
-
-- **Placements** — live placement configs, native session slot states, and
-  global loaded/reserved capacity.
-- **Events** — rolling `ad_events` telemetry interleaved with `policy_decisions`
-  and explicit suppression reasons.
-- **Revenue** — per-placement aggregates (`AdValuePrecision` preserved) and raw
-  `paid_events`.
-
-### Format coverage
-
-| Format | Where | What it proves |
-|---|---|---|
-| Native | Today, Discover | Bounded session, stable slot keys, viewport retention across recycling/tabs |
-| Native | Article (inline) | Single-slot session, layout DSL reuse |
-| Banner | Article (bottom) | Anchored collapsible banner (`AdSizePolicy.LargeAnchoredAdaptive(CollapsiblePlacement.Bottom)`) |
-| Rewarded | Rewards | `onRewardEarned` correctness, idempotent grant key, wallet balance |
-| Rewarded interstitial | Rewards (daily pass) | Offer dialog, reward callback |
-| Interstitial | Article exit | Natural break timing, `AdPolicy` cooldown & frequency capping, suppression reasons |
-| App-open | App-wide | `AppOpenAdCoordinator`, `AppOpenEligibilityPolicy` suppression over sensitive flows |
-
-### Run it
-
-```bash
-./gradlew :androidApp:installDebug          # Android
-open iosApp/iosApp.xcodeproj                # iOS — build and run in Xcode
-```
-
-All placements use Google's test ad units with `strictTestMode = true`.
-
-Tests and verification:
-
-```bash
-./gradlew :showcase:testAndroidHostTest :showcase:iosSimulatorArm64Test :showcase:compileKotlinIosSimulatorArm64 --no-configuration-cache
-```
+Full destination tour, format-coverage table, and the Telemetry Inspector: **[ads.avinya.dev/project/showcase/](https://ads.avinya.dev/project/showcase/)**.
 
 ## License
 

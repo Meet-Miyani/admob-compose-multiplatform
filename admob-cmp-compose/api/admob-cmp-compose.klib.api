@@ -10,6 +10,17 @@ open annotation class dev.avinya.ads.nativead.layout/AdLayoutDsl : kotlin/Annota
     constructor <init>() // dev.avinya.ads.nativead.layout/AdLayoutDsl.<init>|<init>(){}[0]
 }
 
+final enum class dev.avinya.ads.nativead.layout/AdButtonTextCase : kotlin/Enum<dev.avinya.ads.nativead.layout/AdButtonTextCase> { // dev.avinya.ads.nativead.layout/AdButtonTextCase|null[0]
+    enum entry AsProvided // dev.avinya.ads.nativead.layout/AdButtonTextCase.AsProvided|null[0]
+    enum entry SentenceCase // dev.avinya.ads.nativead.layout/AdButtonTextCase.SentenceCase|null[0]
+
+    final val entries // dev.avinya.ads.nativead.layout/AdButtonTextCase.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.avinya.ads.nativead.layout/AdButtonTextCase> // dev.avinya.ads.nativead.layout/AdButtonTextCase.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.avinya.ads.nativead.layout/AdButtonTextCase // dev.avinya.ads.nativead.layout/AdButtonTextCase.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.avinya.ads.nativead.layout/AdButtonTextCase> // dev.avinya.ads.nativead.layout/AdButtonTextCase.values|values#static(){}[0]
+}
+
 final enum class dev.avinya.ads.nativead.layout/AdColorRole : kotlin/Enum<dev.avinya.ads.nativead.layout/AdColorRole> { // dev.avinya.ads.nativead.layout/AdColorRole|null[0]
     enum entry Background // dev.avinya.ads.nativead.layout/AdColorRole.Background|null[0]
     enum entry Muted // dev.avinya.ads.nativead.layout/AdColorRole.Muted|null[0]
@@ -532,7 +543,7 @@ final class dev.avinya.ads.debug/AdDebugCatalog { // dev.avinya.ads.debug/AdDebu
 }
 
 final class dev.avinya.ads.nativead.layout/AdButtonStyle { // dev.avinya.ads.nativead.layout/AdButtonStyle|null[0]
-    constructor <init>(dev.avinya.ads.nativead.layout/AdTextStyle = ..., kotlin/Long = ..., kotlin/Float = ..., kotlin/Float = ...) // dev.avinya.ads.nativead.layout/AdButtonStyle.<init>|<init>(dev.avinya.ads.nativead.layout.AdTextStyle;kotlin.Long;kotlin.Float;kotlin.Float){}[0]
+    constructor <init>(dev.avinya.ads.nativead.layout/AdTextStyle = ..., kotlin/Long = ..., kotlin/Float = ..., kotlin/Float = ..., dev.avinya.ads.nativead.layout/AdButtonTextCase = ...) // dev.avinya.ads.nativead.layout/AdButtonStyle.<init>|<init>(dev.avinya.ads.nativead.layout.AdTextStyle;kotlin.Long;kotlin.Float;kotlin.Float;dev.avinya.ads.nativead.layout.AdButtonTextCase){}[0]
 
     final val backgroundArgb // dev.avinya.ads.nativead.layout/AdButtonStyle.backgroundArgb|{}backgroundArgb[0]
         final fun <get-backgroundArgb>(): kotlin/Long // dev.avinya.ads.nativead.layout/AdButtonStyle.backgroundArgb.<get-backgroundArgb>|<get-backgroundArgb>(){}[0]
@@ -540,6 +551,8 @@ final class dev.avinya.ads.nativead.layout/AdButtonStyle { // dev.avinya.ads.nat
         final fun <get-cornerRadiusDp>(): kotlin/Float // dev.avinya.ads.nativead.layout/AdButtonStyle.cornerRadiusDp.<get-cornerRadiusDp>|<get-cornerRadiusDp>(){}[0]
     final val horizontalPaddingDp // dev.avinya.ads.nativead.layout/AdButtonStyle.horizontalPaddingDp|{}horizontalPaddingDp[0]
         final fun <get-horizontalPaddingDp>(): kotlin/Float // dev.avinya.ads.nativead.layout/AdButtonStyle.horizontalPaddingDp.<get-horizontalPaddingDp>|<get-horizontalPaddingDp>(){}[0]
+    final val textCase // dev.avinya.ads.nativead.layout/AdButtonStyle.textCase|{}textCase[0]
+        final fun <get-textCase>(): dev.avinya.ads.nativead.layout/AdButtonTextCase // dev.avinya.ads.nativead.layout/AdButtonStyle.textCase.<get-textCase>|<get-textCase>(){}[0]
     final val textStyle // dev.avinya.ads.nativead.layout/AdButtonStyle.textStyle|{}textStyle[0]
         final fun <get-textStyle>(): dev.avinya.ads.nativead.layout/AdTextStyle // dev.avinya.ads.nativead.layout/AdButtonStyle.textStyle.<get-textStyle>|<get-textStyle>(){}[0]
 
@@ -547,7 +560,8 @@ final class dev.avinya.ads.nativead.layout/AdButtonStyle { // dev.avinya.ads.nat
     final fun component2(): kotlin/Long // dev.avinya.ads.nativead.layout/AdButtonStyle.component2|component2(){}[0]
     final fun component3(): kotlin/Float // dev.avinya.ads.nativead.layout/AdButtonStyle.component3|component3(){}[0]
     final fun component4(): kotlin/Float // dev.avinya.ads.nativead.layout/AdButtonStyle.component4|component4(){}[0]
-    final fun copy(dev.avinya.ads.nativead.layout/AdTextStyle = ..., kotlin/Long = ..., kotlin/Float = ..., kotlin/Float = ...): dev.avinya.ads.nativead.layout/AdButtonStyle // dev.avinya.ads.nativead.layout/AdButtonStyle.copy|copy(dev.avinya.ads.nativead.layout.AdTextStyle;kotlin.Long;kotlin.Float;kotlin.Float){}[0]
+    final fun component5(): dev.avinya.ads.nativead.layout/AdButtonTextCase // dev.avinya.ads.nativead.layout/AdButtonStyle.component5|component5(){}[0]
+    final fun copy(dev.avinya.ads.nativead.layout/AdTextStyle = ..., kotlin/Long = ..., kotlin/Float = ..., kotlin/Float = ..., dev.avinya.ads.nativead.layout/AdButtonTextCase = ...): dev.avinya.ads.nativead.layout/AdButtonStyle // dev.avinya.ads.nativead.layout/AdButtonStyle.copy|copy(dev.avinya.ads.nativead.layout.AdTextStyle;kotlin.Long;kotlin.Float;kotlin.Float;dev.avinya.ads.nativead.layout.AdButtonTextCase){}[0]
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.nativead.layout/AdButtonStyle.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.avinya.ads.nativead.layout/AdButtonStyle.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.avinya.ads.nativead.layout/AdButtonStyle.toString|toString(){}[0]

@@ -1,0 +1,99 @@
+---
+title: "Fieldnotes — the AdMob CMP showcase app"
+description: "Fieldnotes is a product-shaped Compose Multiplatform reference app that exercises every AdMob CMP ad format in real product flows, with a telemetry Inspector."
+sidebar:
+  label: "Showcase — Fieldnotes"
+---
+
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## What Fieldnotes is
+
+`showcase/` in the repository is a product-shaped Compose Multiplatform
+reference app named **Fieldnotes**. It demonstrates AdMob CMP in real
+product flows with retained top-level navigation, a procedural editorial
+design system, and an in-app SDK Lab and telemetry Inspector — rather than
+one screen per format in isolation.
+
+Fieldnotes is a **consumer** of `admob-cmp`, in the same sense any
+application is: it depends on the published API and has no special access.
+Reusable ad lifecycle behavior belongs in the SDK rather than in
+sample-only workarounds, so what you see in Fieldnotes is what the public
+API actually supports.
+
+## Destinations
+
+- **Today** — curated chronological feed. Native slots interleaved (first
+  after 4 stories, then every 8) using `rememberNativeAdFeedSession`. Feeds
+  carry zero banners.
+- **Discover** — section browsing and local search. Native slots in query
+  and category result feeds with query-scoped sessions debounced and closed
+  on query change.
+- **Library** — saved, in-progress, and unlocked stories. **Zero ads, by
+  design** — demonstrating integration restraint.
+- **Profile** — appearance, privacy options, ATT status, consent debug
+  tools, and entry points to Rewards and the SDK Lab.
+- **Rewards** — secondary destination off Profile. Premium story unlocks
+  via a coin economy; rewarded ads and rewarded interstitials with
+  idempotent wallet credits driven by `onRewardEarned`.
+- **SDK Lab** — secondary destination off Profile. Exercises every
+  supported format in isolation (Banner, Native layouts & validator, Full
+  screen, App open gates, Privacy/ATT, and Diagnostics).
+- **Article** — full-screen reader. Inline native ad after the first
+  section, an anchored collapsible banner at the bottom, and an
+  interstitial on exit governed by `AdPolicy`.
+
+## Telemetry Inspector
+
+Available from the top bar (when enabled in Profile) as a modal bottom
+sheet:
+
+- **Placements** — live placement configs, native session slot states, and
+  global loaded/reserved capacity.
+- **Events** — rolling `ad_events` telemetry interleaved with
+  `policy_decisions` and explicit suppression reasons.
+- **Revenue** — per-placement aggregates (`AdValuePrecision` preserved) and
+  raw `paid_events`.
+
+## Format coverage
+
+| Format | Where | What it proves |
+|---|---|---|
+| Native | Today, Discover | Bounded session, stable slot keys, viewport retention across recycling/tabs |
+| Native | Article (inline) | Single-slot session, layout DSL reuse |
+| Banner | Article (bottom) | Anchored collapsible banner (`AdSizePolicy.LargeAnchoredAdaptive(CollapsiblePlacement.Bottom)`) |
+| Rewarded | Rewards | `onRewardEarned` correctness, idempotent grant key, wallet balance |
+| Rewarded interstitial | Rewards (daily pass) | Offer dialog, reward callback |
+| Interstitial | Article exit | Natural break timing, `AdPolicy` cooldown & frequency capping, suppression reasons |
+| App-open | App-wide | `AppOpenAdCoordinator`, `AppOpenEligibilityPolicy` suppression over sensitive flows |
+
+## Running it
+
+`showcase/` is currently a Kotlin Multiplatform library module with its own
+test suite — it does not have its own launcher. `androidApp` and `iosApp`
+embed the separate `shared` debug console (the app described in the root
+[Quickstart](/start/quickstart/)), not Fieldnotes. Explore Fieldnotes
+through its source under `showcase/src/` and its tests:
+
+```bash
+./gradlew :showcase:testAndroidHostTest :showcase:iosSimulatorArm64Test :showcase:compileKotlinIosSimulatorArm64 --no-configuration-cache
+```
+
+All placements exercised by the test suite use Google's test ad units with
+`strictTestMode = true`.
+
+<Aside type="tip">
+The **Library** destination is deliberately ad-free — if you are deciding
+where in your own app to *not* place ads, that restraint (in
+`showcase/src/commonMain/kotlin/dev/avinya/admob/showcase/feature/library/`)
+is the reference point, not an oversight.
+</Aside>
+
+## Where to next?
+
+<CardGrid>
+  <LinkCard title="Native ads" href="/formats/native/" description="The adLayout DSL, session ownership, and pooling that Today and Discover exercise." />
+  <LinkCard title="Rewarded" href="/formats/rewarded/" description="onRewardEarned and idempotent grant keys, as used by the Rewards destination." />
+  <LinkCard title="Architecture" href="/reference/architecture/" description="Why AdManager is a singleton and what that means for a consumer app like Fieldnotes." />
+  <LinkCard title="Repository (GitHub)" href="https://github.com/Meet-Miyani/admob-compose-multiplatform" description="Source for showcase/, the Android and iOS demo modules." />
+</CardGrid>

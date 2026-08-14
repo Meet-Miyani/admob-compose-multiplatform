@@ -86,6 +86,31 @@ public data class AdTextStyle(
 }
 
 /**
+ * Letter casing applied to a call-to-action label before it is rendered.
+ *
+ * Creatives do not agree on casing: some ship `"Install"`, others `"INSTALL"`. The renderer
+ * displays the creative's text verbatim, so a feed can end up with one shouting button among
+ * several quiet ones. This is the opt-in lever for normalising that.
+ */
+public enum class AdButtonTextCase {
+    /**
+     * Render the creative's call-to-action exactly as delivered. Default, and the right choice
+     * unless the host UI has a specific casing convention.
+     */
+    AsProvided,
+
+    /**
+     * Rewrite a call-to-action written **entirely in capitals** into sentence case — `"INSTALL"`
+     * becomes `"Install"`, `"LEARN MORE"` becomes `"Learn more"`.
+     *
+     * Text that already contains lowercase letters is left untouched, so `"Book now"` and
+     * `"Shop at H&M"` survive intact. Only strings carrying no case information to begin with are
+     * rewritten, which keeps the transformation from destroying deliberate capitalisation.
+     */
+    SentenceCase,
+}
+
+/**
  * Style configuration for call-to-action buttons in native ad layouts.
  */
 @Immutable
@@ -97,7 +122,9 @@ public data class AdButtonStyle(
     /** Corner radius in dp. */
     val cornerRadiusDp: Float = 8f,
     /** Horizontal padding inside the button in dp. */
-    val horizontalPaddingDp: Float = 12f
+    val horizontalPaddingDp: Float = 12f,
+    /** Casing applied to the creative's label. Defaults to [AdButtonTextCase.AsProvided]. */
+    val textCase: AdButtonTextCase = AdButtonTextCase.AsProvided
 ) {
     public companion object {
         /** Filled button preset (blue background, white text). */

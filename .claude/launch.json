@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "docs-site-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "docs-site", "run", "preview", "--", "--port", "4321"],
+      "port": 4321
+    }
+  ]
+}
