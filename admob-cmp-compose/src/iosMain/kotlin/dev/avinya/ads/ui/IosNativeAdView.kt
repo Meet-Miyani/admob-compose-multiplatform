@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitInteropProperties
-import androidx.compose.ui.viewinterop.UIKitViewController
+import androidx.compose.ui.viewinterop.UIKitView
 import dev.avinya.ads.AdError
 import dev.avinya.ads.AdEvent
 import dev.avinya.ads.AdFormat
@@ -38,7 +38,6 @@ import platform.UIKit.NSLayoutConstraint
 import platform.UIKit.UILayoutPriorityFittingSizeLevel
 import platform.UIKit.UILayoutPriorityRequired
 import platform.UIKit.UIView
-import platform.UIKit.UIViewController
 import kotlin.math.roundToInt
 
 @Composable
@@ -114,20 +113,24 @@ public actual fun NativeAdView(
                         mutableDoubleStateOf(initialHeight)
                     }
                     key(mountedLease.adInstanceId, layout.identity, resolvedComposeFonts, heightCacheKey) {
-                        UIKitViewController(
+                        UIKitView(
                             factory = {
                                 val nativeView = GADNativeAdView()
                                 nativeView.translatesAutoresizingMaskIntoConstraints = false
+                                nativeView.backgroundColor = platform.UIKit.UIColor.clearColor
+                                nativeView.opaque = false
                                 val content = IosNativeAdRenderer(
                                     nativeAd = mountedLease.ad,
                                     nativeView = nativeView,
                                     density = density,
                                 ).render(layout.root)
+                                content.backgroundColor = platform.UIKit.UIColor.clearColor
+                                content.opaque = false
                                 nativeView.addSubview(content)
                                 content.leadingAnchor.constraintEqualToAnchor(nativeView.leadingAnchor).active = true
                                 content.trailingAnchor.constraintEqualToAnchor(nativeView.trailingAnchor).active = true
                                 content.topAnchor.constraintEqualToAnchor(nativeView.topAnchor).active = true
-                                IosNativeAdHostController(
+                                IosNativeAdHostView(
                                     nativeView = nativeView,
                                     content = content,
                                     nativeAd = mountedLease.ad,
@@ -150,14 +153,14 @@ public actual fun NativeAdView(
     }
 }
 
-private class IosNativeAdHostController(
+private class IosNativeAdHostView(
     private val nativeView: GADNativeAdView,
     private val content: UIView,
     private val nativeAd: GoogleMobileAds.GADNativeAd,
     private val minHeight: Double,
     private val maxHeight: Double?,
     private val onPreferredHeightChanged: (Double) -> Unit,
-) : UIViewController(nibName = null, bundle = null) {
+) : UIView(frame = kotlinx.cinterop.cValue { }) {
     private var nativeAdRegistered = false
     private val containmentConstraint: NSLayoutConstraint = content.bottomAnchor.constraintLessThanOrEqualToAnchor(nativeView.bottomAnchor)
     private val hostRelease = IosNativeHostRelease(
@@ -175,30 +178,26 @@ private class IosNativeAdHostController(
             nativeView.adChoicesView = null
             nativeView.subviews.forEach { (it as? UIView)?.removeFromSuperview() }
         },
-        releaseController = { view.removeFromSuperview() },
+        releaseView = { removeFromSuperview() },
     )
 
     init {
-        view.backgroundColor = platform.UIKit.UIColor.clearColor
+        backgroundColor = platform.UIKit.UIColor.clearColor
+        opaque = false
         nativeView.backgroundColor = platform.UIKit.UIColor.clearColor
+        nativeView.opaque = false
         nativeView.clipsToBounds = true
-        view.addSubview(nativeView)
-        nativeView.leadingAnchor.constraintEqualToAnchor(view.leadingAnchor).active = true
-        nativeView.trailingAnchor.constraintEqualToAnchor(view.trailingAnchor).active = true
-        nativeView.topAnchor.constraintEqualToAnchor(view.topAnchor).active = true
-        nativeView.bottomAnchor.constraintEqualToAnchor(view.bottomAnchor).active = true
+        addSubview(nativeView)
+        nativeView.leadingAnchor.constraintEqualToAnchor(leadingAnchor).active = true
+        nativeView.trailingAnchor.constraintEqualToAnchor(trailingAnchor).active = true
+        nativeView.topAnchor.constraintEqualToAnchor(topAnchor).active = true
+        nativeView.bottomAnchor.constraintEqualToAnchor(bottomAnchor).active = true
     }
 
-    override fun viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = platform.UIKit.UIColor.clearColor
-        nativeView.backgroundColor = platform.UIKit.UIColor.clearColor
-    }
-
-    override fun viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
+    override fun layoutSubviews() {
+        super.layoutSubviews()
         if (nativeAdRegistered) return
-        val (width, currentHeight) = view.bounds.useContents { size.width to size.height }
+        val (width, currentHeight) = bounds.useContents { size.width to size.height }
         if (!width.isFinite() || width <= 0.0) return
         val measuredHeight = content.systemLayoutSizeFittingSize(
             targetSize = CGSizeMake(width, 0.0),
@@ -209,7 +208,7 @@ private class IosNativeAdHostController(
         sizing.effectiveMeasuredHeight?.let(onPreferredHeightChanged)
         if (sizing.shouldRegisterNativeAd) {
             containmentConstraint.active = true
-            view.layoutIfNeeded()
+            layoutIfNeeded()
             nativeView.layoutIfNeeded()
             if (registeredAssetContainmentIssues().isNotEmpty()) return
             nativeView.nativeAd = nativeAd
@@ -255,7 +254,7 @@ private fun kotlinx.cinterop.CValue<platform.CoreGraphics.CGRect>.toRectSnapshot
 internal class IosNativeHostRelease(
     private val detachNativeAd: () -> Unit,
     private val clearAssets: () -> Unit,
-    private val releaseController: () -> Unit,
+    private val releaseView: () -> Unit,
 ) {
     private var released = false
     fun release() {
@@ -263,7 +262,7 @@ internal class IosNativeHostRelease(
         released = true
         detachNativeAd()
         clearAssets()
-        releaseController()
+        releaseView()
     }
 }
 

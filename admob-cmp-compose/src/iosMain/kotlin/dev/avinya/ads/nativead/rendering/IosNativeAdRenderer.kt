@@ -247,7 +247,13 @@ internal class IosNativeAdRenderer(
                 right = p.endDp.toDouble()
             }
         }
-        modifier.backgroundArgb?.let { view.backgroundColor = color(it) }
+        if (modifier.backgroundArgb != null) {
+            view.backgroundColor = color(modifier.backgroundArgb)
+            view.opaque = ((modifier.backgroundArgb.toULong() shr 24) and 0xFFu) == 0xFFu.toULong()
+        } else {
+            view.backgroundColor = platform.UIKit.UIColor.clearColor
+            view.opaque = false
+        }
         modifier.borderColorArgb?.let { view.layer.borderColor = color(it).CGColor }
         modifier.borderWidthDp?.let { view.layer.borderWidth = it.toDouble() }
         val cornerRadius = modifier.cornerRadiusDp ?: modifier.borderRadiusDp

@@ -11,11 +11,11 @@ class IosNativeRenderBindingTest {
     fun `host release clears only the host and is idempotent`() {
         var clearedAssets = 0
         var detachedAd = 0
-        var releasedController = 0
+        var releasedView = 0
         val binding = IosNativeHostRelease(
             detachNativeAd = { detachedAd++ },
             clearAssets = { clearedAssets++ },
-            releaseController = { releasedController++ },
+            releaseView = { releasedView++ },
         )
 
         binding.release()
@@ -23,7 +23,7 @@ class IosNativeRenderBindingTest {
 
         assertEquals(1, detachedAd)
         assertEquals(1, clearedAssets)
-        assertEquals(1, releasedController)
+        assertEquals(1, releasedView)
     }
 
     @Test
