@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import dev.avinya.ads.nativead.rendering.resolveCallToActionContentInsets
+import dev.avinya.ads.nativead.rendering.resolveCallToActionText
 import dev.avinya.ads.nativead.rendering.resolveNativeAdBackgroundArgb
 import dev.avinya.ads.nativead.rendering.withoutPadding
 
@@ -135,7 +136,7 @@ private fun RenderAdLayoutPreviewNode(
         is AdAssetNode.Headline -> PreviewText(data.headline, node.style, node.maxLines, nodeModifier, node.visibilityPolicy)
         is AdAssetNode.Body -> PreviewText(data.body, node.style, node.maxLines, nodeModifier, node.visibilityPolicy)
         is AdAssetNode.CallToAction -> PreviewButton(
-            text = data.callToAction,
+            text = resolveCallToActionText(data.callToAction, node.style.textCase),
             style = node.style,
             nodeModifier = node.modifier,
             modifier = modifier.then(node.modifier.withoutPadding().toComposeModifier()),

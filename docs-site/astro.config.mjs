@@ -283,6 +283,7 @@ export default defineConfig({
           label: 'Project',
           items: [
             { slug: 'project/roadmap' },
+            { slug: 'project/showcase' },
             { slug: 'project/contributing' },
             // Was a true orphan: in the sitemap, but with no inbound link from
             // any page, component or sidebar entry in the repository.

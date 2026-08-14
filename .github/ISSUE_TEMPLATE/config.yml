@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://ads.avinya.dev
+    about: Guides, ad format references, and the API reference.
+  - name: Troubleshooting guide
+    url: https://ads.avinya.dev/reference/troubleshooting/
+    about: Check known issues (undefined GAD symbols, consent gates, native ad reload) before filing a bug.
+  - name: Security vulnerability
+    url: https://github.com/Meet-Miyani/admob-compose-multiplatform/security/advisories/new
+    about: Please report vulnerabilities privately — do not open a public issue.

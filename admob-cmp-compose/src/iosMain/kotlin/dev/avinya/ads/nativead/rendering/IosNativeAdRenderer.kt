@@ -161,8 +161,9 @@ internal class IosNativeAdRenderer(
     }
 
     private fun renderCallToAction(node: AdAssetNode.CallToAction): UIView {
-        val title = nativeAd.callToAction
-        if (title == null || title.isEmpty()) return missingView(node.modifier, node.visibilityPolicy)
+        val provided = nativeAd.callToAction
+        if (provided == null || provided.isEmpty()) return missingView(node.modifier, node.visibilityPolicy)
+        val title = resolveCallToActionText(provided, node.style.textCase)
         val button = platform.UIKit.UIButton.buttonWithType(platform.UIKit.UIButtonTypeSystem)
         val insets = resolveCallToActionContentInsets(node.modifier, node.style)
         val configuration = UIButtonConfiguration.plainButtonConfiguration().apply {

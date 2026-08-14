@@ -1,6 +1,7 @@
 package dev.avinya.ads.nativead.rendering
 
 import dev.avinya.ads.nativead.layout.AdButtonStyle
+import dev.avinya.ads.nativead.layout.AdButtonTextCase
 import dev.avinya.ads.nativead.layout.AdImageStyle
 import dev.avinya.ads.nativead.layout.AdInsets
 import dev.avinya.ads.nativead.layout.AdModifier
@@ -83,5 +84,41 @@ class NativeAdRendererResolutionTest {
                 style = AdButtonStyle(horizontalPaddingDp = 24f),
             ),
         )
+    }
+}
+
+class CallToActionTextCaseTest {
+
+    @Test
+    fun asProvidedNeverRewritesTheCreativesLabel() {
+        assertEquals("INSTALL", resolveCallToActionText("INSTALL", AdButtonTextCase.AsProvided))
+        assertEquals("Book now", resolveCallToActionText("Book now", AdButtonTextCase.AsProvided))
+    }
+
+    @Test
+    fun sentenceCaseRewritesAllCapsLabels() {
+        assertEquals("Install", resolveCallToActionText("INSTALL", AdButtonTextCase.SentenceCase))
+        assertEquals("Learn more", resolveCallToActionText("LEARN MORE", AdButtonTextCase.SentenceCase))
+    }
+
+    @Test
+    fun sentenceCaseLeavesMixedCaseLabelsAlone() {
+        // Deliberate capitalisation must survive: these already carry case information.
+        assertEquals("Book now", resolveCallToActionText("Book now", AdButtonTextCase.SentenceCase))
+        assertEquals("Shop at H&M", resolveCallToActionText("Shop at H&M", AdButtonTextCase.SentenceCase))
+        assertEquals("iBooks", resolveCallToActionText("iBooks", AdButtonTextCase.SentenceCase))
+    }
+
+    @Test
+    fun sentenceCaseCapitalisesTheFirstLetterNotTheFirstCharacter() {
+        // A leading symbol must not swallow the capital that belongs to the first word.
+        assertEquals("→ Install", resolveCallToActionText("→ INSTALL", AdButtonTextCase.SentenceCase))
+        assertEquals("  Install", resolveCallToActionText("  INSTALL", AdButtonTextCase.SentenceCase))
+    }
+
+    @Test
+    fun sentenceCaseIsSafeOnLabelsWithoutLetters() {
+        assertEquals("", resolveCallToActionText("", AdButtonTextCase.SentenceCase))
+        assertEquals("$9.99", resolveCallToActionText("$9.99", AdButtonTextCase.SentenceCase))
     }
 }

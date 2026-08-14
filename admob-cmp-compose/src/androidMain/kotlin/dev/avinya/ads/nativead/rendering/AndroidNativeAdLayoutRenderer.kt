@@ -202,7 +202,7 @@ internal class AndroidNativeAdLayoutRenderer(
                 renderedMediaView = this
             }
             is AdAssetNode.CallToAction -> Button(context).apply {
-                text = nativeAd.callToAction.orEmpty()
+                text = resolveCallToActionText(nativeAd.callToAction.orEmpty(), node.style.textCase)
                 isAllCaps = false
                 disableDirectInteractionForNativeAdAsset()
                 setTextColor(node.style.textStyle.colorArgb.toAndroidColor())
