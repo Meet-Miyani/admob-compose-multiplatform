@@ -122,10 +122,10 @@ an ads showcase that looks broken without ads teaches the wrong lesson.
 
 ### Native layouts
 
-`ui/ad/AdLayouts.kt` builds two layouts with the SDK's `adLayout {}` DSL, per
+`ui/ad/` (`FeedAdLayout.kt`, `FeedRowAdLayout.kt`, `InlineAdLayout.kt`) builds layouts with the SDK's `adLayout {}` DSL, per
 theme rather than as top-level constants — a layout baked with light-theme
-colours renders a white card in a dark feed. Both carry the two policy-relevant
-nodes: `adBadge()` at the top, and reserved `adChoices()` space.
+colours renders a white card in a dark feed. Each carries the two policy-relevant
+nodes: `adBadge()` at the top, and reserved `adChoices()` space. Each layout file includes `@Preview` composables for Light and Dark themes.
 
 `feedRowAdLayout` is the argument for the DSL in one screen: it composes the
 same asset bag into the *exact* geometry of an editorial row — eyebrow,
