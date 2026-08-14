@@ -96,14 +96,15 @@ internal fun feedAdLayout(palette: ShowcasePalette, headlineFamily: FontFamily):
 @Composable
 private fun FeedAdLayoutLightPreview() {
     ShowcaseTheme(themeMode = ThemeMode.Light) {
-        Surface(
-            color = MaterialTheme.colorScheme.background,
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-        ) {
-            AdLayoutPreview(
-                layout = rememberFeedAdLayout(),
-                data = AdLayoutPreviewData.default,
-            )
+        Surface(color = showcaseColors.canvas) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+            ) {
+                AdLayoutPreview(
+                    layout = rememberFeedAdLayout(),
+                    data = AdLayoutPreviewData.default,
+                )
+            }
         }
     }
 }
@@ -112,14 +113,15 @@ private fun FeedAdLayoutLightPreview() {
 @Composable
 private fun FeedAdLayoutDarkPreview() {
     ShowcaseTheme(themeMode = ThemeMode.Dark) {
-        Surface(
-            color = MaterialTheme.colorScheme.background,
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-        ) {
-            AdLayoutPreview(
-                layout = rememberFeedAdLayout(),
-                data = AdLayoutPreviewData.default,
-            )
+        Surface(color = showcaseColors.canvas) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+            ) {
+                AdLayoutPreview(
+                    layout = rememberFeedAdLayout(),
+                    data = AdLayoutPreviewData.default,
+                )
+            }
         }
     }
 }

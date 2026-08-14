@@ -80,14 +80,15 @@ internal fun inlineAdLayout(palette: ShowcasePalette, headlineFamily: FontFamily
 @Composable
 private fun InlineAdLayoutLightPreview() {
     ShowcaseTheme(themeMode = ThemeMode.Light) {
-        Surface(
-            color = MaterialTheme.colorScheme.background,
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-        ) {
-            AdLayoutPreview(
-                layout = rememberInlineAdLayout(),
-                data = AdLayoutPreviewData.default,
-            )
+        Surface(color = showcaseColors.canvas) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+            ) {
+                AdLayoutPreview(
+                    layout = rememberInlineAdLayout(),
+                    data = AdLayoutPreviewData.default,
+                )
+            }
         }
     }
 }
@@ -96,14 +97,15 @@ private fun InlineAdLayoutLightPreview() {
 @Composable
 private fun InlineAdLayoutDarkPreview() {
     ShowcaseTheme(themeMode = ThemeMode.Dark) {
-        Surface(
-            color = MaterialTheme.colorScheme.background,
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-        ) {
-            AdLayoutPreview(
-                layout = rememberInlineAdLayout(),
-                data = AdLayoutPreviewData.default,
-            )
+        Surface(color = showcaseColors.canvas) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+            ) {
+                AdLayoutPreview(
+                    layout = rememberInlineAdLayout(),
+                    data = AdLayoutPreviewData.default,
+                )
+            }
         }
     }
 }
