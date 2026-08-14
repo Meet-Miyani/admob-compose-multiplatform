@@ -40,82 +40,85 @@ fun rememberFeedRowAdLayout(): AdLayout {
     return remember(palette, headlineFamily) { feedRowAdLayout(palette, headlineFamily) }
 }
 
-internal fun feedRowAdLayout(palette: ShowcasePalette, headlineFamily: FontFamily): AdLayout = adLayout {
-    row(
-        modifier = AdModifier.fillMaxWidth().padding(vertical = 12.dp),
-        verticalAlignment = AdAlignment.Vertical.Top,
-        spacing = 16.dp,
-    ) {
-        column(modifier = AdModifier.weight(1f), spacing = 8.dp) {
-            row(
-                modifier = AdModifier.fillMaxWidth(),
-                verticalAlignment = AdAlignment.Vertical.CenterVertically,
-                spacing = 6.dp,
-            ) {
-                adBadge(
-                    modifier = AdModifier.wrapContentSize(),
-                    text = "SPONSORED",
+internal fun feedRowAdLayout(palette: ShowcasePalette, headlineFamily: FontFamily): AdLayout =
+    adLayout {
+        row(
+            modifier = AdModifier.fillMaxWidth().padding(vertical = 12.dp),
+            verticalAlignment = AdAlignment.Vertical.Top,
+            spacing = 16.dp,
+        ) {
+            column(modifier = AdModifier.weight(1f), spacing = 8.dp) {
+                row(
+                    modifier = AdModifier.fillMaxWidth(),
+                    verticalAlignment = AdAlignment.Vertical.CenterVertically,
+                    spacing = 6.dp,
+                ) {
+                    adBadge(
+                        modifier = AdModifier.wrapContentSize(),
+                        text = "SPONSORED",
+                        style = AdTextStyle(
+                            fontSizeSp = 11f,
+                            colorArgb = palette.accent.argb(),
+                            fontWeight = AdFontWeight.Bold,
+                        ),
+                    )
+                    spacer(AdModifier.weight(1f))
+                    adChoices(
+                        modifier = AdModifier.size(16.dp),
+                        visibilityPolicy = AdVisibilityPolicy.KeepSpace,
+                    )
+                }
+
+                headline(
+                    modifier = AdModifier.fillMaxWidth(),
                     style = AdTextStyle(
-                        fontSizeSp = 11f,
-                        colorArgb = palette.accent.argb(),
-                        fontWeight = AdFontWeight.Bold,
+                        fontSizeSp = 21f,
+                        colorArgb = palette.ink.argb(),
+                        fontWeight = AdFontWeight.Medium,
+                        fontFamily = AdFontFamily.FromCompose(headlineFamily),
                     ),
+                    maxLines = 3,
                 )
-                spacer(AdModifier.weight(1f))
-                adChoices(
-                    modifier = AdModifier.size(16.dp),
-                    visibilityPolicy = AdVisibilityPolicy.KeepSpace,
+
+                body(
+                    modifier = AdModifier.fillMaxWidth(),
+                    style = AdTextStyle(fontSizeSp = 13f, colorArgb = palette.inkMuted.argb()),
+                    maxLines = 2,
+                )
+
+                advertiser(
+                    modifier = AdModifier.fillMaxWidth(),
+                    style = AdTextStyle(fontSizeSp = 12f, colorArgb = palette.inkMuted.argb()),
+                    maxLines = 1,
+                    visibilityPolicy = AdVisibilityPolicy.HideWhenMissing,
                 )
             }
 
-            headline(
-                modifier = AdModifier.fillMaxWidth(),
-                style = AdTextStyle(
-                    fontSizeSp = 21f,
-                    colorArgb = palette.ink.argb(),
-                    fontWeight = AdFontWeight.Medium,
-                    fontFamily = AdFontFamily.FromCompose(headlineFamily),
-                ),
-                maxLines = 3,
-            )
-
-            body(
-                modifier = AdModifier.fillMaxWidth(),
-                style = AdTextStyle(fontSizeSp = 13f, colorArgb = palette.inkMuted.argb()),
-                maxLines = 2,
-            )
-
-            advertiser(
-                modifier = AdModifier.fillMaxWidth(),
-                style = AdTextStyle(fontSizeSp = 12f, colorArgb = palette.inkMuted.argb()),
-                maxLines = 1,
-                visibilityPolicy = AdVisibilityPolicy.HideWhenMissing,
-            )
-        }
-
-        box(modifier = AdModifier.size(Tokens.feedThumbnail)) {
-            icon(
-                modifier = AdModifier.size(Tokens.feedThumbnail).cornerRadius(20.dp),
-                style = AdImageStyle(
-                    contentScale = AdContentScale.Crop,
-                    backgroundArgb = palette.surfaceSunken.argb(),
-                ),
-            )
-            media(
-                modifier = AdModifier.size(Tokens.feedThumbnail).cornerRadius(20.dp),
-                style = AdImageStyle(contentScale = AdContentScale.Crop),
-                visibilityPolicy = AdVisibilityPolicy.HideWhenMissing,
-            )
+            box(modifier = AdModifier.size(Tokens.feedThumbnail)) {
+                icon(
+                    modifier = AdModifier.size(Tokens.feedThumbnail).cornerRadius(20.dp),
+                    style = AdImageStyle(
+                        contentScale = AdContentScale.Crop,
+                        backgroundArgb = palette.surfaceSunken.argb(),
+                    ),
+                )
+                media(
+                    modifier = AdModifier.size(Tokens.feedThumbnail).cornerRadius(20.dp),
+                    style = AdImageStyle(
+                        contentScale = AdContentScale.Crop,
+                        backgroundArgb = palette.surfaceSunken.argb(),
+                    ),
+                    visibilityPolicy = AdVisibilityPolicy.HideWhenMissing,
+                )
+            }
         }
     }
-}
 
 @Preview
 @Composable
 private fun FeedRowAdLayoutLightPreview() {
     ShowcaseTheme(themeMode = ThemeMode.Light) {
         Surface(
-            color = MaterialTheme.colorScheme.background,
             modifier = Modifier.fillMaxWidth().padding(16.dp),
         ) {
             AdLayoutPreview(
@@ -131,7 +134,6 @@ private fun FeedRowAdLayoutLightPreview() {
 private fun FeedRowAdLayoutDarkPreview() {
     ShowcaseTheme(themeMode = ThemeMode.Dark) {
         Surface(
-            color = MaterialTheme.colorScheme.background,
             modifier = Modifier.fillMaxWidth().padding(16.dp),
         ) {
             AdLayoutPreview(

@@ -179,12 +179,20 @@ private class IosNativeAdHostController(
     )
 
     init {
+        view.backgroundColor = platform.UIKit.UIColor.clearColor
+        nativeView.backgroundColor = platform.UIKit.UIColor.clearColor
         nativeView.clipsToBounds = true
         view.addSubview(nativeView)
         nativeView.leadingAnchor.constraintEqualToAnchor(view.leadingAnchor).active = true
         nativeView.trailingAnchor.constraintEqualToAnchor(view.trailingAnchor).active = true
         nativeView.topAnchor.constraintEqualToAnchor(view.topAnchor).active = true
         nativeView.bottomAnchor.constraintEqualToAnchor(view.bottomAnchor).active = true
+    }
+
+    override fun viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = platform.UIKit.UIColor.clearColor
+        nativeView.backgroundColor = platform.UIKit.UIColor.clearColor
     }
 
     override fun viewDidLayoutSubviews() {
