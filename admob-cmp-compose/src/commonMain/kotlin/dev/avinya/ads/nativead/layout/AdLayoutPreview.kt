@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,17 +26,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import dev.avinya.ads.nativead.rendering.effectiveWeight
 import dev.avinya.ads.nativead.rendering.resolveCallToActionContentInsets
+import dev.avinya.ads.nativead.rendering.resolveCallToActionCornerRadiusDp
+import dev.avinya.ads.nativead.rendering.resolveStarRatingText
 import dev.avinya.ads.nativead.rendering.resolveCallToActionText
 import dev.avinya.ads.nativead.rendering.resolveNativeAdBackgroundArgb
 import dev.avinya.ads.nativead.rendering.withoutPadding
@@ -109,7 +118,7 @@ private fun RenderAdLayoutPreviewNode(
             verticalAlignment = node.verticalAlignment.toComposeAlignment()
         ) {
             node.children.forEach { child ->
-                val childModifier = child.modifier.weight?.let { Modifier.weight(it) } ?: Modifier
+                val childModifier = child.modifier.effectiveWeight?.let { Modifier.weight(it) } ?: Modifier
                 RenderAdLayoutPreviewNode(child, data, childModifier)
             }
         }
@@ -119,7 +128,7 @@ private fun RenderAdLayoutPreviewNode(
             horizontalAlignment = node.horizontalAlignment.toComposeAlignment()
         ) {
             node.children.forEach { child ->
-                val childModifier = child.modifier.weight?.let { Modifier.weight(it) } ?: Modifier
+                val childModifier = child.modifier.effectiveWeight?.let { Modifier.weight(it) } ?: Modifier
                 RenderAdLayoutPreviewNode(child, data, childModifier)
             }
         }
@@ -147,7 +156,9 @@ private fun RenderAdLayoutPreviewNode(
         is AdAssetNode.Advertiser -> PreviewText(data.advertiser, node.style, node.maxLines, nodeModifier, node.visibilityPolicy)
         is AdAssetNode.Price -> PreviewText(data.price, node.style, node.maxLines, nodeModifier, node.visibilityPolicy)
         is AdAssetNode.Store -> PreviewText(data.store, node.style, node.maxLines, nodeModifier, node.visibilityPolicy)
-        is AdAssetNode.StarRating -> PreviewText("★ ${data.starRating}", node.style, 1, nodeModifier, node.visibilityPolicy)
+        is AdAssetNode.StarRating -> PreviewText(
+            resolveStarRatingText(data.starRating), node.style, 1, nodeModifier, node.visibilityPolicy,
+        )
         is AdAssetNode.AdChoices -> PreviewAdChoices(nodeModifier)
         is AdAssetNode.AdBadge -> PreviewText(node.text, node.style, 1, nodeModifier, node.visibilityPolicy)
     }
@@ -196,7 +207,10 @@ private fun PreviewButton(
     val backgroundArgb = resolveNativeAdBackgroundArgb(nodeModifier, style.backgroundArgb)
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(style.cornerRadiusDp.dp))
+            // The same precedence the two shipping renderers use: the node's own corner radius
+            // overrides the button style's, so `background(c).cornerRadius(r)` on a callToAction
+            // previews as it renders.
+            .clip(RoundedCornerShape(resolveCallToActionCornerRadiusDp(nodeModifier, style).dp))
             .background(backgroundArgb?.let(::Color) ?: Color.Transparent)
             .padding(insets.startDp.dp, insets.topDp.dp, insets.endDp.dp, insets.bottomDp.dp),
         contentAlignment = Alignment.Center
@@ -262,7 +276,10 @@ private fun PreviewMedia(
 private fun PreviewAdChoices(modifier: Modifier) {
     Box(
         modifier = modifier
-            .size(22.dp)
+            // A default, not an override: forcing 22.dp here discarded whatever size the node
+            // asked for, so `adChoices(AdModifier.size(20.dp))` previewed at a size the shipped
+            // renderers never use.
+            .defaultMinSize(22.dp, 22.dp)
             .background(Color(0xCCFFFFFF))
             .border(1.dp, Color(0xFFBDBDBD)),
         contentAlignment = Alignment.Center
@@ -283,8 +300,25 @@ private fun MissingPreviewAsset(
     }
 }
 
-private fun AdModifier.toComposeModifier(): Modifier {
+internal fun AdModifier.toComposeModifier(): Modifier {
     var modifier: Modifier = Modifier
+    // Margin is space *outside* the node, so it has to precede every visual property — otherwise
+    // the background and border would paint over it.
+    if (margin.startDp != 0f || margin.topDp != 0f || margin.endDp != 0f || margin.bottomDp != 0f) {
+        modifier = modifier.padding(margin.startDp.dp, margin.topDp.dp, margin.endDp.dp, margin.bottomDp.dp)
+    }
+    if (minWidthDp != null || maxWidthDp != null) {
+        modifier = modifier.widthIn(
+            min = minWidthDp?.dp ?: Dp.Unspecified,
+            max = maxWidthDp?.dp ?: Dp.Unspecified,
+        )
+    }
+    if (minHeightDp != null || maxHeightDp != null) {
+        modifier = modifier.heightIn(
+            min = minHeightDp?.dp ?: Dp.Unspecified,
+            max = maxHeightDp?.dp ?: Dp.Unspecified,
+        )
+    }
     modifier = when (width) {
         AdLayoutSize.Match -> modifier.fillMaxWidth()
         is AdLayoutSize.Fixed -> modifier.width(width.toDp())
@@ -297,10 +331,21 @@ private fun AdModifier.toComposeModifier(): Modifier {
     }
     if (width == AdLayoutSize.Match && height == AdLayoutSize.Match) modifier = modifier.fillMaxSize()
     aspectRatio?.let { modifier = modifier.aspectRatio(it) }
-    modifier = modifier.padding(padding.startDp.dp, padding.topDp.dp, padding.endDp.dp, padding.bottomDp.dp)
-    modifier = modifier.offset(offsetXDp.dp, offsetYDp.dp)
-    modifier = modifier.alpha(alpha)
-    modifier = modifier.zIndex(zIndex)
+    // Applied only when they actually do something. Emitting `alpha(1f)`, `zIndex(0f)` and
+    // zero-valued padding/offset on every node allocated a modifier element per node per preview
+    // for no effect, and left an empty AdModifier indistinguishable from a populated one.
+    if (offsetXDp != 0f || offsetYDp != 0f) modifier = modifier.offset(offsetXDp.dp, offsetYDp.dp)
+    // `Gone` is handled by the caller, which skips the node entirely. `Invisible` has to be drawn
+    // as occupied-but-unpainted space, and was previously not handled anywhere in the preview: a
+    // node marked `AdModifier.invisible()` went out INVISIBLE on Android, alpha-0 on iOS, and fully
+    // visible in the preview.
+    if (display == AdDisplay.Invisible) modifier = modifier.alpha(0f)
+    else if (alpha != 1f) modifier = modifier.alpha(alpha)
+    if (zIndex != 0f) modifier = modifier.zIndex(zIndex)
+    // Drawn before the clip and background so the shadow falls outside the shape, as on Android.
+    if (elevationDp > 0f) {
+        modifier = modifier.shadow(elevationDp.dp, toComposeShape(), clip = false)
+    }
     modifier = when (val clip = clipShape) {
         AdClip.Bounds -> modifier.clip(RoundedCornerShape(0.dp))
         AdClip.Circle -> modifier.clip(CircleShape)
@@ -316,7 +361,22 @@ private fun AdModifier.toComposeModifier(): Modifier {
             shape = RoundedCornerShape((borderRadiusDp ?: cornerRadiusDp ?: 0f).dp)
         )
     }
+    // Padding is space *inside* the node, so it must follow the background and border — Android
+    // (`setPadding` + a background drawable) and iOS (stack `layoutMargins` inside the surface)
+    // both paint the background across it. Applying it earlier left the padding band transparent
+    // and previewed a layout like `background(surface).padding(vertical = 12.dp)` with bands the
+    // shipped renderers fill.
+    if (padding.startDp != 0f || padding.topDp != 0f || padding.endDp != 0f || padding.bottomDp != 0f) {
+        modifier = modifier.padding(padding.startDp.dp, padding.topDp.dp, padding.endDp.dp, padding.bottomDp.dp)
+    }
     return modifier
+}
+
+/** The outline a node draws its shadow, clip and border against. */
+private fun AdModifier.toComposeShape(): Shape = when (val clip = clipShape) {
+    AdClip.Circle -> CircleShape
+    is AdClip.RoundedCorner -> RoundedCornerShape(clip.radiusDp.dp)
+    AdClip.Bounds, AdClip.None -> RoundedCornerShape((cornerRadiusDp ?: 0f).dp)
 }
 
 private fun AdLayoutSize.Fixed.toDp() = dp.dp
