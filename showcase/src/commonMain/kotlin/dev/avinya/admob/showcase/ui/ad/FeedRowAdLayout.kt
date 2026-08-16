@@ -7,6 +7,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -32,18 +33,27 @@ import dev.avinya.ads.nativead.layout.adLayout
  * Feed-row treatment: the same geometry as `StoryCard`'s Standard row —
  * eyebrow, serif headline, two-line standfirst, meta line, and a square
  * thumbnail on the trailing edge.
+ *
+ * @param surface the colour this row sits on. It is painted onto the layout root because the
+ * iOS renderer embeds the ad below Compose's canvas, which clears every Compose pixel behind it —
+ * a transparent root would expose the platform backdrop instead of the app's own surface. These
+ * rows are rendered unframed straight onto the feed, so the default is the canvas.
  */
 @Composable
-fun rememberFeedRowAdLayout(): AdLayout {
+fun rememberFeedRowAdLayout(surface: Color = showcaseColors.canvas): AdLayout {
     val palette = showcaseColors
     val headlineFamily = MaterialTheme.typography.titleLarge.fontFamily ?: FontFamily.Serif
-    return remember(palette, headlineFamily) { feedRowAdLayout(palette, headlineFamily) }
+    return remember(palette, headlineFamily, surface) { feedRowAdLayout(palette, headlineFamily, surface) }
 }
 
-internal fun feedRowAdLayout(palette: ShowcasePalette, headlineFamily: FontFamily): AdLayout =
+internal fun feedRowAdLayout(
+    palette: ShowcasePalette,
+    headlineFamily: FontFamily,
+    surface: Color,
+): AdLayout =
     adLayout {
         row(
-            modifier = AdModifier.fillMaxWidth().padding(vertical = 12.dp),
+            modifier = AdModifier.fillMaxWidth().background(surface).padding(vertical = 12.dp),
             verticalAlignment = AdAlignment.Vertical.Top,
             spacing = 16.dp,
         ) {

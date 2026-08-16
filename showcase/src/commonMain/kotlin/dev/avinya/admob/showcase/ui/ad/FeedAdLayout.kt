@@ -7,6 +7,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -24,18 +25,26 @@ import dev.avinya.ads.nativead.layout.adLayout
 
 /**
  * Feed treatment: cover-led, for a hero-sized slot.
+ *
+ * @param surface the colour this ad sits on, painted onto the layout root so the iOS renderer has
+ * an opaque surface to draw (see [rememberFeedRowAdLayout]). This treatment is rendered framed
+ * inside a `Plane`, so the default is the raised surface rather than the canvas.
  */
 @Composable
-fun rememberFeedAdLayout(): AdLayout {
+fun rememberFeedAdLayout(surface: Color = showcaseColors.surface): AdLayout {
     val palette = showcaseColors
     val headlineFamily = MaterialTheme.typography.titleLarge.fontFamily ?: FontFamily.Serif
-    return remember(palette, headlineFamily) { feedAdLayout(palette, headlineFamily) }
+    return remember(palette, headlineFamily, surface) { feedAdLayout(palette, headlineFamily, surface) }
 }
 
-internal fun feedAdLayout(palette: ShowcasePalette, headlineFamily: FontFamily): AdLayout {
+internal fun feedAdLayout(
+    palette: ShowcasePalette,
+    headlineFamily: FontFamily,
+    surface: Color,
+): AdLayout {
     val badge = badgeStyle(palette)
     return adLayout {
-        column(modifier = AdModifier.fillMaxWidth(), spacing = 12.dp) {
+        column(modifier = AdModifier.fillMaxWidth().background(surface), spacing = 12.dp) {
             row(
                 modifier = AdModifier.fillMaxWidth(),
                 verticalAlignment = AdAlignment.Vertical.CenterVertically,

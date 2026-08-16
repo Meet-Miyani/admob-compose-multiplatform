@@ -7,6 +7,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -25,16 +26,24 @@ import dev.avinya.ads.nativead.layout.adLayout
 /**
  * Article treatment: text-led band with no large media, so it reads as an
  * interruption in the column rather than a second hero.
+ *
+ * @param surface the colour this ad sits on, painted onto the layout root so the iOS renderer has
+ * an opaque surface to draw (see [rememberFeedRowAdLayout]). This treatment is rendered framed
+ * inside a `Plane`, so the default is the raised surface rather than the canvas.
  */
 @Composable
-fun rememberInlineAdLayout(): AdLayout {
+fun rememberInlineAdLayout(surface: Color = showcaseColors.surface): AdLayout {
     val palette = showcaseColors
     val headlineFamily = MaterialTheme.typography.titleLarge.fontFamily ?: FontFamily.Serif
-    return remember(palette, headlineFamily) { inlineAdLayout(palette, headlineFamily) }
+    return remember(palette, headlineFamily, surface) { inlineAdLayout(palette, headlineFamily, surface) }
 }
 
-internal fun inlineAdLayout(palette: ShowcasePalette, headlineFamily: FontFamily): AdLayout = adLayout {
-    column(modifier = AdModifier.fillMaxWidth(), spacing = 12.dp) {
+internal fun inlineAdLayout(
+    palette: ShowcasePalette,
+    headlineFamily: FontFamily,
+    surface: Color,
+): AdLayout = adLayout {
+    column(modifier = AdModifier.fillMaxWidth().background(surface), spacing = 12.dp) {
         row(
             modifier = AdModifier.fillMaxWidth(),
             verticalAlignment = AdAlignment.Vertical.CenterVertically,
