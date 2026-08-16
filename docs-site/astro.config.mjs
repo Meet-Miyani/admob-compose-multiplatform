@@ -79,6 +79,7 @@ export default defineConfig({
       components: {
         Head: './src/components/Head.astro',
         Hero: './src/components/Hero.astro',
+        ThemeSelect: './src/components/ThemeSelect.astro',
       },
       expressiveCode: {
         themes: ['github-dark', 'github-light'],
