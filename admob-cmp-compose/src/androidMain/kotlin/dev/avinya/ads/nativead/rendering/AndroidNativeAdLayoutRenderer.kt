@@ -2,14 +2,13 @@ package dev.avinya.ads.nativead.rendering
 
 import android.content.Context
 import android.graphics.Color
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.RatingBar
 import android.widget.Space
 import android.widget.TextView
 import dev.avinya.ads.AdLogger
@@ -25,6 +24,7 @@ import dev.avinya.ads.nativead.layout.AdSpacer
 import dev.avinya.ads.nativead.layout.AdStaticText
 import dev.avinya.ads.nativead.layout.AdTextStyle
 import dev.avinya.ads.nativead.layout.AdVisibilityPolicy
+import com.google.android.libraries.ads.mobile.sdk.common.AdChoicesView
 import com.google.android.libraries.ads.mobile.sdk.nativead.MediaView
 import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd
 import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
@@ -86,6 +86,7 @@ internal class AndroidNativeAdLayoutRenderer(
                     nativeAdView.priceView?.let { "price" to it },
                     nativeAdView.storeView?.let { "store" to it },
                     nativeAdView.starRatingView?.let { "starRating" to it },
+                    nativeAdView.adChoicesView?.let { "adChoices" to it },
                 ).mapNotNull { (name, asset) ->
                     val assetBounds = asset.screenBounds()
                     "$name=$assetBounds".takeUnless { rootBounds.contains(assetBounds) }
@@ -127,7 +128,7 @@ internal class AndroidNativeAdLayoutRenderer(
             clipChildren = false
             clipToPadding = false
             applyViewStyle(this, node.modifier)
-            node.children.forEachIndexed { index, child ->
+            node.children.laidOut().forEachIndexed { index, child ->
                 addChild(this, buildNode(child, nativeAdView), child.modifier, if (index > 0) node.spacingDp else 0f, horizontal = true)
             }
         }
@@ -137,7 +138,7 @@ internal class AndroidNativeAdLayoutRenderer(
             clipChildren = false
             clipToPadding = false
             applyViewStyle(this, node.modifier)
-            node.children.forEachIndexed { index, child ->
+            node.children.laidOut().forEachIndexed { index, child ->
                 addChild(this, buildNode(child, nativeAdView), child.modifier, if (index > 0) node.spacingDp else 0f, horizontal = false)
             }
         }
@@ -145,7 +146,9 @@ internal class AndroidNativeAdLayoutRenderer(
             clipChildren = false
             clipToPadding = false
             applyViewStyle(this, node.modifier)
-            node.children.forEach { child ->
+            // Sorted, not translated: `sortedBy` is stable, so equal z-indices keep declaration
+            // order and a FrameLayout's draw order follows child order without any Z involved.
+            node.children.laidOut().sortedBy { it.modifier.zIndex }.forEach { child ->
                 addView(wrapForMeasurement(buildNode(child, nativeAdView), child.modifier), frameParams(child.modifier, node.contentAlignment))
             }
         }
@@ -174,15 +177,16 @@ internal class AndroidNativeAdLayoutRenderer(
             is AdAssetNode.Advertiser -> textAsset(nativeAd.advertiser, node.style, node.maxLines) { nativeAdView.advertiserView = it }
             is AdAssetNode.Price -> textAsset(nativeAd.price, node.style, node.maxLines) { nativeAdView.priceView = it }
             is AdAssetNode.Store -> textAsset(nativeAd.store, node.style, node.maxLines) { nativeAdView.storeView = it }
-            is AdAssetNode.StarRating -> RatingBar(context, null, android.R.attr.ratingBarStyleSmall).apply {
-                val rating = nativeAd.starRating?.toFloat()
-                if (rating != null) this.rating = rating
-                numStars = 5
-                stepSize = 0.5f
-                isEnabled = false
-                applyViewStyle(this, node.modifier)
-                applyMissingVisibility(rating, node.visibilityPolicy)
-                nativeAdView.starRatingView = this
+            // Rendered as styled text, not a `RatingBar`.
+            //
+            // A `RatingBar` cannot honour the node's `AdTextStyle` at all — no colour, no font, no
+            // size — so a rating sitting in a row beside `price` and `store` came out as system
+            // stars next to themed captions, and looked nothing like the same node on iOS or in
+            // `AdLayoutPreview`. Google's own native-ads guide renders the asset as text for this
+            // reason; `resolveStarRatingText` is what the other two renderers now use as well.
+            is AdAssetNode.StarRating -> {
+                val rating = resolveStarRatingText(nativeAd.starRating)
+                textAsset(rating, node.style, maxLines = 1) { nativeAdView.starRatingView = it }
             }
             is AdAssetNode.Icon -> ImageView(context).apply {
                 setImageDrawable(nativeAd.icon?.drawable)
@@ -201,9 +205,20 @@ internal class AndroidNativeAdLayoutRenderer(
                 applyViewStyle(this, node.modifier, backgroundArgb)
                 renderedMediaView = this
             }
-            is AdAssetNode.CallToAction -> Button(context).apply {
+            // A `TextView`, deliberately not a `Button`.
+            //
+            // `Button(context)` resolves the *device theme's* `buttonStyle`, which carries an
+            // `android:minHeight`/`minWidth`. Those are `TextView`-level minimums, so
+            // `applyViewStyle`'s `view.minimumHeight = 0` does not clear them — the call-to-action's
+            // height was therefore decided by the OEM's button style, differing from iOS and from
+            // one Android vendor to the next. A bare `TextView` with an explicit style attribute of
+            // zero inherits nothing, so the size is exactly text plus the resolved insets, which is
+            // the same arithmetic the iOS renderer performs.
+            is AdAssetNode.CallToAction -> TextView(context, null, 0, 0).apply {
                 text = resolveCallToActionText(nativeAd.callToAction.orEmpty(), node.style.textCase)
                 isAllCaps = false
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
                 disableDirectInteractionForNativeAdAsset()
                 setTextColor(node.style.textStyle.colorArgb.toAndroidColor())
                 textSize = node.style.textStyle.fontSizeSp
@@ -211,9 +226,17 @@ internal class AndroidNativeAdLayoutRenderer(
                     node.style.textStyle.fontWeight,
                     resolvedComposeFonts,
                 )
+                gravity = Gravity.CENTER
+                // Handing the resolved radius back through the modifier keeps one code path
+                // painting the surface, so a node that sets its own background, border or corner
+                // radius overrides the style instead of fighting it.
                 val backgroundArgb = resolveNativeAdDrawableBackgroundArgb(node.modifier, node.style.backgroundArgb)
-                background = roundedDrawable(density, backgroundArgb, node.style.cornerRadiusDp)
-                applyViewStyle(this, node.modifier.withoutPadding(), backgroundArgb)
+                applyViewStyle(
+                    view = this,
+                    modifier = node.modifier.withoutPadding()
+                        .copy(cornerRadiusDp = resolveCallToActionCornerRadiusDp(node.modifier, node.style)),
+                    backgroundArgb = backgroundArgb,
+                )
                 val insets = resolveCallToActionContentInsets(node.modifier, node.style)
                 setPadding(
                     dp(insets.startDp),
@@ -221,13 +244,21 @@ internal class AndroidNativeAdLayoutRenderer(
                     dp(insets.endDp),
                     dp(insets.bottomDp),
                 )
-                gravity = Gravity.CENTER
                 applyMissingVisibility(nativeAd.callToAction?.takeIf { it.isNotBlank() }, node.visibilityPolicy)
                 nativeAdView.callToActionView = this
             }
-            is AdAssetNode.AdChoices -> FrameLayout(context).apply {
-                contentDescription = "AdChoices placement"
+            // A real `AdChoicesView`, registered with the ad view.
+            //
+            // This used to be a bare `FrameLayout` that was never assigned to
+            // `NativeAdView.adChoicesView`, so the slot the layout reserved stayed empty and the
+            // SDK drew its overlay at the request's `adChoicesPlacement` corner instead — over
+            // whatever content happened to be there. iOS registered a `GADAdChoicesView` all along.
+            // Assignment has to happen before `registerNativeAd`, which it does: the tree is built
+            // first and registration is deferred to the containment listener.
+            is AdAssetNode.AdChoices -> AdChoicesView(context).apply {
+                contentDescription = "AdChoices"
                 applyViewStyle(this, node.modifier)
+                nativeAdView.adChoicesView = this
             }
             is AdAssetNode.AdBadge -> TextView(context).apply {
                 text = node.text
@@ -254,10 +285,15 @@ internal class AndroidNativeAdLayoutRenderer(
     }
 
     private fun linearParams(modifier: AdModifier, spacingDp: Float, horizontal: Boolean): LinearLayout.LayoutParams {
-        val weighted = modifier.weight != null
-        val width = if (horizontal && weighted) 0 else modifier.width.toLayoutParam(density)
-        val height = if (!horizontal && weighted) 0 else modifier.height.toLayoutParam(density)
-        val params = LinearLayout.LayoutParams(width, height, modifier.weight ?: 0f)
+        // `MATCH_PARENT` along a LinearLayout's own axis does not mean "take what is left" — it is
+        // measured against the full parent and starves the siblings. Compose measures a row child's
+        // `fillMaxWidth()` against the *remaining* width, which is what a weight expresses here, so
+        // a main-axis `Match` is carried as `weight = 1` over a zero base size.
+        val claimsMain = claimsMainAxis(modifier, stackIsHorizontal = horizontal)
+        val effectiveWeight = modifier.effectiveWeight ?: if (claimsMain) 1f else 0f
+        val width = if (horizontal && claimsMain) 0 else modifier.width.toLayoutParam(density)
+        val height = if (!horizontal && claimsMain) 0 else modifier.height.toLayoutParam(density)
+        val params = LinearLayout.LayoutParams(width, height, effectiveWeight)
         if (horizontal) params.marginStart = dp(spacingDp) else params.topMargin = dp(spacingDp)
         applyMargins(params, modifier)
         return params
@@ -288,7 +324,11 @@ internal class AndroidNativeAdLayoutRenderer(
         view.alpha = modifier.alpha
         view.translationX = dp(modifier.offsetXDp).toFloat()
         view.translationY = dp(modifier.offsetYDp).toFloat()
-        view.translationZ = modifier.zIndex
+        // `zIndex` is deliberately not mapped to `translationZ`. Raising Z reorders the view *and*
+        // makes it cast a shadow once it has an outline, which neither `layer.zPosition` on iOS nor
+        // `Modifier.zIndex` in Compose does — those reorder only. A `Box`'s children overlap, so
+        // they are added in `zIndex` order instead (see `buildNode`); a `Row`/`Column`'s children do
+        // not overlap, so there is no draw order for `zIndex` to affect.
         view.elevation = dp(modifier.elevationDp).toFloat()
         if (!modifier.padding.isZero()) {
             view.setPadding(dp(modifier.padding.startDp), dp(modifier.padding.topDp), dp(modifier.padding.endDp), dp(modifier.padding.bottomDp))
@@ -334,7 +374,31 @@ internal class AndroidNativeAdLayoutRenderer(
         textSize = style.fontSizeSp
         typeface = style.fontFamily.toTypeface(style.fontWeight, resolvedComposeFonts)
         gravity = style.textAlign.toAndroidGravity()
-        maxLines?.let { this.maxLines = it }
+        maxLines?.let {
+            this.maxLines = it
+            // Without an ellipsize the overflow is simply cut mid-glyph, while iOS's UILabel and
+            // the preview's TextOverflow.Ellipsis both truncate with an ellipsis.
+            ellipsize = TextUtils.TruncateAt.END
+        }
+        // `includeFontPadding = false` is required here, not a style choice.
+        //
+        // The padding it suppresses is, in Android's words, the room "to make room for accents that
+        // go above the normal ascent and descent" — so leaving it at the platform default of `true`
+        // looks like the safer choice for advertiser copy in Devanagari, Thai or Vietnamese. On
+        // device it is not: Google's own native ad validator then reports "Advertiser assets
+        // outside native ad view" on every layout, including the built-in `AdTemplates`. A/B tested
+        // on a physical device, three runs each way, across two creatives and two layouts.
+        //
+        // The mechanism is sub-pixel. A layout whose root has no padding puts assets flush against
+        // the ad view's edges, and the ascent/descent overshoot this flag adds is fractional — so
+        // the content ends up a fraction of a pixel taller than the `NativeAdView`. This renderer's
+        // containment gate reads integers (`getLocationOnScreen` plus `width`/`height`) and cannot
+        // see that; the validator can.
+        //
+        // Suppressing the fraction is therefore the fix available today, and it also keeps Android's
+        // metrics aligned with `AdLayoutPreview` and iOS, since Compose defaults this to `false`
+        // too. The diacritic risk is real but unquantified; removing it properly means making the
+        // ad view tolerate fractional content rather than trading a policy failure for it.
         includeFontPadding = false
     }
 
@@ -347,7 +411,7 @@ internal class AndroidNativeAdLayoutRenderer(
         }
     }
 
-    private fun Button.disableDirectInteractionForNativeAdAsset() {
+    private fun TextView.disableDirectInteractionForNativeAdAsset() {
         isClickable = false
         isFocusable = false
     }
@@ -355,4 +419,17 @@ internal class AndroidNativeAdLayoutRenderer(
 
 
     private fun dp(value: Float): Int = (value * density).roundToInt()
+
+    /**
+     * Drops nodes marked [AdDisplay.Gone] before they are built.
+     *
+     * `View.GONE` alone was not equivalent. [wrapForMeasurement] puts a
+     * [ModifierMeasureFrameLayout] around any node carrying `aspectRatio` or a max bound, and that
+     * wrapper applies the ratio and the minimums to *itself* in `onMeasure` whether or not its
+     * child is gone — so `media(AdModifier.fillMaxWidth().aspectRatio(16f / 9f).gone())` still
+     * reserved a 16:9 band. Not building the node at all is what the preview already does, and
+     * what the iOS renderer now does.
+     */
+    private fun List<AdNode>.laidOut(): List<AdNode> =
+        filterNot { it.modifier.display == AdDisplay.Gone }
 }

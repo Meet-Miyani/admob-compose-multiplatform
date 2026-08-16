@@ -12,11 +12,12 @@ import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 All published artifacts live under `dev.avinya.ads` on Maven Central:
 `admob-cmp`, `admob-cmp-core`, `admob-cmp-compose`, and the
 `dev.avinya.ads.admob-cmp.gradle.plugin` marker. The current
-release is **2.0.1**.
+release is **2.1.0**.
 
 | Version | Status | Highlights |
 |---|---|---|
-| 2.0.1 | Current | Native-ad custom fonts, renderer parity, synchronous leases, and grid sessions |
+| 2.1.0 | Current | Native-ad renderer parity across Android, iOS, and preview; themeable templates |
+| 2.0.1 | Superseded | Native-ad custom fonts, renderer parity, synchronous leases, and grid sessions |
 | 2.0.0 | Superseded | Release 2.0.0 |
 | 1.1.1 | Superseded | Banner and native state-machine fixes, main-thread confinement of SDK metadata reads, stricter test-mode warning |
 | 1.1.0 | Superseded | Gradle test plugin, explicit banner geometry inputs, refresh option replaying |
@@ -26,6 +27,71 @@ release is **2.0.1**.
 
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
+
+## What changed in 2.1.0?
+
+A native-ad rendering release. The layout DSL had three hand-written renderers — Android views, iOS
+UIKit, and the Compose `AdLayoutPreview` — and a property honoured by one and dropped by another
+failed silently. This release resolves each of those decisions once, in common code, and fixes the
+divergences that had accumulated.
+
+### Rendering parity
+
+- **The star rating renders the same everywhere.** It was a system `RatingBar` on Android (which
+  cannot honour the node's `AdTextStyle` at all — no colour, font or size), a `"4.6 stars"` label on
+  iOS, and `★ 4.6` in previews. All three now share one styled text rendering.
+- **`AdModifier.padding` works on every node on iOS.** It was expressed as `UIView.layoutMargins`,
+  which only a `UIStackView` reads, so padding on a label, image, media view or `Box` was accepted
+  by the DSL and silently dropped. The iOS renderer now layers margin, size and decoration, padding,
+  then content — the order Compose and the Android renderer already used.
+- **`Box` and stack alignment on iOS.** All nine `contentAlignment` values are honoured instead of
+  everything pinning top-start, `Row`/`Column` apply their main-axis arrangement, a `Row` places
+  children at its `verticalAlignment` rather than stretching them, and a `Box` sizes to its largest
+  child instead of a guessed one.
+- **`weight` is proportional on iOS.** `weight(1f)` beside `weight(2f)` came out 1:1; weighted
+  children now carry an exact ratio constraint and unweighted siblings hold their intrinsic size.
+  `AdLayoutSize.Match` along a stack's main axis is treated as the same kind of claim, which is how
+  Compose measures it.
+- **`AdContentScale` is honoured for iOS media**, and **`AdDisplay.Gone` collapses its space** on
+  both platforms.
+- **Android text ellipsizes** when `maxLines` is set, instead of cutting mid-glyph.
+
+### Policy and correctness
+
+- **AdChoices is registered on Android.** The reserved slot was a placeholder that was never
+  assigned to `NativeAdView.adChoicesView`, so the SDK drew its overlay in a default corner rather
+  than where the layout put it.
+- **Root corner radius and elevation are applied Compose-side on both platforms**, so a root shadow
+  is no longer clipped away on Android.
+- **`AdLayoutValidator` warns on a transparent layout root**, because iOS composites those onto the
+  platform backdrop rather than the app's surface.
+
+### Behaviour changes to be aware of
+
+- **The call-to-action no longer inherits platform widget metrics.** It was an
+  `android.widget.Button` and a `UIButton`, so its height came from the device theme's button style
+  on Android — differing between manufacturers — and from `UIButtonConfiguration` on iOS. It is now
+  built from a styled label on both platforms and sized as text plus its resolved insets, which
+  gains a default vertical inset. Set `AdModifier.padding(...)` on the `callToAction` node to choose
+  a different height.
+- **A call-to-action's own modifier now takes precedence over its `AdButtonStyle`** for background
+  and corner radius, in the same order the layout root uses. Previously the two overlapped with no
+  stated precedence.
+- **The star rating renders as text rather than a star widget** (see above), so layouts relying on
+  the `RatingBar` appearance will look different.
+
+### API
+
+- **`AdTemplateColors`**, with `light` and `dark` built-ins, plus colour-parameterised
+  `AdTemplates.compact(colors)`, `medium(colors)` and `feedCard(colors)`. The existing `AdTemplates`
+  values are unchanged and still render the light palette; the overloads exist because the templates
+  previously hardcoded a white card and were unusable in a dark UI. Purely additive — no existing
+  binary signature changed.
+
+### Previews
+
+- `AdLayoutPreview` honours `AdDisplay.Invisible`, applies a node's own AdChoices size instead of
+  overriding it, and no longer throws when a layout carries a non-positive `weight`.
 
 ## What changed in 2.0.1?
 

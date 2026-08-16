@@ -17,9 +17,9 @@ class AdLayoutsTypographyTest {
     fun `all showcase ad headlines use the supplied compose family`() {
         val family = FontFamily.Cursive
         val layouts = listOf(
-            feedAdLayout(ShowcaseLightPalette, family) to AdFontWeight.Bold,
-            feedRowAdLayout(ShowcaseLightPalette, family) to AdFontWeight.Medium,
-            inlineAdLayout(ShowcaseLightPalette, family) to AdFontWeight.Bold,
+            feedAdLayout(ShowcaseLightPalette, family, ShowcaseLightPalette.surface) to AdFontWeight.Bold,
+            feedRowAdLayout(ShowcaseLightPalette, family, ShowcaseLightPalette.canvas) to AdFontWeight.Medium,
+            inlineAdLayout(ShowcaseLightPalette, family, ShowcaseLightPalette.surface) to AdFontWeight.Bold,
         )
 
         layouts.forEach { (layout, expectedWeight) ->
@@ -33,9 +33,9 @@ class AdLayoutsTypographyTest {
     @Test
     fun `non-headline native ad text remains on platform fonts`() {
         val textStyles = listOf(
-            feedAdLayout(ShowcaseLightPalette, FontFamily.Cursive),
-            feedRowAdLayout(ShowcaseLightPalette, FontFamily.Cursive),
-            inlineAdLayout(ShowcaseLightPalette, FontFamily.Cursive),
+            feedAdLayout(ShowcaseLightPalette, FontFamily.Cursive, ShowcaseLightPalette.surface),
+            feedRowAdLayout(ShowcaseLightPalette, FontFamily.Cursive, ShowcaseLightPalette.canvas),
+            inlineAdLayout(ShowcaseLightPalette, FontFamily.Cursive, ShowcaseLightPalette.surface),
         ).flatMap { layout ->
             layout.root.descendants().mapNotNull { node ->
                 when (node) {

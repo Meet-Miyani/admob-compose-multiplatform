@@ -49,6 +49,7 @@ kotlin {
                 implementation(libs.compose.material3)
                 implementation(libs.compose.material.icons.extended)
                 implementation(libs.compose.ui)
+                implementation(libs.compose.uiToolingPreview)
                 implementation(libs.compose.components.resources)
                 implementation(libs.androidx.lifecycle.viewmodelCompose)
                 implementation(libs.androidx.lifecycle.runtimeCompose)
@@ -82,6 +83,8 @@ kotlin {
         // job is to demonstrate the ad SDK — see RoomCodegenCanaryTest (iosTest).
         val androidMain by getting {
             dependencies {
+                implementation(libs.compose.uiToolingPreview)
+                implementation(libs.compose.uiTooling)
                 implementation(libs.kotlinx.coroutines.android)
             }
         }

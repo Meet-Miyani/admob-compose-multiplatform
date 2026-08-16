@@ -1,0 +1,285 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>AdMob CMP — klibs.io Announcement Card</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1200px; height: 630px; overflow: hidden;
+    background: #090D16;
+    color: #F8FAFC;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Glowing background mesh */
+  .bg-glow-1 {
+    position: absolute; top: -120px; left: -80px; width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(127, 82, 255, 0.38) 0%, rgba(127, 82, 255, 0) 70%);
+    filter: blur(60px); pointer-events: none;
+  }
+  .bg-glow-2 {
+    position: absolute; bottom: -140px; right: -100px; width: 700px; height: 700px;
+    background: radial-gradient(circle, rgba(61, 220, 132, 0.25) 0%, rgba(61, 220, 132, 0) 70%);
+    filter: blur(70px); pointer-events: none;
+  }
+  .bg-glow-3 {
+    position: absolute; top: 100px; right: 260px; width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.22) 0%, rgba(56, 189, 248, 0) 70%);
+    filter: blur(60px); pointer-events: none;
+  }
+  .grid-overlay {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 32px 32px; opacity: 0.75;
+  }
+
+  .wrapper {
+    position: relative; z-index: 10; width: 100%; height: 100%;
+    padding: 48px 52px; display: grid; grid-template-columns: 1.08fr 0.92fr; gap: 36px;
+    align-items: center;
+  }
+
+  /* Left Panel */
+  .left-panel {
+    display: flex; flex-direction: column; justify-content: space-between; height: 100%;
+  }
+
+  .top-row {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .brand-header-row {
+    display: flex; align-items: center; gap: 14px;
+  }
+  .logo-box {
+    width: 48px; height: 48px; border-radius: 14px;
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(16px);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 18px rgba(0,0,0,0.3);
+  }
+  .logo-box svg { width: 28px; height: 28px; }
+
+  .brand-connector {
+    color: #64748B; font-size: 18px; font-weight: 300;
+  }
+
+  .klibs-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: linear-gradient(135deg, rgba(127, 82, 255, 0.25) 0%, rgba(56, 189, 248, 0.25) 100%);
+    border: 1px solid rgba(127, 82, 255, 0.5);
+    color: #F8FAFC;
+    padding: 8px 16px; border-radius: 999px;
+    font-size: 14px; font-weight: 700;
+    box-shadow: 0 4px 14px rgba(127, 82, 255, 0.3);
+  }
+  .klibs-badge .pulse {
+    width: 8px; height: 8px; border-radius: 50%; background: #38BDF8;
+    box-shadow: 0 0 10px #38BDF8;
+  }
+
+  .title-group {
+    margin-top: 20px;
+  }
+  .title-group h1 {
+    font-size: 68px; font-weight: 800; line-height: 1.02; letter-spacing: -0.035em;
+    background: linear-gradient(135deg, #FFFFFF 0%, #E2E8F0 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .title-group p {
+    font-size: 21px; color: #94A3B8; font-weight: 500; margin-top: 8px; line-height: 1.35;
+  }
+
+  .feature-tags {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px;
+  }
+  .tag-item {
+    font-size: 13px; font-weight: 600; padding: 6px 13px; border-radius: 8px;
+    background: rgba(30, 41, 59, 0.65); border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #CBD5E1; display: flex; align-items: center; gap: 6px;
+  }
+  .tag-item .bullet { width: 5px; height: 5px; border-radius: 50%; background: #38BDF8; }
+
+  .left-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 18px;
+  }
+  .platform-badge {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 600; color: #38BDF8;
+    background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3);
+    padding: 6px 14px; border-radius: 999px;
+  }
+  .domain-text {
+    font-size: 18px; font-weight: 700; color: #F1F5F9; letter-spacing: -0.01em;
+  }
+
+  /* Right Column: Code Card */
+  .code-card {
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 18px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 30px rgba(127, 82, 255, 0.2);
+    overflow: hidden; backdrop-filter: blur(24px);
+    display: flex; flex-direction: column;
+  }
+  .code-header {
+    background: rgba(30, 41, 59, 0.7); padding: 12px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .mac-dots { display: flex; gap: 7px; }
+  .mac-dot { width: 11px; height: 11px; border-radius: 50%; }
+  .mac-dot.red { background: #FF5F56; }
+  .mac-dot.yellow { background: #FFBD2E; }
+  .mac-dot.green { background: #27C93F; }
+  .code-filename {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: 13px; font-weight: 600; color: #94A3B8;
+  }
+
+  .code-body {
+    padding: 20px; font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13.5px; line-height: 1.6; color: #F8FAFC;
+  }
+  .kw { color: #F43F5E; font-weight: 600; }
+  .fn { color: #38BDF8; }
+  .type { color: #C084FC; font-weight: 600; }
+  .str { color: #3DDC84; }
+  .cm { color: #64748B; font-style: italic; }
+</style>
+</head>
+<body>
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+  <div class="bg-glow-3"></div>
+  <div class="grid-overlay"></div>
+
+  <div class="wrapper">
+    <!-- Left Column -->
+    <div class="left-panel">
+      <div>
+        <div class="top-row">
+          <div class="brand-header-row">
+            <!-- AdMob SVG -->
+            <div class="logo-box" title="Google AdMob">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M12 3C7.03 3 3 7.03 3 12s4.03 9 9 9 9-4.03 9-9" stroke="url(#admob-loop)" stroke-width="4.2" stroke-linecap="round"/>
+                <circle cx="19.5" cy="19.5" r="2.5" fill="#4285F4"/>
+                <defs>
+                  <linearGradient id="admob-loop" x1="3" y1="3" x2="21" y2="21" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#EA4335"/>
+                    <stop offset="0.5" stop-color="#FBBC04"/>
+                    <stop offset="1" stop-color="#FBBC04"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <span class="brand-connector">+</span>
+            <!-- Compose Multiplatform 3D Cube SVG -->
+            <div class="logo-box" title="Compose Multiplatform">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M12 2L21.5 7.5L12 13L2.5 7.5L12 2Z" fill="url(#cmp-top)"/>
+                <path d="M12 13L21.5 7.5V18.5L12 24V13Z" fill="url(#cmp-right)"/>
+                <path d="M12 13L2.5 7.5V18.5L12 24V13Z" fill="url(#cmp-left)"/>
+                <polygon points="12,8.5 15.5,10.5 15.5,14.5 12,16.5 8.5,14.5 8.5,10.5" fill="#090D16"/>
+                <defs>
+                  <linearGradient id="cmp-top" x1="2.5" y1="2" x2="21.5" y2="13" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#38BDF8"/>
+                    <stop offset="1" stop-color="#6366F1"/>
+                  </linearGradient>
+                  <linearGradient id="cmp-right" x1="12" y1="7.5" x2="21.5" y2="24" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#6366F1"/>
+                    <stop offset="1" stop-color="#7F52FF"/>
+                  </linearGradient>
+                  <linearGradient id="cmp-left" x1="2.5" y1="7.5" x2="12" y2="24" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#818CF8"/>
+                    <stop offset="1" stop-color="#A855F7"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <span class="brand-connector">+</span>
+            <!-- Kotlin SVG -->
+            <div class="logo-box" title="Kotlin">
+              <svg viewBox="0 0 24 24">
+                <path fill="url(#kt)" d="M24 24H0V0h24L12 12Z"/>
+                <defs>
+                  <linearGradient id="kt" x1="0" y1="24" x2="24" y2="0" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#E44857"/>
+                    <stop offset=".4" stop-color="#C711E1"/>
+                    <stop offset=".7" stop-color="#7F52FF"/>
+                    <stop offset="1" stop-color="#00AFFF"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+          </div>
+          <div class="klibs-badge">
+            <span class="pulse"></span>
+            Now on klibs.io
+          </div>
+        </div>
+
+        <div class="title-group">
+          <h1>AdMob CMP</h1>
+          <p>Compose Multiplatform AdMob SDK for Android & iOS</p>
+        </div>
+
+        <div class="feature-tags">
+          <div class="tag-item"><span class="bullet"></span> All 6 Ad Formats</div>
+          <div class="tag-item"><span class="bullet"></span> Native Ads DSL</div>
+          <div class="tag-item"><span class="bullet"></span> UMP + ATT Consent</div>
+          <div class="tag-item"><span class="bullet"></span> iOS Link Fix Plugin</div>
+          <div class="tag-item"><span class="bullet"></span> Pure commonMain</div>
+        </div>
+      </div>
+
+      <div class="left-footer">
+        <div class="platform-badge">
+          <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M17.52 14.33c-.46 0-.83-.37-.83-.83s.37-.83.83-.83c.46 0 .83.37.83.83s-.37.83-.83.83m-11.04 0c-.46 0-.83-.37-.83-.83s.37-.83.83-.83c.46 0 .83.37.83.83s-.38.83-.83.83m11.35-6.24l1.83-3.17c.15-.26.06-.59-.2-.74-.26-.15-.59-.06-.74.2L16.8 7.74C15.35 7.08 13.73 6.7 12 6.7s-3.35.38-4.8 1.04L5.28 4.56c-.15-.26-.48-.35-.74-.2-.26.15-.35.48-.2.74l1.83 3.17C2.91 10.18.7 13.68.7 17.7h22.6c0-4.02-2.21-7.52-5.47-9.61"/></svg>
+          Android & iOS
+        </div>
+        <div class="domain-text">klibs.io/project/Meet-Miyani/admob-compose-multiplatform</div>
+      </div>
+    </div>
+
+    <!-- Right Column: Code Card -->
+    <div class="code-card">
+      <div class="code-header">
+        <div class="mac-dots">
+          <div class="mac-dot red"></div>
+          <div class="mac-dot yellow"></div>
+          <div class="mac-dot green"></div>
+        </div>
+        <div class="code-filename">commonMain/App.kt</div>
+      </div>
+      <div class="code-body">
+        <span class="kw">@Composable</span><br>
+        <span class="kw">fun</span> <span class="fn">App</span>() {<br>
+        &nbsp;&nbsp;<span class="kw">val</span> adManager = <span class="fn">rememberAdManager</span>()<br><br>
+        &nbsp;&nbsp;<span class="cm">// Full consent & ATT lifecycle</span><br>
+        &nbsp;&nbsp;<span class="fn">LaunchedEffect</span>(Unit) {<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;adManager.<span class="fn">gatherConsentAndInitialize</span>(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="type">AdConfig</span>(androidAppId, iosAppId)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;)<br>
+        &nbsp;&nbsp;}<br><br>
+        &nbsp;&nbsp;<span class="cm">// One commonMain Composable</span><br>
+        &nbsp;&nbsp;<span class="fn">BannerAdView</span>(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;placement = bannerPlacement,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;modifier = Modifier.<span class="fn">fillMaxWidth</span>()<br>
+        &nbsp;&nbsp;)<br>
+        }
+      </div>
+    </div>
+  </div>
+</body>
+</html>

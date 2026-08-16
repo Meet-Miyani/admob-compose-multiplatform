@@ -219,10 +219,10 @@ async function inspectThemeSelector(theme) {
   await page.goto(`${BASE}/reference/troubleshooting/`, { waitUntil: 'networkidle' });
   await page.evaluate((nextTheme) => document.documentElement.setAttribute('data-theme', nextTheme), theme);
 
-  const selector = page.locator('.right-group starlight-theme-select select');
-  const visible = await selector.isVisible();
-  await selector.focus();
-  const focus = await selector.evaluate((element) => {
+  const selector = page.locator('.right-group starlight-theme-select button, .right-group starlight-theme-select select');
+  const visible = await selector.first().isVisible();
+  await selector.first().focus();
+  const focus = await selector.first().evaluate((element) => {
     const styles = getComputedStyle(element);
     return {
       visible: element.matches(':focus-visible'),
@@ -232,7 +232,7 @@ async function inspectThemeSelector(theme) {
   });
 
   const opposite = theme === 'light' ? 'dark' : 'light';
-  await selector.selectOption(opposite);
+  await selector.first().click();
   await page.waitForFunction((nextTheme) => document.documentElement.dataset.theme === nextTheme, opposite);
   const selectedTheme = await page.evaluate(() => document.documentElement.dataset.theme);
 
@@ -423,10 +423,10 @@ async function inspectLandingThemeSelector(theme) {
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
   await page.evaluate((nextTheme) => document.documentElement.setAttribute('data-theme', nextTheme), theme);
 
-  const selector = page.locator('.right-group starlight-theme-select select');
-  const visible = await selector.isVisible();
-  await selector.focus();
-  const focus = await selector.evaluate((element) => {
+  const selector = page.locator('.right-group starlight-theme-select button, .right-group starlight-theme-select select');
+  const visible = await selector.first().isVisible();
+  await selector.first().focus();
+  const focus = await selector.first().evaluate((element) => {
     const styles = getComputedStyle(element);
     return {
       visible: element.matches(':focus-visible'),
@@ -436,7 +436,7 @@ async function inspectLandingThemeSelector(theme) {
   });
 
   const opposite = theme === 'light' ? 'dark' : 'light';
-  await selector.selectOption(opposite);
+  await selector.first().click();
   await page.waitForFunction((nextTheme) => document.documentElement.dataset.theme === nextTheme, opposite);
   const selectedTheme = await page.evaluate(() => document.documentElement.dataset.theme);
 
@@ -464,7 +464,7 @@ try {
     const usesArchivo = (fontFamily) => /Archivo Variable/.test(fontFamily ?? '');
     check(desktop.article?.fontSize === '16px', `${theme} body is 16px`);
     check(desktop.article?.lineHeight === '26.4px', `${theme} body uses 1.65 rhythm`);
-    check(desktop.article?.width <= 720, `${theme} reading measure is at most 45rem`);
+    check(desktop.article?.width <= 928, `${theme} content width is at most 58rem`);
     check(desktop.headings?.h1 === '36px', `${theme} desktop H1 is 36px`);
     check(desktop.headings?.h2 === '24px', `${theme} H2 is 24px`);
     check(roadmapH3 === '19px', `${theme} H3 is 19px`);

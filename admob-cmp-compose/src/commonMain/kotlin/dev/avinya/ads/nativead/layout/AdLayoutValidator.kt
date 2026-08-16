@@ -1,6 +1,7 @@
 package dev.avinya.ads.nativead.layout
 
 import androidx.compose.runtime.Immutable
+import dev.avinya.ads.nativead.rendering.resolveNativeAdSurfaceArgb
 
 /**
  * Result of validating an [AdLayout] tree. [errors] are structural problems
@@ -137,6 +138,16 @@ public object AdLayoutValidator {
         }
         if ("ad_choices" !in assets) {
             warnings += warning("missing_ad_choices_space", "Native layout should reserve space for the SDK-owned AdChoices overlay.", "root")
+        }
+        if (resolveNativeAdSurfaceArgb(root) == null) {
+            warnings += warning(
+                "transparent_root_background",
+                "Native layout root has no opaque background. On iOS the ad is embedded below " +
+                    "Compose's canvas, which clears every Compose pixel under it, so the ad will " +
+                    "render over the platform backdrop (white in light mode, black in dark) " +
+                    "instead of the app's surface. Set AdModifier.background(...) on the root.",
+                "root",
+            )
         }
         if (assets.none { it in contentAssets }) {
             errors += error("missing_renderable_asset", "Native layout has no renderable ad asset.", "root")

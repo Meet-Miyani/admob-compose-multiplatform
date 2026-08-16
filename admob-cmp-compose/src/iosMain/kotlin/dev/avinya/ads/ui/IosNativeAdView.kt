@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitInteropProperties
-import androidx.compose.ui.viewinterop.UIKitViewController
+import androidx.compose.ui.viewinterop.UIKitView
 import dev.avinya.ads.AdError
 import dev.avinya.ads.AdEvent
 import dev.avinya.ads.AdFormat
@@ -31,14 +31,16 @@ import dev.avinya.ads.nativead.NativeAdSlotState
 import dev.avinya.ads.nativead.acquireIosNativeAdRenderLease
 import dev.avinya.ads.nativead.layout.AdLayout
 import dev.avinya.ads.nativead.rendering.IosNativeAdRenderer
+import dev.avinya.ads.nativead.rendering.adRootSurface
 import dev.avinya.ads.nativead.rendering.rememberResolvedComposeFonts
+import dev.avinya.ads.nativead.rendering.resolveNativeAdSurfaceArgb
+import dev.avinya.ads.nativead.rendering.uiColorFromArgb
 import kotlinx.cinterop.useContents
 import platform.CoreGraphics.CGSizeMake
 import platform.UIKit.NSLayoutConstraint
 import platform.UIKit.UILayoutPriorityFittingSizeLevel
 import platform.UIKit.UILayoutPriorityRequired
 import platform.UIKit.UIView
-import platform.UIKit.UIViewController
 import kotlin.math.roundToInt
 
 @Composable
@@ -114,7 +116,7 @@ public actual fun NativeAdView(
                         mutableDoubleStateOf(initialHeight)
                     }
                     key(mountedLease.adInstanceId, layout.identity, resolvedComposeFonts, heightCacheKey) {
-                        UIKitViewController(
+                        UIKitView(
                             factory = {
                                 val nativeView = GADNativeAdView()
                                 nativeView.translatesAutoresizingMaskIntoConstraints = false
@@ -127,10 +129,11 @@ public actual fun NativeAdView(
                                 content.leadingAnchor.constraintEqualToAnchor(nativeView.leadingAnchor).active = true
                                 content.trailingAnchor.constraintEqualToAnchor(nativeView.trailingAnchor).active = true
                                 content.topAnchor.constraintEqualToAnchor(nativeView.topAnchor).active = true
-                                IosNativeAdHostController(
+                                IosNativeAdHostView(
                                     nativeView = nativeView,
                                     content = content,
                                     nativeAd = mountedLease.ad,
+                                    surfaceArgb = resolveNativeAdSurfaceArgb(layout.root),
                                     minHeight = minHeightPoints,
                                     maxHeight = maxHeightPoints,
                                 ) { effectiveHeight ->
@@ -139,7 +142,14 @@ public actual fun NativeAdView(
                                 }
                             },
                             onRelease = { it.releaseHost() },
-                            modifier = Modifier.fillMaxWidth().height(preferredHeight.dp),
+                            // The clip sits OUTSIDE Compose's interop `drawBehind { Clear }`
+                            // (`layoutNode.modifier = modifier then platformModifier`), so it
+                            // shapes the cut-out itself: the corners are never cleared, and the
+                            // app's own pixels survive there instead of the platform backdrop.
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(preferredHeight.dp)
+                                .adRootSurface(layout.root),
                             properties = UIKitInteropProperties(isInteractive = true, isNativeAccessibilityEnabled = true),
                         )
                     }
@@ -150,14 +160,26 @@ public actual fun NativeAdView(
     }
 }
 
-private class IosNativeAdHostController(
+/**
+ * Owns every pixel of the ad rect.
+ *
+ * Compose embeds this view *below* its Metal canvas and cuts a hole for it — see
+ * `UIKitInteropElementHolder.clearBackgroundIfNeeded`, which draws the interop bounds with
+ * `BlendMode.Clear`. Everything Compose painted behind the ad is erased, so a transparent host
+ * composites onto `ComposeContainerView`'s backdrop (`UIColor.whiteColor` in light mode,
+ * `blackColor` in dark) rather than onto the app's own surface. That backdrop follows the *system*
+ * appearance, so an app rendering its own dark theme under a light system shows white behind the
+ * ad. The layout's opaque root background, resolved into [surfaceArgb], is what closes that hole.
+ */
+private class IosNativeAdHostView(
     private val nativeView: GADNativeAdView,
     private val content: UIView,
     private val nativeAd: GoogleMobileAds.GADNativeAd,
+    surfaceArgb: Long?,
     private val minHeight: Double,
     private val maxHeight: Double?,
     private val onPreferredHeightChanged: (Double) -> Unit,
-) : UIViewController(nibName = null, bundle = null) {
+) : UIView(frame = kotlinx.cinterop.cValue { }) {
     private var nativeAdRegistered = false
     private val containmentConstraint: NSLayoutConstraint = content.bottomAnchor.constraintLessThanOrEqualToAnchor(nativeView.bottomAnchor)
     private val hostRelease = IosNativeHostRelease(
@@ -175,22 +197,42 @@ private class IosNativeAdHostController(
             nativeView.adChoicesView = null
             nativeView.subviews.forEach { (it as? UIView)?.removeFromSuperview() }
         },
-        releaseController = { view.removeFromSuperview() },
+        releaseView = { removeFromSuperview() },
     )
 
     init {
+        // The GADNativeAdView and the rendered content stay transparent so the layout's own
+        // per-node backgrounds show through unchanged; only this host paints the surface, once.
+        val surface = surfaceArgb?.let(::uiColorFromArgb) ?: platform.UIKit.UIColor.clearColor
+        backgroundColor = surface
+        opaque = surfaceArgb != null
+        // Held explicitly rather than relying on GADNativeAdView's default: this host's surface is
+        // visible only *through* it, and `UIView.opaque` defaults to true.
+        nativeView.backgroundColor = platform.UIKit.UIColor.clearColor
+        nativeView.opaque = false
         nativeView.clipsToBounds = true
-        view.addSubview(nativeView)
-        nativeView.leadingAnchor.constraintEqualToAnchor(view.leadingAnchor).active = true
-        nativeView.trailingAnchor.constraintEqualToAnchor(view.trailingAnchor).active = true
-        nativeView.topAnchor.constraintEqualToAnchor(view.topAnchor).active = true
-        nativeView.bottomAnchor.constraintEqualToAnchor(view.bottomAnchor).active = true
+        addSubview(nativeView)
+        nativeView.leadingAnchor.constraintEqualToAnchor(leadingAnchor).active = true
+        nativeView.trailingAnchor.constraintEqualToAnchor(trailingAnchor).active = true
+        nativeView.topAnchor.constraintEqualToAnchor(topAnchor).active = true
+        nativeView.bottomAnchor.constraintEqualToAnchor(bottomAnchor).active = true
     }
 
-    override fun viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        if (nativeAdRegistered) return
-        val (width, currentHeight) = view.bounds.useContents { size.width to size.height }
+    /**
+     * Measures on every pass, not just until the ad registers.
+     *
+     * Registration is one-shot, but the *height* is not: the content can grow after the ad is
+     * bound — a Dynamic Type change resizes every label (`adjustsFontForContentSizeCategory`), and
+     * an asset can settle at a different intrinsic size than it was measured at. Latching the
+     * height at registration left that growth with nowhere to go, so `clipsToBounds` ate it.
+     *
+     * This cannot oscillate: [onPreferredHeightChanged] writes a `MutableDoubleState`, and writing
+     * a value equal to the current one is not a state change, so a converged layout stops
+     * recomposing on its own.
+     */
+    override fun layoutSubviews() {
+        super.layoutSubviews()
+        val (width, currentHeight) = bounds.useContents { size.width to size.height }
         if (!width.isFinite() || width <= 0.0) return
         val measuredHeight = content.systemLayoutSizeFittingSize(
             targetSize = CGSizeMake(width, 0.0),
@@ -199,9 +241,9 @@ private class IosNativeAdHostController(
         ).useContents { height }
         val sizing = resolveNativeAdLayoutSizing(currentHeight, measuredHeight, minHeight, maxHeight)
         sizing.effectiveMeasuredHeight?.let(onPreferredHeightChanged)
-        if (sizing.shouldRegisterNativeAd) {
+        if (!nativeAdRegistered && sizing.shouldRegisterNativeAd) {
             containmentConstraint.active = true
-            view.layoutIfNeeded()
+            layoutIfNeeded()
             nativeView.layoutIfNeeded()
             if (registeredAssetContainmentIssues().isNotEmpty()) return
             nativeView.nativeAd = nativeAd
@@ -247,7 +289,7 @@ private fun kotlinx.cinterop.CValue<platform.CoreGraphics.CGRect>.toRectSnapshot
 internal class IosNativeHostRelease(
     private val detachNativeAd: () -> Unit,
     private val clearAssets: () -> Unit,
-    private val releaseController: () -> Unit,
+    private val releaseView: () -> Unit,
 ) {
     private var released = false
     fun release() {
@@ -255,7 +297,7 @@ internal class IosNativeHostRelease(
         released = true
         detachNativeAd()
         clearAssets()
-        releaseController()
+        releaseView()
     }
 }
 

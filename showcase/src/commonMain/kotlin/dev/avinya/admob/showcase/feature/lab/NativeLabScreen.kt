@@ -33,6 +33,7 @@ import dev.avinya.ads.nativead.NativeAdSlotState
 import dev.avinya.ads.nativead.NativeAdWindow
 import dev.avinya.ads.nativead.layout.AdLayout
 import dev.avinya.ads.nativead.layout.AdLayoutValidator
+import dev.avinya.ads.nativead.layout.AdTemplateColors
 import dev.avinya.ads.nativead.layout.AdTemplates
 import dev.avinya.ads.ui.rememberNativeAdSlotSession
 import kotlinx.coroutines.launch
@@ -72,12 +73,21 @@ fun NativeLabScreen(
     val appFeedLayout = rememberFeedAdLayout()
     val appInlineLayout = rememberInlineAdLayout()
 
-    val layout: AdLayout = when (selected) {
-        LabLayout.Compact -> AdTemplates.compact
-        LabLayout.Medium -> AdTemplates.medium
-        LabLayout.FeedCard -> AdTemplates.feedCard
-        LabLayout.AppFeed -> appFeedLayout
-        LabLayout.AppInline -> appInlineLayout
+    // The `AdTemplates` vals paint an opaque white card, which is correct for a light UI and a
+    // white rectangle in a dark one. The colour-parameterised overloads exist for exactly this.
+    val isDark = showcaseColors.isDark
+    val templateColors = remember(isDark) {
+        if (isDark) AdTemplateColors.dark else AdTemplateColors.light
+    }
+
+    val layout: AdLayout = remember(selected, templateColors, appFeedLayout, appInlineLayout) {
+        when (selected) {
+            LabLayout.Compact -> AdTemplates.compact(templateColors)
+            LabLayout.Medium -> AdTemplates.medium(templateColors)
+            LabLayout.FeedCard -> AdTemplates.feedCard(templateColors)
+            LabLayout.AppFeed -> appFeedLayout
+            LabLayout.AppInline -> appInlineLayout
+        }
     }
 
     LabScreen(
