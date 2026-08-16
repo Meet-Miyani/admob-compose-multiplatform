@@ -23,6 +23,7 @@ import dev.avinya.ads.nativead.NativeAdSlotState
 import dev.avinya.ads.nativead.acquireAndroidRenderLease
 import dev.avinya.ads.nativead.layout.AdLayout
 import dev.avinya.ads.nativead.rendering.AndroidNativeAdLayoutRenderer
+import dev.avinya.ads.nativead.rendering.adRootSurface
 import dev.avinya.ads.nativead.rendering.rememberResolvedComposeFonts
 
 @Composable
@@ -84,7 +85,11 @@ public actual fun NativeAdView(
                             ).render(layout)
                         },
                         onRelease = ::releaseAndroidNativeAdHost,
-                        modifier = modifier,
+                        // The root's boundary properties are drawn here rather than by the
+                        // renderer: `NativeAdView` clips its children for asset containment, and
+                        // the root content view fills it exactly, so a root shadow had nowhere to
+                        // land. iOS already drew it Compose-side; this is what makes the two agree.
+                        modifier = modifier.adRootSurface(layout.root),
                     )
                 }
             }
@@ -105,6 +110,7 @@ internal fun releaseAndroidNativeAdHost(view: NativeAdView) {
             view.priceView = null
             view.storeView = null
             view.starRatingView = null
+            view.adChoicesView = null
         },
         clearChildren = view::removeAllViews,
         destroyHost = view::destroy,
