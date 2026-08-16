@@ -926,6 +926,47 @@ final class dev.avinya.ads.nativead.layout/AdStaticText : dev.avinya.ads.nativea
     final fun toString(): kotlin/String // dev.avinya.ads.nativead.layout/AdStaticText.toString|toString(){}[0]
 }
 
+final class dev.avinya.ads.nativead.layout/AdTemplateColors { // dev.avinya.ads.nativead.layout/AdTemplateColors|null[0]
+    constructor <init>(androidx.compose.ui.graphics/Color, androidx.compose.ui.graphics/Color, androidx.compose.ui.graphics/Color, androidx.compose.ui.graphics/Color, androidx.compose.ui.graphics/Color, androidx.compose.ui.graphics/Color, androidx.compose.ui.graphics/Color, androidx.compose.ui.graphics/Color) // dev.avinya.ads.nativead.layout/AdTemplateColors.<init>|<init>(androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color){}[0]
+
+    final val badgeOutline // dev.avinya.ads.nativead.layout/AdTemplateColors.badgeOutline|{}badgeOutline[0]
+        final fun <get-badgeOutline>(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.badgeOutline.<get-badgeOutline>|<get-badgeOutline>(){}[0]
+    final val badgeText // dev.avinya.ads.nativead.layout/AdTemplateColors.badgeText|{}badgeText[0]
+        final fun <get-badgeText>(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.badgeText.<get-badgeText>|<get-badgeText>(){}[0]
+    final val body // dev.avinya.ads.nativead.layout/AdTemplateColors.body|{}body[0]
+        final fun <get-body>(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.body.<get-body>|<get-body>(){}[0]
+    final val callToAction // dev.avinya.ads.nativead.layout/AdTemplateColors.callToAction|{}callToAction[0]
+        final fun <get-callToAction>(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.callToAction.<get-callToAction>|<get-callToAction>(){}[0]
+    final val caption // dev.avinya.ads.nativead.layout/AdTemplateColors.caption|{}caption[0]
+        final fun <get-caption>(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.caption.<get-caption>|<get-caption>(){}[0]
+    final val headline // dev.avinya.ads.nativead.layout/AdTemplateColors.headline|{}headline[0]
+        final fun <get-headline>(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.headline.<get-headline>|<get-headline>(){}[0]
+    final val onCallToAction // dev.avinya.ads.nativead.layout/AdTemplateColors.onCallToAction|{}onCallToAction[0]
+        final fun <get-onCallToAction>(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.onCallToAction.<get-onCallToAction>|<get-onCallToAction>(){}[0]
+    final val surface // dev.avinya.ads.nativead.layout/AdTemplateColors.surface|{}surface[0]
+        final fun <get-surface>(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.surface.<get-surface>|<get-surface>(){}[0]
+
+    final fun component1(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.component1|component1(){}[0]
+    final fun component2(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.component2|component2(){}[0]
+    final fun component3(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.component3|component3(){}[0]
+    final fun component4(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.component4|component4(){}[0]
+    final fun component5(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.component5|component5(){}[0]
+    final fun component6(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.component6|component6(){}[0]
+    final fun component7(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.component7|component7(){}[0]
+    final fun component8(): androidx.compose.ui.graphics/Color // dev.avinya.ads.nativead.layout/AdTemplateColors.component8|component8(){}[0]
+    final fun copy(androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ...): dev.avinya.ads.nativead.layout/AdTemplateColors // dev.avinya.ads.nativead.layout/AdTemplateColors.copy|copy(androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.nativead.layout/AdTemplateColors.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.avinya.ads.nativead.layout/AdTemplateColors.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.avinya.ads.nativead.layout/AdTemplateColors.toString|toString(){}[0]
+
+    final object Companion { // dev.avinya.ads.nativead.layout/AdTemplateColors.Companion|null[0]
+        final val dark // dev.avinya.ads.nativead.layout/AdTemplateColors.Companion.dark|{}dark[0]
+            final fun <get-dark>(): dev.avinya.ads.nativead.layout/AdTemplateColors // dev.avinya.ads.nativead.layout/AdTemplateColors.Companion.dark.<get-dark>|<get-dark>(){}[0]
+        final val light // dev.avinya.ads.nativead.layout/AdTemplateColors.Companion.light|{}light[0]
+            final fun <get-light>(): dev.avinya.ads.nativead.layout/AdTemplateColors // dev.avinya.ads.nativead.layout/AdTemplateColors.Companion.light.<get-light>|<get-light>(){}[0]
+    }
+}
+
 final class dev.avinya.ads.nativead.layout/AdTextStyle { // dev.avinya.ads.nativead.layout/AdTextStyle|null[0]
     constructor <init>(kotlin/Float = ..., kotlin/Long = ..., dev.avinya.ads.nativead.layout/AdFontWeight = ..., dev.avinya.ads.nativead.layout/AdTextAlign = ..., dev.avinya.ads.nativead.layout/AdFontFamily = ...) // dev.avinya.ads.nativead.layout/AdTextStyle.<init>|<init>(kotlin.Float;kotlin.Long;dev.avinya.ads.nativead.layout.AdFontWeight;dev.avinya.ads.nativead.layout.AdTextAlign;dev.avinya.ads.nativead.layout.AdFontFamily){}[0]
 
@@ -1056,6 +1097,10 @@ final object dev.avinya.ads.nativead.layout/AdTemplates { // dev.avinya.ads.nati
         final fun <get-mediaCard>(): dev.avinya.ads.nativead.layout/AdLayout // dev.avinya.ads.nativead.layout/AdTemplates.mediaCard.<get-mediaCard>|<get-mediaCard>(){}[0]
     final val medium // dev.avinya.ads.nativead.layout/AdTemplates.medium|{}medium[0]
         final fun <get-medium>(): dev.avinya.ads.nativead.layout/AdLayout // dev.avinya.ads.nativead.layout/AdTemplates.medium.<get-medium>|<get-medium>(){}[0]
+
+    final fun compact(dev.avinya.ads.nativead.layout/AdTemplateColors): dev.avinya.ads.nativead.layout/AdLayout // dev.avinya.ads.nativead.layout/AdTemplates.compact|compact(dev.avinya.ads.nativead.layout.AdTemplateColors){}[0]
+    final fun feedCard(dev.avinya.ads.nativead.layout/AdTemplateColors): dev.avinya.ads.nativead.layout/AdLayout // dev.avinya.ads.nativead.layout/AdTemplates.feedCard|feedCard(dev.avinya.ads.nativead.layout.AdTemplateColors){}[0]
+    final fun medium(dev.avinya.ads.nativead.layout/AdTemplateColors): dev.avinya.ads.nativead.layout/AdLayout // dev.avinya.ads.nativead.layout/AdTemplates.medium|medium(dev.avinya.ads.nativead.layout.AdTemplateColors){}[0]
 }
 
 final val dev.avinya.ads.debug/dev_avinya_ads_debug_AdDebugCatalog$stableprop // dev.avinya.ads.debug/dev_avinya_ads_debug_AdDebugCatalog$stableprop|#static{}dev_avinya_ads_debug_AdDebugCatalog$stableprop[0]
@@ -1102,6 +1147,7 @@ final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdLayout
 final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdModifier$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdModifier$stableprop|#static{}dev_avinya_ads_nativead_layout_AdModifier$stableprop[0]
 final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdSpacer$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdSpacer$stableprop|#static{}dev_avinya_ads_nativead_layout_AdSpacer$stableprop[0]
 final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdStaticText$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdStaticText$stableprop|#static{}dev_avinya_ads_nativead_layout_AdStaticText$stableprop[0]
+final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdTemplateColors$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdTemplateColors$stableprop|#static{}dev_avinya_ads_nativead_layout_AdTemplateColors$stableprop[0]
 final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdTemplates$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdTemplates$stableprop|#static{}dev_avinya_ads_nativead_layout_AdTemplates$stableprop[0]
 final val dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdTextStyle$stableprop // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdTextStyle$stableprop|#static{}dev_avinya_ads_nativead_layout_AdTextStyle$stableprop[0]
 final val dev.avinya.ads/LocalAdManager // dev.avinya.ads/LocalAdManager|{}LocalAdManager[0]
@@ -1159,6 +1205,7 @@ final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdLayout
 final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdModifier$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdModifier$stableprop_getter|dev_avinya_ads_nativead_layout_AdModifier$stableprop_getter(){}[0]
 final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdSpacer$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdSpacer$stableprop_getter|dev_avinya_ads_nativead_layout_AdSpacer$stableprop_getter(){}[0]
 final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdStaticText$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdStaticText$stableprop_getter|dev_avinya_ads_nativead_layout_AdStaticText$stableprop_getter(){}[0]
+final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdTemplateColors$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdTemplateColors$stableprop_getter|dev_avinya_ads_nativead_layout_AdTemplateColors$stableprop_getter(){}[0]
 final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdTemplates$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdTemplates$stableprop_getter|dev_avinya_ads_nativead_layout_AdTemplates$stableprop_getter(){}[0]
 final fun dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdTextStyle$stableprop_getter(): kotlin/Int // dev.avinya.ads.nativead.layout/dev_avinya_ads_nativead_layout_AdTextStyle$stableprop_getter|dev_avinya_ads_nativead_layout_AdTextStyle$stableprop_getter(){}[0]
 final fun dev.avinya.ads.ui/BannerAdView(dev.avinya.ads/AdPlacement, androidx.compose.ui/Modifier?, kotlin/Int?, kotlin/Function1<dev.avinya.ads/AdEvent, kotlin/Unit>?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int) // dev.avinya.ads.ui/BannerAdView|BannerAdView(dev.avinya.ads.AdPlacement;androidx.compose.ui.Modifier?;kotlin.Int?;kotlin.Function1<dev.avinya.ads.AdEvent,kotlin.Unit>?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
