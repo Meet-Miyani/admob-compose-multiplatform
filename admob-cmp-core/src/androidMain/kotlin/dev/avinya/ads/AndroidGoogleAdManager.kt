@@ -66,6 +66,17 @@ internal class AndroidGoogleAdManager(
     // instance is the whole process's arbiter. Every full-screen slot this manager creates
     // shares it, and AppOpenAdCoordinator probes it through FullScreenPresenceAware.
     override val fullScreenArbiter: FullScreenPresentationArbiter = FullScreenPresentationArbiter()
+
+    /**
+     * Shared by every full-screen slot, so a dismissed ad reverts audio to the global state this
+     * manager actually applied to GMA rather than to hardcoded defaults.
+     *
+     * The supplier is deliberately lazy: slots are created before `initialize()` completes, and
+     * `null` correctly means "the host configured nothing, so GMA's own defaults apply".
+     */
+    private val fullScreenAudioController =
+        AndroidFullScreenAudioController { appliedConfigIdentity?.globalRequestConfiguration }
+
     private fun onPresentationChanged(delta: Int) {
         synchronized(presenceLock) {
             presenceCount = (presenceCount + delta).coerceAtLeast(0)
@@ -532,7 +543,7 @@ internal class AndroidGoogleAdManager(
                 "The factory function and placement.format must agree."
         }
         checkPlacementCollision(ownedPlacement)
-        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidInterstitialSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter) } as InterstitialAdController
+        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidInterstitialSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter, fullScreenAudioController) } as InterstitialAdController
     }
 
     override fun rewarded(placement: AdPlacement): RewardedAdController = synchronized(registryLock) {
@@ -542,7 +553,7 @@ internal class AndroidGoogleAdManager(
                 "The factory function and placement.format must agree."
         }
         checkPlacementCollision(ownedPlacement)
-        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidRewardedSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter) } as RewardedAdController
+        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidRewardedSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter, fullScreenAudioController) } as RewardedAdController
     }
 
     override fun rewardedInterstitial(placement: AdPlacement): RewardedInterstitialAdController = synchronized(registryLock) {
@@ -552,7 +563,7 @@ internal class AndroidGoogleAdManager(
                 "The factory function and placement.format must agree."
         }
         checkPlacementCollision(ownedPlacement)
-        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidRewardedInterstitialSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter) } as RewardedInterstitialAdController
+        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidRewardedInterstitialSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter, fullScreenAudioController) } as RewardedInterstitialAdController
     }
 
     override fun appOpen(placement: AdPlacement): AppOpenAdController = synchronized(registryLock) {
@@ -562,7 +573,7 @@ internal class AndroidGoogleAdManager(
                 "The factory function and placement.format must agree."
         }
         checkPlacementCollision(ownedPlacement)
-        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidAppOpenSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter) } as AppOpenAdController
+        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidAppOpenSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter, fullScreenAudioController) } as AppOpenAdController
     }
 }
 

@@ -1,5 +1,9 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package dev.avinya.ads
 
+import dev.avinya.ads.internal.AudioRestoreHandle
+import dev.avinya.ads.internal.FullScreenAudioController
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
 import dev.avinya.ads.internal.FullScreenPresentationHandle
 import dev.avinya.ads.internal.FullScreenSlotCore
@@ -10,8 +14,17 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.coroutines.ContinuationInterceptor
 import kotlin.time.Duration
 import kotlin.time.Instant
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestResult
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 
 /** Suspends until the calling coroutine is cancelled — models a real platform SDK call that
  *  never itself returns/throws on the Kotlin side; only its (separately captured) terminal
@@ -261,3 +274,60 @@ internal fun tickClock(): () -> Instant {
     var tick = 0L
     return { Instant.fromEpochSeconds(1000 + tick++) }
 }
+
+/**
+ * Records every audio override and restoration, and can fail either half.
+ *
+ * Replaces the anonymous `FullScreenAudioController` objects that were inlined in the two original
+ * audio tests. [applyInterceptor] captures the dispatcher `applyOverrides` was actually invoked on,
+ * which is the only portable way to assert the all-GMA-on-Main invariant from commonTest — there is
+ * no `Looper`/`NSThread` equivalent available here.
+ */
+internal class RecordingAudioController(
+    private val failOnApply: Throwable? = null,
+    private val failOnRestore: Throwable? = null,
+    private val returnNullHandle: Boolean = false,
+) : FullScreenAudioController {
+    val appliedOptions = mutableListOf<FullScreenAdOptions>()
+    var applyInterceptor: ContinuationInterceptor? = null
+        private set
+    var restoreCount = 0
+        private set
+    var appliedMuted: Boolean? = null
+        private set
+    var appliedVolume: Float? = null
+        private set
+
+    override suspend fun applyOverrides(options: FullScreenAdOptions): AudioRestoreHandle? {
+        applyInterceptor = currentCoroutineContext()[ContinuationInterceptor]
+        appliedOptions += options
+        // Mirrors both real controllers: a presentation that requests no override does no work and
+        // gets no restore handle. Notably this means failOnApply only fires for a presentation that
+        // actually asked for an override — which is what lets a test show that a slot is reusable
+        // after an override failure.
+        if (options.audioMuted == null && options.audioVolume == null) return null
+        failOnApply?.let { throw it }
+        appliedMuted = options.audioMuted
+        appliedVolume = options.audioVolume
+        if (returnNullHandle) return null
+        return AudioRestoreHandle {
+            restoreCount++
+            failOnRestore?.let { throw it }
+        }
+    }
+}
+
+/**
+ * The `runTest` + `Dispatchers.setMain` pairing that every full-screen slot test needs, because
+ * [FullScreenSlotCore] owns a `reloadScope` on `Dispatchers.Main.immediate` and its `show()` path
+ * hops to Main. Sharing the main dispatcher's scheduler with `runTest` keeps virtual time coherent.
+ */
+internal fun runSlotTest(body: suspend TestScope.() -> Unit): TestResult =
+    runTest(StandardTestDispatcher()) {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            body()
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }

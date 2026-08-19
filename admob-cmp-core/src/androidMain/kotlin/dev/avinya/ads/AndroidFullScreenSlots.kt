@@ -33,15 +33,69 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
-internal object AndroidFullScreenAudioController : FullScreenAudioController {
-    override fun applyOverrides(options: FullScreenAdOptions): AudioRestoreHandle? {
+/**
+ * The global audio state the manager actually applied to GMA at initialization.
+ *
+ * Android GMA exposes only `setUserMutedApp` / `setUserControlledAppVolume` — there are **no
+ * getters** (verified against ads-mobile-sdk 1.3.1). So unlike iOS, this platform cannot read the
+ * pre-override state and must reassert the manager's effective configuration instead. `null`
+ * means the host never configured that property, in which case GMA's own defaults apply.
+ *
+ * Consequence worth knowing: a host that calls `MobileAds.setUserMutedApp` directly, outside this
+ * SDK, will have that value overwritten the first time a full-screen ad with an audio override is
+ * dismissed. Configure audio through [AdConfig.globalRequestConfiguration] instead.
+ */
+internal fun GlobalRequestConfiguration?.effectiveAudioMuted(): Boolean = this?.appMuted ?: false
+
+/** @see effectiveAudioMuted */
+internal fun GlobalRequestConfiguration?.effectiveAudioVolume(): Float =
+    (this?.appVolume ?: 1.0f).coerceIn(0f, 1f)
+
+/**
+ * @param appliedGlobalConfig the global request configuration accepted by
+ *   `AdManager.initialize()`, or `null` before initialization completes. Read at *restore* time,
+ *   not construction time, because slots are created before initialization finishes.
+ */
+internal class AndroidFullScreenAudioController(
+    private val appliedGlobalConfig: () -> GlobalRequestConfiguration?
+) : FullScreenAudioController {
+    override suspend fun applyOverrides(options: FullScreenAdOptions): AudioRestoreHandle? {
         if (options.audioMuted == null && options.audioVolume == null) return null
         options.audioMuted?.let { MobileAds.setUserMutedApp(it) }
         options.audioVolume?.let { MobileAds.setUserControlledAppVolume(it.coerceIn(0f, 1f)) }
         return AudioRestoreHandle {
-            options.audioMuted?.let { MobileAds.setUserMutedApp(false) }
-            options.audioVolume?.let { MobileAds.setUserControlledAppVolume(1.0f) }
+            audioRestoreOnMain {
+                // Read INSIDE the hop: the manager's applied identity is a non-volatile field
+                // written on Main, and restore() can be invoked from a GMA callback thread. On
+                // Main both the write and this read are same-thread, so no volatile is needed.
+                //
+                // Restoring the manager's configured state, NOT hardcoded unmuted/1.0f: the
+                // previous code permanently discarded a host's non-default global audio settings
+                // after the first ad. Only properties this presentation overrode are reverted.
+                val applied = appliedGlobalConfig()
+                options.audioMuted?.let { MobileAds.setUserMutedApp(applied.effectiveAudioMuted()) }
+                options.audioVolume?.let {
+                    MobileAds.setUserControlledAppVolume(applied.effectiveAudioVolume())
+                }
+            }
         }
+    }
+}
+
+private val fullScreenAudioHandler = Handler(Looper.getMainLooper())
+
+/**
+ * Immediate when already on Main, mirroring [destroyOnMain].
+ *
+ * Immediacy matters here beyond convention: a plain `post` could be overtaken by the *next*
+ * `show()`, whose override is applied on `Dispatchers.Main.immediate`, leaving the restore to land
+ * after it and revert the new presentation's audio.
+ */
+private fun audioRestoreOnMain(block: () -> Unit) {
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+        block()
+    } else {
+        fullScreenAudioHandler.post(block)
     }
 }
 
@@ -51,14 +105,15 @@ internal class AndroidInterstitialSlot(
     globalEvents: MutableSharedFlow<AdEvent>,
     adRequestBlockedError: () -> AdError?,
     onPresentationChanged: (Int) -> Unit,
-    arbiter: FullScreenPresentationArbiter
+    arbiter: FullScreenPresentationArbiter,
+    audioController: FullScreenAudioController
 ) : FullScreenSlotCore<InterstitialAd>(
     placement,
     globalEvents,
     adRequestBlockedError,
     onPresentationChanged = onPresentationChanged,
     arbiter = arbiter,
-    audioController = AndroidFullScreenAudioController
+    audioController = audioController
 ), InterstitialAdController {
 
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<InterstitialAd> =
@@ -131,14 +186,15 @@ internal class AndroidRewardedSlot(
     globalEvents: MutableSharedFlow<AdEvent>,
     adRequestBlockedError: () -> AdError?,
     onPresentationChanged: (Int) -> Unit,
-    arbiter: FullScreenPresentationArbiter
+    arbiter: FullScreenPresentationArbiter,
+    audioController: FullScreenAudioController
 ) : FullScreenSlotCore<RewardedAd>(
     placement,
     globalEvents,
     adRequestBlockedError,
     onPresentationChanged = onPresentationChanged,
     arbiter = arbiter,
-    audioController = AndroidFullScreenAudioController
+    audioController = audioController
 ), RewardedAdController {
 
     override suspend fun show(
@@ -191,14 +247,15 @@ internal class AndroidRewardedInterstitialSlot(
     globalEvents: MutableSharedFlow<AdEvent>,
     adRequestBlockedError: () -> AdError?,
     onPresentationChanged: (Int) -> Unit,
-    arbiter: FullScreenPresentationArbiter
+    arbiter: FullScreenPresentationArbiter,
+    audioController: FullScreenAudioController
 ) : FullScreenSlotCore<RewardedInterstitialAd>(
     placement,
     globalEvents,
     adRequestBlockedError,
     onPresentationChanged = onPresentationChanged,
     arbiter = arbiter,
-    audioController = AndroidFullScreenAudioController
+    audioController = audioController
 ), RewardedInterstitialAdController {
 
     override suspend fun show(
@@ -252,14 +309,15 @@ internal class AndroidAppOpenSlot(
     globalEvents: MutableSharedFlow<AdEvent>,
     adRequestBlockedError: () -> AdError?,
     onPresentationChanged: (Int) -> Unit,
-    arbiter: FullScreenPresentationArbiter
+    arbiter: FullScreenPresentationArbiter,
+    audioController: FullScreenAudioController
 ) : FullScreenSlotCore<AppOpenAd>(
     placement,
     globalEvents,
     adRequestBlockedError,
     onPresentationChanged = onPresentationChanged,
     arbiter = arbiter,
-    audioController = AndroidFullScreenAudioController
+    audioController = audioController
 ), AppOpenAdController {
 
     override fun ttl(): Duration = placement.cachePolicy.expirationPolicy.appOpenTtl
