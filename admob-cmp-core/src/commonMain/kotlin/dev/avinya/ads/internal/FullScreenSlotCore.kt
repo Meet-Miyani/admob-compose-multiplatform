@@ -738,7 +738,26 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
 
     private fun scheduleReload(generation: Int) {
         val job = reloadScope.launch(start = CoroutineStart.LAZY) {
-            loadForGeneration(placement.requestOptions, requiredGeneration = generation)
+            // Catch at the launch boundary. This reload is detached — nobody awaits it — and
+            // loadForGeneration deliberately rethrows unexpected mapper / onAdLoaded /
+            // getResponseInfo failures so a foreground caller sees them. With nothing catching
+            // here, that rethrow reached the uncaught-exception handler of a Main-dispatched
+            // coroutine and could take down the host process, even though the show() that
+            // triggered the reload had already completed normally.
+            //
+            // Load state needs no repair: loadForGeneration runs finishCancelledLoad() before it
+            // rethrows, so the slot is already in a terminal state and a later manual load works.
+            try {
+                loadForGeneration(placement.requestOptions, requiredGeneration = generation)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                AdLogger.e(
+                    "Automatic reload after show failed for ${placement.id}. The slot stays " +
+                        "usable; the next load() will retry.",
+                    t
+                )
+            }
         }
         reloadJob.exchange(job)?.cancel()
         job.start()

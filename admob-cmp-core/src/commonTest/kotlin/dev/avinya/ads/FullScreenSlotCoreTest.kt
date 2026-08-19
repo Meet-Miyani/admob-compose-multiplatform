@@ -1043,4 +1043,64 @@ class FullScreenSlotCoreTest {
         assertIs<AdShowResult.Shown>(slot.show(FullScreenAdOptions(audioMuted = true)))
         assertEquals(0, audioController.restoreCount)
     }
+
+    // ---------------------------------------------------------------------------------
+    // Detached reload after show. loadForGeneration deliberately rethrows unexpected
+    // mapper / onAdLoaded / getResponseInfo failures so a foreground caller sees them,
+    // but the reload is launched into a scope nobody awaits — so that rethrow reached a
+    // Main coroutine's uncaught handler and could kill the host process.
+    // ---------------------------------------------------------------------------------
+
+    @Test
+    fun `a throwing automatic reload does not escape as an uncaught exception`() = runSlotTest {
+        val reloading = testPlacement.copy(cachePolicy = AdCachePolicy(reloadAfterShow = true))
+        var loads = 0
+        val slot = FakeFullScreenSlot(
+            reloading,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            loadHandler = { _ ->
+                loads++
+                // First load succeeds and is shown; the reload it triggers blows up the way a
+                // publisher mapper or getResponseInfo can.
+                if (loads == 1) AdAttemptResult.Success("ad1")
+                else throw IllegalStateException("mapper exploded during reload")
+            }
+        )
+        slot.load()
+        assertIs<AdShowResult.Shown>(slot.show())
+        advanceUntilIdle()
+
+        // Reaching here at all is the assertion: an uncaught throw on the Main test dispatcher
+        // fails runTest. Belt and braces on the observable state:
+        assertEquals(2, loads, "the reload should have been attempted")
+        assertFalse(slot.loadState.value is AdLoadState.Loading, "state must not be stuck Loading")
+    }
+
+    @Test
+    fun `the slot still works after a failed automatic reload`() = runSlotTest {
+        val reloading = testPlacement.copy(cachePolicy = AdCachePolicy(reloadAfterShow = true))
+        var loads = 0
+        val slot = FakeFullScreenSlot(
+            reloading,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            loadHandler = { _ ->
+                loads++
+                if (loads == 2) throw IllegalStateException("mapper exploded during reload")
+                AdAttemptResult.Success("ad$loads")
+            }
+        )
+        slot.load()
+        slot.show()
+        advanceUntilIdle()
+
+        // The supervisor must still be alive and the slot usable: a manual load succeeds and the
+        // ad can be presented.
+        slot.load()
+        advanceUntilIdle()
+        assertIs<AdShowResult.Shown>(slot.show())
+    }
 }
