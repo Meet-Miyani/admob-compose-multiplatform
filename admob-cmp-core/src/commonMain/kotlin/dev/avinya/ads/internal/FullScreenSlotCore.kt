@@ -32,6 +32,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalForInheritanceCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -58,12 +59,21 @@ import kotlinx.coroutines.withTimeoutOrNull
  * to call the SDK. From that point on, dismissal/failure owns closing it. The atomic state lets a
  * synchronous failure and a late SDK callback race without double-destroying the ad or decrementing
  * the process-wide presentation count twice.
+ *
+ * The handle also owns the **lifetime of the per-presentation audio override**. It used to live
+ * beside the handle, applied before the `try` in [FullScreenSlotCore.showInternal] and restored in
+ * that function's `finally`, which produced three separate defects: an override that threw stranded
+ * the arbiter token and presence counter for the process lifetime; caller cancellation after SDK
+ * hand-off restored audio while the ad was still on screen; and a throwing restore replaced the
+ * primary result. Ownership by the handle fixes all three, because [close]/[closeIfCoreOwned] are
+ * already the exactly-once terminal path.
  */
 @OptIn(ExperimentalAtomicApi::class)
 internal class FullScreenPresentationHandle(
     private val onClosed: (wasShown: Boolean) -> Unit
 ) {
     private val state = AtomicInt(CORE_OWNED)
+    private val audioRestore = AtomicReference<AudioRestoreHandle?>(null)
 
     /**
      * Atomically transfers terminal ownership to the platform callbacks.
@@ -74,12 +84,49 @@ internal class FullScreenPresentationHandle(
     internal fun tryHandOffToCallbacks(): Boolean =
         state.compareAndSet(CORE_OWNED, CALLBACK_OWNED)
 
+    /**
+     * Hands the per-presentation audio restoration to the handle, so it runs on the terminal close
+     * rather than when the *caller* stops waiting.
+     *
+     * Called once, by the core, after the overrides have been applied and before the presentation
+     * is launched. The CLOSED re-check is defence in depth: no path outside `showInternal` can
+     * close a handle this early, but if one ever could, the override must not leak.
+     */
+    internal fun attachAudioRestore(restore: AudioRestoreHandle?) {
+        if (restore == null) return
+        audioRestore.store(restore)
+        if (state.load() == CLOSED) runAudioRestore()
+    }
+
+    /**
+     * Restores audio exactly once, swallowing failure.
+     *
+     * [AtomicReference.exchange] makes this exactly-once even if [attachAudioRestore] races a
+     * terminal close. Failure is logged, never propagated: this runs inside the terminal close, so
+     * a throw here would break the arbiter release that follows it and strand the process-wide
+     * presentation token — the very failure mode the audio work is trying to avoid.
+     */
+    private fun runAudioRestore() {
+        val restore = audioRestore.exchange(null) ?: return
+        try {
+            restore.restore()
+        } catch (t: Throwable) {
+            try {
+                AdLogger.e("Failed to restore full-screen audio state after presentation.", t)
+            } catch (_: Throwable) { /* logger failure must not break the terminal close */ }
+        }
+    }
+
     /** Returns true only to the callback/fallback path that performed the terminal close. */
     internal fun close(wasShown: Boolean): Boolean {
         while (true) {
             val current = state.load()
             if (current == CLOSED) return false
             if (state.compareAndSet(current, CLOSED)) {
+                // BEFORE onClosed, which releases the arbiter. Once that release happens another
+                // slot may immediately apply its own overrides, so a restore sequenced after it
+                // would clobber the NEXT ad's audio.
+                runAudioRestore()
                 onClosed(wasShown)
                 return true
             }
@@ -89,6 +136,8 @@ internal class FullScreenPresentationHandle(
     /** Cancellation before SDK hand-off has no callback that could close the token. */
     internal fun closeIfCoreOwned(): Boolean {
         if (!state.compareAndSet(CORE_OWNED, CLOSED)) return false
+        // Ordered before onClosed for the same reason as in close().
+        runAudioRestore()
         onClosed(false)
         return true
     }
@@ -331,8 +380,29 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
 
         val loaded = checkNotNull(preparation.selectedAd)
         val handle = checkNotNull(preparation.presentation)
-        val audioRestore = audioController?.applyOverrides(options)
         return try {
+            // Inside the try: the ad is already out of the cache and the arbiter token + presence
+            // slot are already committed, so a throw from here MUST reach the catch arms below or
+            // the process-wide presentation gate leaks permanently.
+            //
+            // NonCancellable is load-bearing, not defensive. Without it, a caller cancelling while
+            // this withContext returns leaves the overrides applied but the restore handle never
+            // attached — stranding the process-wide GMA audio state for the lifetime of the app.
+            // Main.immediate follows the canPresent() precedent above: both platform controllers
+            // touch GMA directly, which must happen on Main.
+            val audioRestore = withContext(NonCancellable + Dispatchers.Main.immediate) {
+                try {
+                    audioController?.applyOverrides(options)
+                } catch (t: Throwable) {
+                    // Wrapped only so the AdError below names audio instead of reporting a generic
+                    // presentation failure; the catch arm does the actual cleanup.
+                    throw IllegalStateException(
+                        "Failed to apply full-screen audio overrides for ${placement.id}.",
+                        t
+                    )
+                }
+            }
+            handle.attachAudioRestore(audioRestore)
             val timedOutBeforeHandOff = AtomicBoolean(false)
             val result = coroutineScope {
                 val presentJob = async { presentAd(loaded, options, handle, rewardDelivery) }
@@ -393,8 +463,11 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             }
             result
         } catch (e: CancellationException) {
-            // Before hand-off there is no SDK callback to close the token. After hand-off the
-            // platform terminal callback owns cleanup even though the caller is no longer active.
+            // Before hand-off there is no SDK callback to close the token, and closeIfCoreOwned()
+            // restores audio as part of that terminal close. After hand-off the platform terminal
+            // callback owns cleanup — including the audio restore — even though the caller is no
+            // longer active: the ad is still on screen, so restoring here would end the documented
+            // per-presentation override while the user is still watching.
             handle.closeIfCoreOwned()
             throw e
         } catch (t: Throwable) {
@@ -402,8 +475,6 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             val error = AdError.message(t.message ?: "Full-screen ad presentation failed.")
             emit(AdEvent.ShowFailed(placement.id, error))
             AdShowResult.Failed(error)
-        } finally {
-            audioRestore?.restore()
         }
     }
 
