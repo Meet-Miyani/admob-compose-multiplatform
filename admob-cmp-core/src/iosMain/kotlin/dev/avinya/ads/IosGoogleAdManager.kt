@@ -44,6 +44,11 @@ import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.CoreGraphics.CGSizeMake
 import platform.Foundation.NSRecursiveLock
+import dev.avinya.ads.internal.AppliedConfigurationDecision
+import dev.avinya.ads.internal.InitializationTimeouts
+import dev.avinya.ads.internal.appliedConfigurationDecision
+import dev.avinya.ads.internal.awaitNativeCallback
+import dev.avinya.ads.internal.dispatchAfterInitializeHooks
 
 private data class AdSlotKey(val placementId: String, val format: AdFormat)
 
@@ -320,16 +325,27 @@ internal class IosGoogleAdManager : AdManager, FullScreenPresenceAware {
         requestedIdentity: AdInitializationConfigIdentity,
         requestedNativeAdMemoryPolicy: NativeAdMemoryPolicy,
     ): AdManagerStatus? = mobileAdsInitializationMutex.withLock {
-        val appliedIdentity = appliedConfigIdentity ?: return@withLock null
-        if (appliedIdentity != requestedIdentity) {
-            AdLogger.w("iOS MobileAds already has a different effective configuration; ignoring this request.")
-            return@withLock publishAppliedTerminalLocked(appliedTerminalStatus ?: _status.value)
+        val decision = appliedConfigurationDecision(
+            appliedIdentity = appliedConfigIdentity,
+            requestedIdentity = requestedIdentity,
+            configuredNativePolicy = nativeManager.configuredPolicyOrNull(),
+            requestedNativePolicy = requestedNativeAdMemoryPolicy,
+            appliedTerminalStatus = appliedTerminalStatus,
+            currentStatus = _status.value,
+        )
+        when (decision) {
+            is AppliedConfigurationDecision.NotApplied -> null
+            is AppliedConfigurationDecision.Accepted ->
+                decision.publish?.let(::publishAppliedTerminalLocked)
+            is AppliedConfigurationDecision.Conflict -> {
+                AdLogger.w("iOS MobileAds configuration conflict. ${decision.reason}")
+                // Publish the TRUE status, return the rejection. Publishing the rejection would
+                // make adRequestBlockedError() block every ad request process-wide, breaking the
+                // caller whose configuration was actually accepted.
+                publishAppliedTerminalLocked(decision.publish)
+                decision.rejection
+            }
         }
-        nativeManager.configuredPolicyOrNull()?.takeIf { it != requestedNativeAdMemoryPolicy }?.let {
-            AdLogger.w("iOS native ad memory policy is already configured; ignoring this request.")
-            return@withLock publishAppliedTerminalLocked(appliedTerminalStatus ?: _status.value)
-        }
-        appliedTerminalStatus?.let(::publishAppliedTerminalLocked)
     }
 
     private suspend fun appliedTerminalStatus(): AdManagerStatus? =
@@ -383,25 +399,39 @@ internal class IosGoogleAdManager : AdManager, FullScreenPresenceAware {
         // individual caller's coroutine, so cancelling one initialize() caller can never
         // interrupt this operation — every caller (leader and followers) only awaits its
         // result. AfterMobileAdsInitialize dispatches here, before Applied/Ready is
-        // published below: once appliedConfigIdentity/appliedTerminalStatus are set, every
-        // future initialize() with the same identity short-circuits via appliedOutcome()
-        // and never re-enters this block, so a hook that ran only after publication could
-        // be skipped forever by a caller cancellation. Running it first guarantees it fires
-        // exactly once, unconditionally, whenever native init succeeds.
+        // THAT detachment is what makes AfterMobileAdsInitialize fire exactly once whenever
+        // native init succeeds; an earlier comment credited the hook's position *before*
+        // publication, which was wrong and cost correctness elsewhere.
+        //
+        // Native acceptance is now committed BEFORE the hook runs. A throwing publisher hook
+        // used to leave appliedConfigIdentity null while GMA was already initialized, so a
+        // retry with a different app ID sailed past appliedOutcome() and tried to reconfigure
+        // an immutable process singleton. The tradeoff is that a concurrent same-identity
+        // initialize() may observe Ready while the hook is still running -- strictly better
+        // than desynchronizing the wrapper from native reality.
         val completion = nativeInitializationScope.async(start = CoroutineStart.LAZY) {
             val result = try {
                 GADMobileAds.sharedInstance.requestConfiguration.let { requestConfig ->
                     requestedIdentity.globalRequestConfiguration.applyTo(requestConfig)
                 }
-                suspendCancellableCoroutine { continuation ->
-                    GADMobileAds.sharedInstance.startWithCompletionHandler { status ->
-                        val adapterStates = status?.adapterStatusesByClassName
-                        if (adapterStates != null) {
-                            adapterStates.forEach { (name, _) ->
-                                AdLogger.d("iOS adapter '${name}'")
+                // Bounded: GMA can accept start() and never invoke the handler, which used to
+                // leave initialize() suspended forever. A timeout is NOT a CancellationException
+                // (see awaitNativeCallback), so it reaches the catch below as a real failure and
+                // leaves the identity uncommitted -- making a retry the correct next step.
+                awaitNativeCallback(
+                    operation = "GADMobileAds.start",
+                    timeout = InitializationTimeouts.nativeInitialize
+                ) {
+                    suspendCancellableCoroutine<Unit> { continuation ->
+                        GADMobileAds.sharedInstance.startWithCompletionHandler { status ->
+                            val adapterStates = status?.adapterStatusesByClassName
+                            if (adapterStates != null) {
+                                adapterStates.forEach { (name, _) ->
+                                    AdLogger.d("iOS adapter '${name}'")
+                                }
                             }
+                            if (continuation.isActive) continuation.resume(Unit)
                         }
-                        if (continuation.isActive) continuation.resume(Unit)
                     }
                 }
                 config.globalRequestConfiguration.publisherFirstPartyIdEnabled?.let {
@@ -417,12 +447,27 @@ internal class IosGoogleAdManager : AdManager, FullScreenPresenceAware {
                 // startWithCompletionHandler returns so adapter statuses are populated,
                 // and before the After hook so a publisher hook can read them.
                 iosDiagnostics.captureSnapshotOnMain()
-                config.dispatchInitializationHooks(AdInitializationPhase.AfterMobileAdsInitialize)
                 mobileAdsInitializationMutex.withLock {
-                    configureNativeAdsAfterAcceptedInitialization(config)
+                    // Native GMA is initialized at this point and can never be reconfigured, so
+                    // the identity commit below must be unconditional. configureNativeAds can
+                    // throw -- NativeAdManagerImpl.configure has a check(existing == null) --
+                    // which is the same trap as a throwing hook, one step earlier.
+                    try {
+                        configureNativeAdsAfterAcceptedInitialization(config)
+                    } catch (t: Throwable) {
+                        AdLogger.e(
+                            "Failed to bind the native ad memory policy after iOS MobileAds " +
+                                "initialization. GMA stays initialized and Ready; native ad " +
+                                "capacity keeps its previously configured policy.",
+                            t
+                        )
+                    }
                     appliedConfigIdentity = requestedIdentity
                     appliedTerminalStatus = AdManagerStatus.Ready
                 }
+                // AFTER the commit, and isolated: a publisher hook is host code, so its failure is
+                // reported but must never make the native singleton look unapplied.
+                dispatchAfterInitializeHooks(config)
                 NativeInitializationResult.Applied
             } catch (failure: Throwable) {
                 NativeInitializationResult.Failed(failure)
