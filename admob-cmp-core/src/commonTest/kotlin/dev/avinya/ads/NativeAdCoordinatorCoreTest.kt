@@ -652,6 +652,126 @@ class NativeAdCoordinatorCoreTest {
         assertEquals(2, load, "the placement snapshot TTL reloads an eligible active slot")
         assertEquals(listOf(first), platform.destroyed, "the expired object is retired exactly once")
     }
+
+    // --- NATIVE-02: mixed-batch invalidation -------------------------------------------
+    // Demand is grouped by PLACEMENT only, so one window over slots a/b/c on the same
+    // placement is a single batch of three entries. Treating a batch as indivisible caused
+    // three distinct defects.
+
+    @Test fun `invalidating one slot does not send its stale entry to the platform`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        var call = 0
+        val platform = fakePlatform { _, count, _ ->
+            call += 1
+            if (call == 1) gate.await()
+            AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map { FakeAd(call * 100 + it) }, null))
+        }
+        // Default capacity, so reservations are actually GRANTED and the platform really is called
+        // with the batch size. An earlier version of this test used hardLimit = 1, which denied every
+        // reservation -- the platform was never called, and the assertion below could not fail.
+        // Queueing is driven by currentJob being busy, not by capacity.
+        val coord = coordinator(platform = platform)
+        val session = coord.session("s")
+        coord.updateWindow("s", windowWith("a"))
+        runCurrent()
+        assertEquals(1, platform.loadCalls.size, "the first load must be in flight to force queueing")
+
+        coord.updateWindow("s", windowWith("a", "x", "y", "z"))
+        runCurrent()
+        assertEquals(1, platform.loadCalls.size, "the x/y/z demand must be queued behind the in-flight load")
+
+        // Drop only y. Under the old `entries.all { … }` predicate the batch matched nothing, so y
+        // stayed queued, won a permit, inflated the requested count, and had its ad destroyed on
+        // arrival at recordAdmitted -- a wasted network load and a wasted ad, with hard-cap capacity
+        // burned while live slots sat deferred.
+        coord.updateWindow("s", windowWith("a", "x", "z"))
+        runCurrent()
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        // The precise symptom of a retained stale entry: an ad is fetched for it and then thrown
+        // away at recordAdmitted, because the deferral sweep already cleared its inFlight marker.
+        // Asserting on the requested COUNT is not enough -- how many entries a window yields depends
+        // on maxRetainedAds, so a count bound can pass with the stale entry still present.
+        assertTrue(
+            platform.destroyed.isEmpty(),
+            "no ad should be loaded and discarded; wasted ${platform.destroyed} " +
+                "for requests ${platform.loadCalls.map { it.second }}"
+        )
+        assertTrue(session.state.value.slots["x"] is NativeAdSlotState.Ready)
+        assertTrue(session.state.value.slots["z"] is NativeAdSlotState.Ready)
+    }
+
+    @Test fun `invalidating a slot in one session leaves the same slot key in another alone`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        var call = 0
+        val platform = fakePlatform { _, count, _ ->
+            call += 1
+            if (call == 1) gate.await()
+            AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map { FakeAd(call * 100 + it) }, null))
+        }
+        val coord = coordinator(
+            memoryPolicy = NativeAdMemoryPolicy(softLimit = 1, hardLimit = 1),
+            platform = platform,
+        )
+        // Both sessions use the SAME slot key. Slot generations are per-session counters, so both
+        // legitimately hold ("item-0", 1) at once.
+        val blocker = coord.session("blocker")
+        coord.updateWindow("blocker", windowWith("item-0"))
+        runCurrent()
+
+        val victim = coord.session("victim")
+        coord.updateWindow("victim", windowWith("item-0"))
+        runCurrent()
+
+        // Invalidate the BLOCKER's item-0. The sweep used to match on (slotKey, generation) only,
+        // so it cleared inFlight on the victim's queued slot; the victim's batch then survived the
+        // session-scoped removal, loaded, and was rejected at recordAdmitted -- stuck Empty.
+        coord.updateWindow("blocker", NativeAdWindow(visible = emptyList()))
+        runCurrent()
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(
+            victim.state.value.slots["item-0"] is NativeAdSlotState.Ready,
+            "the other session's slot must still fill; was ${victim.state.value.slots["item-0"]}"
+        )
+    }
+
+    @Test fun `a sibling of an invalidated slot reloads without another window update`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        var call = 0
+        val platform = fakePlatform { _, count, _ ->
+            call += 1
+            // The first load must still be IN FLIGHT when the invalidation arrives, otherwise there
+            // is no job to cancel, handleCancelled never runs, and the sibling was already filled --
+            // which is how an earlier version of this test passed while the defect was present.
+            if (call == 1) gate.await()
+            AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map { FakeAd(call * 100 + it) }, null))
+        }
+        val coord = coordinator(platform = platform)
+        val session = coord.session("s")
+        coord.updateWindow("s", windowWith("a", "b"))
+        runCurrent()
+        assertEquals(1, platform.loadCalls.size, "one batch covering both slots must be in flight")
+
+        // Dropping `a` cancels the whole in-flight job, so `b` loses its load through no fault of
+        // its own. It used to be marked Deferred and left there: the batch had already left the
+        // queue and nothing re-added it, processNextOrCleanupLocked can only start the NEXT queued
+        // batch, and a deferred slot holds no record so the TTL sweep never revisits it. Recovery
+        // needed an external re-drive -- so an unchanged viewport left the slot empty indefinitely.
+        // NOTE there is deliberately no second updateWindow for `b` below.
+        coord.updateWindow("s", windowWith("b"))
+        advanceUntilIdle()
+
+        assertTrue(call >= 2, "the surviving sibling should have triggered a fresh platform load")
+        assertTrue(
+            session.state.value.slots["b"] is NativeAdSlotState.Ready,
+            "the surviving sibling must be resubmitted automatically; was ${session.state.value.slots["b"]}"
+        )
+        assertEquals(0, coord.managerState().reservedLoads, "no reservation may be left dangling")
+    }
+
 }
 
 internal class FakePlatform(
