@@ -33,11 +33,23 @@ public abstract class DoctorIosTask : DefaultTask() {
         // 1. Binding inputs: the downloaded GMA/UMP XCFrameworks.
         val fwDir = File(frameworksDir.get())
         for (name in listOf("GoogleMobileAds", "UserMessagingPlatform")) {
-            val slice = File(fwDir, "$name.xcframework/ios-arm64")
-            if (slice.exists()) {
-                logger.lifecycle("$ok $name.xcframework download cache present")
-            } else {
-                logger.lifecycle("$bad $name.xcframework cache missing — run ./gradlew downloadGmaIos downloadUmpIos")
+            // Every required slice, not just ios-arm64. A cache holding the device slice but
+            // missing the simulator one links fine for a device build and fails only when a
+            // Kotlin/Native simulator test link runs — exactly the confusing failure this task
+            // exists to pre-empt.
+            val missing = REQUIRED_SLICES.filterNot { slice ->
+                File(fwDir, "$name.xcframework/$slice").isDirectory
+            }
+            when {
+                !File(fwDir, "$name.xcframework").isDirectory ->
+                    logger.lifecycle("$bad $name.xcframework cache missing — run ./gradlew downloadGmaIos downloadUmpIos")
+                missing.isEmpty() ->
+                    logger.lifecycle("$ok $name.xcframework download cache present")
+                else ->
+                    logger.lifecycle(
+                        "$bad $name.xcframework cache incomplete, missing ${missing.joinToString()} " +
+                            "— run ./gradlew downloadGmaIos downloadUmpIos"
+                    )
             }
         }
 
