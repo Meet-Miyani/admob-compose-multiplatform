@@ -28,6 +28,48 @@ release is **2.1.0**.
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
 
+## Unreleased
+
+A reliability release covering exception and cancellation behaviour on paths where several
+resources had already been committed. Three changes are observable from host code.
+
+### `initialize()` now reports a refused configuration
+
+Calling `initialize()` a second time with a **different** effective configuration — a different app
+ID, `globalRequestConfiguration`, or `nativeAdMemoryPolicy` — previously logged a warning and
+returned the previously applied status, usually `Ready`. The caller received a success-shaped result
+while its configuration had been silently rejected, so ads continued serving under the *first* app
+ID.
+
+Such a call now returns `AdManagerStatus.Failed` with `retryable = false` and the new
+`AdErrorCode.INITIALIZATION_CONFLICT`. Calling `initialize()` repeatedly with the *same* effective
+configuration is unaffected and remains idempotent.
+
+<Aside type="caution" title="Behaviour change">
+If you branch on the result of a repeated `initialize()`, a configuration mismatch that used to look
+like `Ready` now surfaces as a non-retryable failure. `AdManager.status` still reports the
+configuration that *was* accepted, so a rejected call never interrupts ad serving for the rest of
+the app.
+</Aside>
+
+### Per-presentation ad audio is restored more correctly
+
+- The mute/volume override supplied to `show()` is no longer reverted when the **caller** cancels
+  `show()` while the ad is still on screen. Restoration now happens when the ad actually closes.
+- On Android, dismissing an ad restores the audio state configured through
+  `globalRequestConfiguration` rather than resetting to unmuted at full volume. A non-default
+  `appMuted` or `appVolume` is no longer discarded after the first full-screen ad.
+- `audioVolume` is clamped before reaching the platform SDK on both platforms.
+
+### Startup calls can no longer hang indefinitely
+
+Native SDK initialization and the UMP consent-information update are now bounded. If the platform
+SDK accepts the call and never invokes its callback, the operation fails with a diagnostic instead of
+suspending forever. Consent fails closed: ad requests stay blocked until consent state is known.
+
+Surfaces that wait for a person — the consent form, the privacy options form, and the ad inspector —
+remain deliberately unbounded.
+
 ## What changed in 2.1.0?
 
 A native-ad rendering release. The layout DSL had three hand-written renderers — Android views, iOS

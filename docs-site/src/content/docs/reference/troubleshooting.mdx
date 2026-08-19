@@ -128,7 +128,11 @@ If a row is empty or loading, retain its placeholder geometry. Inspect `session.
 
 `FullScreenAdController.show()` is non-reentrant. Attempting to call `show()` whilst an ad is active on screen returns `AdShowResult.NotReady`. Await the completion of the active `show()` call before invoking presentation again on the same controller.
 
-Calling `AdManager.initialize()` multiple times with identical `AdConfig` parameters returns the existing initialisation result. Invoking `initialize()` with conflicting configuration parameters logs a warning without modifying the active singleton configuration, as underlying platform SDKs do not support runtime re-initialisation.
+Calling `AdManager.initialize()` multiple times with identical `AdConfig` parameters returns the existing initialisation result.
+
+Invoking `initialize()` with conflicting configuration parameters — a different app ID, a different `globalRequestConfiguration`, or a different `nativeAdMemoryPolicy` — leaves the active singleton configuration unchanged, as underlying platform SDKs do not support runtime re-initialisation. The refused call returns `AdManagerStatus.Failed` with `retryable = false` and `AdErrorCode.INITIALIZATION_CONFLICT`. Retrying cannot succeed; either restart the process or call `initialize()` once with the configuration you want.
+
+`AdManager.status` continues to report the configuration that *was* accepted. Only the return value of the refused call reports the conflict, so a rejected reconfiguration never interrupts ad serving for the rest of the application.
 
 ## Constructor validation errors
 
