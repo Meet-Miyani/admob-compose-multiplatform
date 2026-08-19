@@ -15,6 +15,8 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
@@ -71,9 +73,18 @@ public class AppOpenAdCoordinator internal constructor(
         clock = { Clock.System.now() }
     )
 
-    private var foregroundJob: Job? = null
-    private var preloadJob: Job? = null
-    private var scope: CoroutineScope? = null
+    /**
+     * Owns every coroutine the coordinator starts automatically.
+     *
+     * A child of the scope handed to [start], so the host cancelling its own scope still stops the
+     * coordinator, while [stop] can cancel the coordinator's work without touching the host's. It
+     * replaces the two individual job handles this class used to keep: those covered the foreground
+     * collector and the cold-start preload, but the show/reload coroutines launched from
+     * [onForeground] went straight onto the caller's scope and survived [stop] entirely.
+     *
+     * A supervisor so one failed automatic child cannot cancel its siblings or the host's scope.
+     */
+    private var lifecycle: CoroutineScope? = null
     private var lastShowInstant: Instant? = null
     private var backgroundedAtInstant: Instant? = null
     // This only serializes coordinator admission. The manager-wide presentation handle remains
@@ -100,15 +111,18 @@ public class AppOpenAdCoordinator internal constructor(
      * Starts the coordinator lifecycle. Preloads an ad (if configured) and
      * begins listening for foreground/background transitions to show the ad.
      *
-     * @param scope The [CoroutineScope] in which to run the foreground listener.
+     * @param scope The [CoroutineScope] the coordinator's own lifecycle scope is parented to.
      */
     public fun start(scope: CoroutineScope) {
         stop()
-        this.scope = scope
+        val lifecycle = CoroutineScope(
+            scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job])
+        )
+        this.lifecycle = lifecycle
         if (config.preloadOnStart || config.showOnColdStart) {
-            preloadJob = scope.launch { preloadColdStart() }
+            lifecycle.launch { preloadColdStart() }
         }
-        foregroundJob = scope.launch {
+        lifecycle.launch {
             foregroundEvents.collect { foreground ->
                 if (foreground) onForeground() else onBackground()
             }
@@ -116,16 +130,17 @@ public class AppOpenAdCoordinator internal constructor(
     }
 
     /**
-     * Stops the coordinator lifecycle. Cancels the foreground listener and
-     * prevents any further automatic show attempts until [start] is called
-     * again.
+     * Stops the coordinator lifecycle, cancelling **every** coroutine it started and preventing
+     * further automatic show attempts until [start] is called again.
+     *
+     * Cancelling the lifecycle scope is what makes that "every" true. Previously this cancelled only
+     * the foreground collector and the cold-start preload, so an automatic show or reload already
+     * launched from a foreground transition ran to completion afterwards — and a restart could
+     * overlap those stale children with the new lifecycle.
      */
     public fun stop() {
-        foregroundJob?.cancel()
-        foregroundJob = null
-        preloadJob?.cancel()
-        preloadJob = null
-        scope = null
+        lifecycle?.cancel()
+        lifecycle = null
     }
 
     private suspend fun preloadColdStart() {
@@ -153,11 +168,11 @@ public class AppOpenAdCoordinator internal constructor(
     private suspend fun onForeground() {
         val backgroundDuration = backgroundedAtInstant?.let { elapsedSince(it) } ?: Duration.ZERO
         backgroundedAtInstant = null
-        // Capture scope BEFORE acquiring admission. If stop() already nulled it, skip the
-        // acquisition entirely — otherwise tryAcquireShowAdmission() takes the process-wide
-        // probe token and sets showInFlight, but scope?.launch returns null, and showNow()'s
-        // finally never runs to release them.
-        val activeScope = scope ?: return
+        // Capture the lifecycle scope BEFORE acquiring admission. If stop() already cleared it,
+        // skip the acquisition entirely — otherwise tryAcquireShowAdmission() takes the
+        // process-wide probe token and sets showInFlight, but there is nothing to launch the work
+        // that would release them.
+        val activeScope = lifecycle ?: return
         if (backgroundDuration >= config.minBackgroundDuration && tryAcquireShowAdmission()) {
             activeScope.launch {
                 showNow()

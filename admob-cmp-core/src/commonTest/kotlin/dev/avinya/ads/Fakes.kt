@@ -151,6 +151,14 @@ internal class FakeAppOpenAdController(
     adPlacement: AdPlacement = AdPlacement("test_app_open", AdFormat.AppOpen, "android", "ios"),
     private val simulatedLoadState: AdLoadState = AdLoadState.Loaded(),
     private val simulatedShowResult: AdShowResult = AdShowResult.Shown,
+    /**
+     * Runs inside [show], before it completes.
+     *
+     * A seam for suspending the coordinator's *automatic* show child, so a test can act (stop,
+     * restart) while that child is mid-flight. Note the coordinator calls [show], not
+     * [showIfAvailable] — gating the wrong one yields a test that passes no matter what.
+     */
+    private val beforeShow: (suspend () -> Unit)? = null,
 ) : AppOpenAdController {
     private val _loadState = MutableStateFlow<AdLoadState>(simulatedLoadState)
     private val _events = MutableSharedFlow<AdEvent>(extraBufferCapacity = 8)
@@ -171,6 +179,7 @@ internal class FakeAppOpenAdController(
     }
     override suspend fun preload(requestOptions: AdRequestOptions): AdLoadState = load(requestOptions)
     override suspend fun show(options: FullScreenAdOptions): AdShowResult {
+        beforeShow?.invoke()
         showCalled = true
         // After show, the ad is consumed — mark not ready so coordinator triggers reload
         ready = false
