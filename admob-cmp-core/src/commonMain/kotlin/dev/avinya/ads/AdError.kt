@@ -42,6 +42,16 @@ public object AdErrorCode {
     public const val CONSENT_REQUIRED: String = "consent_required"
     /** The GMA SDK has not completed initialization. */
     public const val SDK_NOT_READY: String = "sdk_not_ready"
+
+    /**
+     * `initialize()` requested a configuration that conflicts with the one the process-wide ad SDK
+     * singleton already accepted, so the request was refused.
+     *
+     * Never retryable: the platform SDKs cannot be reconfigured after initialization, so the same
+     * call will fail identically until the process restarts. Distinguishing this from
+     * [SDK_NOT_READY] matters — that one means "wait and retry", this one means "fix the call".
+     */
+    public const val INITIALIZATION_CONFLICT: String = "initialization_conflict"
 }
 
 /**

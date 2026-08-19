@@ -1653,6 +1653,8 @@ final class dev.avinya.ads/ServerSideVerificationOptions { // dev.avinya.ads/Ser
 final object dev.avinya.ads/AdErrorCode { // dev.avinya.ads/AdErrorCode|null[0]
     final const val CONSENT_REQUIRED // dev.avinya.ads/AdErrorCode.CONSENT_REQUIRED|{}CONSENT_REQUIRED[0]
         final fun <get-CONSENT_REQUIRED>(): kotlin/String // dev.avinya.ads/AdErrorCode.CONSENT_REQUIRED.<get-CONSENT_REQUIRED>|<get-CONSENT_REQUIRED>(){}[0]
+    final const val INITIALIZATION_CONFLICT // dev.avinya.ads/AdErrorCode.INITIALIZATION_CONFLICT|{}INITIALIZATION_CONFLICT[0]
+        final fun <get-INITIALIZATION_CONFLICT>(): kotlin/String // dev.avinya.ads/AdErrorCode.INITIALIZATION_CONFLICT.<get-INITIALIZATION_CONFLICT>|<get-INITIALIZATION_CONFLICT>(){}[0]
     final const val SDK_NOT_READY // dev.avinya.ads/AdErrorCode.SDK_NOT_READY|{}SDK_NOT_READY[0]
         final fun <get-SDK_NOT_READY>(): kotlin/String // dev.avinya.ads/AdErrorCode.SDK_NOT_READY.<get-SDK_NOT_READY>|<get-SDK_NOT_READY>(){}[0]
 }
