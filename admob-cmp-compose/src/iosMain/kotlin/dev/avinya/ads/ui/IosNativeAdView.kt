@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitView
 import dev.avinya.ads.AdError
+import dev.avinya.ads.AdLogger
 import dev.avinya.ads.AdEvent
 import dev.avinya.ads.AdFormat
 import dev.avinya.ads.AdPlacement
@@ -30,6 +31,7 @@ import dev.avinya.ads.nativead.NativeAdSession
 import dev.avinya.ads.nativead.NativeAdSlotState
 import dev.avinya.ads.nativead.acquireIosNativeAdRenderLease
 import dev.avinya.ads.nativead.layout.AdLayout
+import dev.avinya.ads.nativead.layout.AdLayoutSize
 import dev.avinya.ads.nativead.rendering.IosNativeAdRenderer
 import dev.avinya.ads.nativead.rendering.adRootSurface
 import dev.avinya.ads.nativead.rendering.rememberResolvedComposeFonts
@@ -100,6 +102,9 @@ public actual fun NativeAdView(
                     val heightCacheKey = remember(session.key, slotKey, placement.id, layout.identity, widthBucket) {
                         IosNativeAdHeightCacheKey(session.key, slotKey, placement.id, layout.identity, widthBucket)
                     }
+                    // A root that asks to fill takes the host's height rather than measuring its
+                    // own: see `IosNativeAdHostView.fillsHost`.
+                    val rootFillsHost = layout.root.modifier.height == AdLayoutSize.Match && minHeightPoints > 0.0
                     val initialHeight = remember(heightCacheKey, minHeightPoints, maxHeightPoints) {
                         resolveIosNativeAdInitialHeight(
                             cachedHeight = iosNativeAdHeightCache.get(heightCacheKey),
@@ -130,12 +135,14 @@ public actual fun NativeAdView(
                                 content.trailingAnchor.constraintEqualToAnchor(nativeView.trailingAnchor).active = true
                                 content.topAnchor.constraintEqualToAnchor(nativeView.topAnchor).active = true
                                 IosNativeAdHostView(
+                                    placementId = placement.id,
                                     nativeView = nativeView,
                                     content = content,
                                     nativeAd = mountedLease.ad,
                                     surfaceArgb = resolveNativeAdSurfaceArgb(layout.root),
                                     minHeight = minHeightPoints,
                                     maxHeight = maxHeightPoints,
+                                    fillsHost = rootFillsHost,
                                 ) { effectiveHeight ->
                                     iosNativeAdHeightCache.put(heightCacheKey, effectiveHeight)
                                     preferredHeight = effectiveHeight
@@ -172,16 +179,37 @@ public actual fun NativeAdView(
  * ad. The layout's opaque root background, resolved into [surfaceArgb], is what closes that hole.
  */
 private class IosNativeAdHostView(
+    /** Diagnostics only — identifies the host in a containment failure report. */
+    private val placementId: String,
     private val nativeView: GADNativeAdView,
     private val content: UIView,
     private val nativeAd: GoogleMobileAds.GADNativeAd,
     surfaceArgb: Long?,
     private val minHeight: Double,
     private val maxHeight: Double?,
+    /**
+     * The layout root asked for [dev.avinya.ads.nativead.layout.AdLayoutSize.Match] height and the
+     * host has a bounded one to give it.
+     *
+     * Nothing else propagates the host's height into the rendered tree: [content] is pinned to
+     * three edges and merely *contained* by the fourth, so a `fillMaxSize()` root had no parent
+     * height to match and collapsed onto its tallest child. A full-screen layout therefore drew its
+     * bottom-aligned content against the bottom of the media rather than the bottom of the page,
+     * while Compose still reserved the full height — which is exactly what `AndroidView` gets for
+     * free by handing the Compose modifier straight to the host.
+     *
+     * When this is set the containment constraint becomes an equality and is active from the start,
+     * and the measure/report loop below is skipped entirely: the height is already decided by the
+     * constraints Compose passed down, so measuring the content would only fight them.
+     */
+    private val fillsHost: Boolean,
     private val onPreferredHeightChanged: (Double) -> Unit,
 ) : UIView(frame = kotlinx.cinterop.cValue { }) {
     private var nativeAdRegistered = false
-    private val containmentConstraint: NSLayoutConstraint = content.bottomAnchor.constraintLessThanOrEqualToAnchor(nativeView.bottomAnchor)
+    private var containmentFailureReported = false
+    private val containmentConstraint: NSLayoutConstraint =
+        if (fillsHost) content.bottomAnchor.constraintEqualToAnchor(nativeView.bottomAnchor)
+        else content.bottomAnchor.constraintLessThanOrEqualToAnchor(nativeView.bottomAnchor)
     private val hostRelease = IosNativeHostRelease(
         detachNativeAd = { nativeView.nativeAd = null },
         clearAssets = {
@@ -216,6 +244,9 @@ private class IosNativeAdHostView(
         nativeView.trailingAnchor.constraintEqualToAnchor(trailingAnchor).active = true
         nativeView.topAnchor.constraintEqualToAnchor(topAnchor).active = true
         nativeView.bottomAnchor.constraintEqualToAnchor(bottomAnchor).active = true
+        // A filling root has to be stretched before the first draw, not at registration time, or
+        // the first frame shows the collapsed tree.
+        if (fillsHost) containmentConstraint.active = true
     }
 
     /**
@@ -226,29 +257,74 @@ private class IosNativeAdHostView(
      * an asset can settle at a different intrinsic size than it was measured at. Latching the
      * height at registration left that growth with nowhere to go, so `clipsToBounds` ate it.
      *
-     * This cannot oscillate: [onPreferredHeightChanged] writes a `MutableDoubleState`, and writing
-     * a value equal to the current one is not a state change, so a converged layout stops
-     * recomposing on its own.
+     * Convergence rests on the deadband in [resolveNativeAdLayoutSizing], not on the state write
+     * being idempotent. Relying on the latter was wrong: Auto Layout rounds a laid-out frame to
+     * whole device pixels, so a settled ad measures a fraction of a point taller than it currently
+     * is and the "unchanged" write never actually happened. Only a change the deadband admits is
+     * reported back.
      */
     override fun layoutSubviews() {
         super.layoutSubviews()
         val (width, currentHeight) = bounds.useContents { size.width to size.height }
         if (!width.isFinite() || width <= 0.0) return
+        if (fillsHost) {
+            if (currentHeight > 0.0) registerNativeAdOnce()
+            return
+        }
         val measuredHeight = content.systemLayoutSizeFittingSize(
             targetSize = CGSizeMake(width, 0.0),
             withHorizontalFittingPriority = UILayoutPriorityRequired,
             verticalFittingPriority = UILayoutPriorityFittingSizeLevel,
         ).useContents { height }
         val sizing = resolveNativeAdLayoutSizing(currentHeight, measuredHeight, minHeight, maxHeight)
-        sizing.effectiveMeasuredHeight?.let(onPreferredHeightChanged)
-        if (!nativeAdRegistered && sizing.shouldRegisterNativeAd) {
+        // Reported only when [resolveNativeAdLayoutSizing] says the height actually moved. Writing
+        // it unconditionally made the deadband that function applies unobservable: Auto Layout
+        // rounds a laid-out frame to whole device pixels, so a converged ad measures a third of a
+        // point taller than it currently is, that value was written back, Compose resized the
+        // interop view, and the next pass measured a third of a point taller again — an unbounded
+        // ratchet that ran on every layout pass for as long as the ad stayed on screen.
+        if (sizing.shouldUpdateHeight) sizing.effectiveMeasuredHeight?.let(onPreferredHeightChanged)
+        if (sizing.shouldRegisterNativeAd) {
             containmentConstraint.active = true
-            layoutIfNeeded()
-            nativeView.layoutIfNeeded()
-            if (registeredAssetContainmentIssues().isNotEmpty()) return
-            nativeView.nativeAd = nativeAd
-            nativeAdRegistered = true
+            registerNativeAdOnce()
         }
+    }
+
+    /** Binds the ad to its view exactly once, and only while every asset is inside the root. */
+    private fun registerNativeAdOnce() {
+        if (nativeAdRegistered) return
+        layoutIfNeeded()
+        nativeView.layoutIfNeeded()
+        val issues = registeredAssetContainmentIssues()
+        if (issues.isNotEmpty()) {
+            reportContainmentFailure(issues)
+            return
+        }
+        nativeView.nativeAd = nativeAd
+        nativeAdRegistered = true
+    }
+
+    /**
+     * Reports the first containment failure for this host, once.
+     *
+     * Failing closed is correct — registering an ad whose assets sit outside the root is an AdMob
+     * policy violation — but the offending bounds were computed and then discarded, so a layout
+     * regression presented as a permanently blank ad with nothing to diagnose it by.
+     *
+     * Latched deliberately: [registerNativeAdOnce] runs on **every** layout pass until registration
+     * succeeds, so logging unconditionally would emit on every frame. Registration is still retried
+     * each pass, so a layout that later converges binds normally and the diagnostic stands as a
+     * record of why the first attempts were refused.
+     */
+    private fun reportContainmentFailure(issues: List<String>) {
+        if (containmentFailureReported) return
+        containmentFailureReported = true
+        AdLogger.e(
+            "Native ad not registered for placement '$placementId': ${issues.size} asset(s) fall " +
+                "outside the ad view's bounds, which would be an AdMob policy violation. " +
+                "The ad will stay blank until the layout is corrected. Offending assets: " +
+                issues.joinToString("; ")
+        )
     }
 
     fun releaseHost() = hostRelease.release()

@@ -15,6 +15,7 @@ import dev.avinya.ads.internal.deriveAdmission
 import dev.avinya.ads.internal.ConsentSessionState
 import dev.avinya.ads.internal.ownedSnapshot
 import dev.avinya.ads.internal.NativeAdManagerImpl
+import dev.avinya.ads.internal.emitOrLogDrop
 import dev.avinya.ads.nativead.AndroidNativeAdPlatform
 import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
@@ -120,7 +121,11 @@ internal class AndroidGoogleAdManager(
         policy = null,
         platform = AndroidNativeAdPlatform(),
         canRequestAds = { adRequestBlockedError() == null },
-        eventSink = { _events.tryEmit(it) },
+        // Routed through the shared drop-aware helper like every other emitter. This path called
+        // tryEmit and discarded the Boolean -- the exact pattern emitOrLogDrop was introduced to
+        // remove -- so a dropped native event was silent, precisely where batching makes bursts
+        // most likely.
+        eventSink = { _events.emitOrLogDrop(it, "NativeAds") },
     )
     override val nativeAds: NativeAdManager = nativeManager
 
