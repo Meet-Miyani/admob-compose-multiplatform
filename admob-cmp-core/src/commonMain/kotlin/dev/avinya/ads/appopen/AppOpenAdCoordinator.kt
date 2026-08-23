@@ -46,7 +46,23 @@ public data class AppOpenConfig(
     val cooldownBetweenShows: Duration = Duration.ZERO,
     val preloadOnStart: Boolean = true,
     val coldStartTimeout: Duration = 5.seconds
-)
+) {
+    init {
+        // Each of these silently changes the coordinator's policy rather than failing:
+        // a negative or infinite threshold makes every foreground transition qualify or none of
+        // them; a negative cooldown disables the rate limit entirely; a non-positive cold-start
+        // timeout abandons the load before it starts, and an infinite one never gives up.
+        require(minBackgroundDuration.isFinite() && minBackgroundDuration >= Duration.ZERO) {
+            "AppOpenConfig.minBackgroundDuration must be finite and non-negative, was $minBackgroundDuration."
+        }
+        require(cooldownBetweenShows.isFinite() && cooldownBetweenShows >= Duration.ZERO) {
+            "AppOpenConfig.cooldownBetweenShows must be finite and non-negative, was $cooldownBetweenShows."
+        }
+        require(coldStartTimeout.isFinite() && coldStartTimeout > Duration.ZERO) {
+            "AppOpenConfig.coldStartTimeout must be finite and positive, was $coldStartTimeout."
+        }
+    }
+}
 
 /**
  * Orchestrates the standard app-open ad lifecycle: preload, show on return to

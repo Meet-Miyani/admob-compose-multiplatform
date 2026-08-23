@@ -16,6 +16,12 @@ public data class AdUnitIds(
     /** iOS ad-unit ID (ca-app-pub-.../...). */
     val ios: String
 ) {
+    init {
+        // Non-blank only, for the same reason as AdAppIds: Ad Manager formats must keep working.
+        require(android.isNotBlank()) { "AdUnitIds.android must not be blank." }
+        require(ios.isNotBlank()) { "AdUnitIds.ios must not be blank." }
+    }
+
     /** Returns the ad-unit ID for the given [platform]. */
     public fun forPlatform(platform: AdPlatform): String = when (platform) {
         AdPlatform.Android -> android
