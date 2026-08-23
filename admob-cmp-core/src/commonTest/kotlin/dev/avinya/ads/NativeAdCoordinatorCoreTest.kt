@@ -716,7 +716,7 @@ class NativeAdCoordinatorCoreTest {
         )
         // Both sessions use the SAME slot key. Slot generations are per-session counters, so both
         // legitimately hold ("item-0", 1) at once.
-        val blocker = coord.session("blocker")
+        coord.session("blocker")
         coord.updateWindow("blocker", windowWith("item-0"))
         runCurrent()
 

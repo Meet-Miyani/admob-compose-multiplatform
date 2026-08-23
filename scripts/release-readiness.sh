@@ -132,7 +132,14 @@ section "2. Gradle plugin build + supply-chain policy"
 # detritus. Built into a temporary path and discarded; this gate only asserts it is possible.
 ./scripts/distribution/make-source-bundle.sh HEAD "$(mktemp -d)/source-bundle.zip" >/dev/null
 
-section "3. Android + ABI + publication metadata"
+section "3. Static analysis"
+# Published modules only -- sample apps are consumers, not shipped code. Pre-existing findings are
+# recorded in each module's detekt-baseline.xml; NEW findings fail this section. Regenerate a
+# baseline with `./gradlew detektBaseline` only when a finding is genuinely accepted, never to
+# silence one that should be fixed.
+./gradlew detekt --no-configuration-cache
+
+section "4. Android + ABI + publication metadata"
 ./scripts/distribution/verify-pom-metadata.sh
 ./gradlew \
   :admob-cmp-core:testAndroidHostTest \
@@ -143,10 +150,10 @@ section "3. Android + ABI + publication metadata"
   :androidApp:assembleDebug \
   --no-configuration-cache
 
-section "4. Central task graph"
+section "5. Central task graph"
 ./gradlew publishToMavenCentral --dry-run --no-configuration-cache
 
-section "5. iOS + klib ABI"
+section "6. iOS + klib ABI"
 ./gradlew \
   :admob-cmp-core:iosSimulatorArm64Test \
   :admob-cmp-compose:iosSimulatorArm64Test \
@@ -155,12 +162,12 @@ section "5. iOS + klib ABI"
   :admob-cmp-compose:checkKotlinAbi \
   --no-configuration-cache
 
-# Section 6 mutates ~/.m2 — it runs publishToMavenLocal for both builds, then
+# Section 7 mutates ~/.m2 — it runs publishToMavenLocal for both builds, then
 # the shared module round-trips against the published facade. The two halves
 # are kept in the same section (matching the plan's numbering) so that a
 # consumer-round-trip failure points at "the published artifact is wrong",
 # not at a separate step.
-section "6. Published-consumer round trip"
+section "7. Published-consumer round trip"
 ./gradlew publishToMavenLocal -PsignAllPublications=false --no-configuration-cache
 ./gradlew -p admob-cmp-gradle-plugin publishToMavenLocal -PsignAllPublications=false --no-configuration-cache
 ./gradlew \
@@ -170,7 +177,7 @@ section "6. Published-consumer round trip"
   --refresh-dependencies \
   --no-configuration-cache
 
-section "7. Xcode consumer"
+section "8. Xcode consumer"
 xcodebuild \
   -project iosApp/iosApp.xcodeproj \
   -scheme iosApp \
@@ -180,13 +187,13 @@ xcodebuild \
   build
 
 if [ "$SKIP_DOCS" = "false" ]; then
-  # Section 8 regenerates docs-site/public/api (gitignored) and
+  # Section 9 regenerates docs-site/public/api (gitignored) and
   # docs-site/dist/ (gitignored). Neither should ever be committed.
-  section "8. Docs (Dokka + Astro + visual checks + verify)"
+  section "9. Docs (Dokka + Astro + visual checks + verify)"
   ./gradlew syncApiDocsToDocsSite --no-configuration-cache
   if [ ! -f docs-site/public/api/index.html ]; then
     echo "docs-site/public/api/index.html was not produced by syncApiDocsToDocsSite." >&2
-    FAILING_SECTION="8. Docs (Dokka + Astro + visual checks + verify)"
+    FAILING_SECTION="9. Docs (Dokka + Astro + visual checks + verify)"
     exit 1
   fi
   (
@@ -208,5 +215,5 @@ if [ "$SKIP_DOCS" = "false" ]; then
     npm run verify
   )
 else
-  section "8. Docs (skipped via --skip-docs)"
+  section "9. Docs (skipped via --skip-docs)"
 fi
