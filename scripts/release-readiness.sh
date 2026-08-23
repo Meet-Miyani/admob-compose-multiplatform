@@ -132,12 +132,16 @@ section "2. Gradle plugin build + supply-chain policy"
 # detritus. Built into a temporary path and discarded; this gate only asserts it is possible.
 ./scripts/distribution/make-source-bundle.sh HEAD "$(mktemp -d)/source-bundle.zip" >/dev/null
 
-section "3. Static analysis"
+section "3. Static analysis and coverage"
 # Published modules only -- sample apps are consumers, not shipped code. Pre-existing findings are
 # recorded in each module's detekt-baseline.xml; NEW findings fail this section. Regenerate a
 # baseline with `./gradlew detektBaseline` only when a finding is genuinely accepted, never to
 # silence one that should be fixed.
 ./gradlew detekt --no-configuration-cache
+# Coverage is a ratchet, not a target: the floors in build.gradle.kts record where the suite
+# stands so that erosion fails here. Verified per module because root-level Kover aggregation
+# cannot resolve a KMP project publishing iOS framework variants.
+./gradlew :admob-cmp-core:koverVerify :admob-cmp-compose:koverVerify --no-configuration-cache
 
 section "4. Android + ABI + publication metadata"
 ./scripts/distribution/verify-pom-metadata.sh
