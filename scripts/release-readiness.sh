@@ -123,8 +123,14 @@ if [ "$lib" != "$plugin" ]; then
 fi
 echo "Library and plugin both at $lib."
 
-section "2. Gradle plugin build"
+section "2. Gradle plugin build + supply-chain policy"
+# `build` runs the plugin's own test suite, which covers the iOS framework downloader's
+# integrity, recovery and resource bounds.
 ./gradlew -p admob-cmp-gradle-plugin build --no-configuration-cache
+./scripts/distribution/verify-workflow-policy.sh
+# Proves a distributable bundle can be produced without credentials, browser state or build
+# detritus. Built into a temporary path and discarded; this gate only asserts it is possible.
+./scripts/distribution/make-source-bundle.sh HEAD "$(mktemp -d)/source-bundle.zip" >/dev/null
 
 section "3. Android + ABI + publication metadata"
 ./scripts/distribution/verify-pom-metadata.sh
