@@ -236,6 +236,11 @@ jobs:
   publish:
     name: Publish to Maven Central
     needs: gate
+    permissions:
+      contents: read
+      # Required by actions/attest-build-provenance to mint and record the attestation.
+      id-token: write
+      attestations: write
     if: needs.gate.outputs.should_release == 'true'
     # Gates the only job that receives Maven signing and Central credentials behind a protected
     # environment. Without it, merging a version bump to master immediately uploads a signed
@@ -262,6 +267,23 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
+
+      - name: Generate release provenance assets
+        run: ./scripts/distribution/generate-release-provenance.sh "$RUNNER_TEMP/provenance" "$GITHUB_SHA"
+
+      - name: Attest build provenance
+        # First-party GitHub action producing SLSA provenance signed by the workflow identity, so a
+        # consumer can verify WHICH commit and workflow produced these artifacts. Maven Central
+        # signatures prove the publisher's key, not the build's origin.
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: ${{ runner.temp }}/provenance/checksums.txt
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-provenance
+          path: ${{ runner.temp }}/provenance/
+          if-no-files-found: error
 
       - name: Record the manual Central Portal release steps
         run: |
@@ -291,6 +313,11 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-provenance
+          path: provenance
 
       - name: Tag the release
         run: |
@@ -323,4 +350,6 @@ jobs:
           gh release create "$version" \
             --title "AdMob CMP $version — Compose Multiplatform AdMob SDK" \
             --notes "$notes" \
-            --generate-notes
+            --generate-notes \
+            provenance/checksums.txt \
+            provenance/sbom.spdx.json
