@@ -1,6 +1,7 @@
 package dev.avinya.ads.internal
 
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -22,6 +23,20 @@ internal object InitializationTimeouts {
 
     /** UMP `requestConsentInfoUpdate` — a network round trip with no user interaction. */
     val consentInfoUpdate: Duration = 20.seconds
+
+    /**
+     * How long consent gathering waits for a usable platform host (Android `Activity`, iOS root
+     * `UIViewController`) before giving up on this attempt.
+     *
+     * Two seconds because every window this exists to cover is sub-second: the gap between an ad
+     * `Activity` stopping and the app `Activity` restarting, a configuration change, and an iOS
+     * view controller finishing its presentation transition. Long enough to cover all three,
+     * short enough that a genuinely backgrounded app does not sit here.
+     */
+    val consentHost: Duration = 2.seconds
+
+    /** Gap between host probes. Invisible at [consentHost]'s scale. */
+    val hostPoll: Duration = 50.milliseconds
 }
 
 /**
