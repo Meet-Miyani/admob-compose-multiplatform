@@ -9,6 +9,7 @@ import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeCallbackTimeoutException
 import dev.avinya.ads.internal.appliedConfigurationDecision
 import dev.avinya.ads.internal.awaitNativeCallback
+import dev.avinya.ads.internal.awaitHost
 import dev.avinya.ads.internal.dispatchAfterInitializeHooks
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
 import dev.avinya.ads.internal.deriveAdmission
@@ -650,53 +651,78 @@ private class AndroidConsentController(
         val config = config.ownedSnapshot()
         lastConfig = config
         config.dispatchInitializationHooks(AdInitializationPhase.BeforeConsentRequest)
-        val activity = activityProvider()
-            ?: return fail("No current Android Activity for UMP consent.")
         return withContext(Dispatchers.Main.immediate) {
-            val consentInformation = UserMessagingPlatform.getConsentInformation(appContext)
-            val params = buildConsentParams(activity, config)
-            // Bounded: this is a non-interactive network round trip, so UMP accepting the call and
-            // never calling back used to hang consent admission — and therefore ad serving —
-            // indefinitely. Fails CLOSED: _canRequestAds is left false and the status becomes
-            // Failed, so no ad request proceeds on an unknown consent state. The consent FORM and
-            // privacy options form below stay unbounded on purpose; a person is reading those.
-            val error = try {
-                awaitNativeCallback(
-                    operation = "UMP requestConsentInfoUpdate",
-                    timeout = InitializationTimeouts.consentInfoUpdate
-                ) {
-                    suspendCancellableCoroutine<AdError?> { continuation ->
-                        consentInformation.requestConsentInfoUpdate(
-                            activity,
-                            params,
-                            { if (continuation.isActive) continuation.resume(null) },
-                            { if (continuation.isActive) continuation.resume(AdError(code = it.errorCode.toString(), message = it.message)) }
-                        )
-                    }
-                }
-            } catch (timeout: NativeCallbackTimeoutException) {
-                AdLogger.e("Android UMP consent info update timed out.", timeout)
-                return@withContext fail(timeout.message ?: "UMP consent info update timed out.")
-            }
-            updatePrivacyState(consentInformation)
-            _canRequestAds.value = consentInformation.canRequestAds()
-            val status = if (error == null) {
-                consentInformationStatus(consentInformation).also { _status.value = it }
-            } else if (consentInformation.canRequestAds()) {
-                consentInformationStatus(consentInformation).also { _status.value = it }
-            } else {
-                ConsentStatus.Failed(error).also { _status.value = it }
-            }
-            status
+            // Acquired inside the main hop, not before it: this reads Activity lifecycle state,
+            // which is main-thread-owned (invariant 5). It waits rather than failing on the first
+            // null because ForegroundStack legitimately empties for a few hundred milliseconds
+            // during any Activity handoff.
+            val activity = awaitHost(InitializationTimeouts.consentHost) { activityProvider() }
+                ?: return@withContext failNoActivity()
+            updateWithActivity(activity, config, UserMessagingPlatform.getConsentInformation(appContext))
         }
     }
 
-    override suspend fun gatherConsent(config: AdConfig): ConsentStatus {
-        val activity = activityProvider()
-            ?: return fail("No current Android Activity for UMP consent.")
-        return withContext(Dispatchers.Main.immediate) {
+    /**
+     * The UMP info-update sequence, given a host that has already been acquired.
+     *
+     * Split out so each PUBLIC consent entry point acquires the host exactly once.
+     * [gatherConsent] used to call [requestConsentInfoUpdate], which re-acquired it — two waits
+     * for one logical operation. Callers are responsible for being on Main.
+     */
+    private suspend fun updateWithActivity(
+        activity: Activity,
+        config: AdConfig,
+        consentInformation: ConsentInformation,
+    ): ConsentStatus {
+        val params = buildConsentParams(activity, config)
+        // Bounded: this is a non-interactive network round trip, so UMP accepting the call and
+        // never calling back used to hang consent admission — and therefore ad serving —
+        // indefinitely. Fails CLOSED: _canRequestAds is left false and the status becomes
+        // Failed, so no ad request proceeds on an unknown consent state. The consent FORM and
+        // privacy options form below stay unbounded on purpose; a person is reading those.
+        val error = try {
+            awaitNativeCallback(
+                operation = "UMP requestConsentInfoUpdate",
+                timeout = InitializationTimeouts.consentInfoUpdate
+            ) {
+                suspendCancellableCoroutine<AdError?> { continuation ->
+                    consentInformation.requestConsentInfoUpdate(
+                        activity,
+                        params,
+                        { if (continuation.isActive) continuation.resume(null) },
+                        { if (continuation.isActive) continuation.resume(AdError(code = it.errorCode.toString(), message = it.message)) }
+                    )
+                }
+            }
+        } catch (timeout: NativeCallbackTimeoutException) {
+            AdLogger.e("Android UMP consent info update timed out.", timeout)
+            return fail(timeout.message ?: "UMP consent info update timed out.")
+        }
+        updatePrivacyState(consentInformation)
+        _canRequestAds.value = consentInformation.canRequestAds()
+        val status = if (error == null) {
+            consentInformationStatus(consentInformation).also { _status.value = it }
+        } else if (consentInformation.canRequestAds()) {
+            consentInformationStatus(consentInformation).also { _status.value = it }
+        } else {
+            ConsentStatus.Failed(error).also { _status.value = it }
+        }
+        return status
+    }
+
+    override suspend fun gatherConsent(config: AdConfig): ConsentStatus =
+        withContext(Dispatchers.Main.immediate) {
+            val activity = awaitHost(InitializationTimeouts.consentHost) { activityProvider() }
+                ?: return@withContext failNoActivity()
             val consentInformation = UserMessagingPlatform.getConsentInformation(appContext)
-            val update = requestConsentInfoUpdate(config)
+            // The acquired Activity is reused rather than calling the public
+            // requestConsentInfoUpdate, which would wait for a host a second time. The snapshot
+            // and hook dispatch that entry point performs are replicated here so behaviour is
+            // identical.
+            val ownedConfig = config.ownedSnapshot()
+            lastConfig = ownedConfig
+            ownedConfig.dispatchInitializationHooks(AdInitializationPhase.BeforeConsentRequest)
+            val update = updateWithActivity(activity, ownedConfig, consentInformation)
             if (update is ConsentStatus.Failed && !consentInformation.canRequestAds()) return@withContext update
             suspendCancellableCoroutine<Unit> { continuation ->
                 UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
@@ -711,7 +737,6 @@ private class AndroidConsentController(
             val status = consentInformationStatus(consentInformation).also { _status.value = it }
             status
         }
-    }
 
     override suspend fun showPrivacyOptions(): Boolean {
         val activity = activityProvider() ?: return false
@@ -745,6 +770,22 @@ private class AndroidConsentController(
 
     private fun fail(message: String): ConsentStatus =
         ConsentStatus.Failed(AdError.message(message)).also { _status.value = it }
+
+    /**
+     * The host was absent for the whole `InitializationTimeouts.consentHost` window.
+     *
+     * Kept as one helper so both consent entry points log identically and the public
+     * [ConsentStatus.Failed] message stays byte-identical to what it has always been —
+     * only the warning above it is new.
+     */
+    private fun failNoActivity(): ConsentStatus {
+        AdLogger.w(
+            "No usable Android Activity for UMP consent after waiting " +
+                "${InitializationTimeouts.consentHost}. Consent was not gathered on this attempt; " +
+                "the host app should retry."
+        )
+        return fail("No current Android Activity for UMP consent.")
+    }
 
     private fun updatePrivacyState(consentInformation: ConsentInformation) {
         _privacy.value = when (consentInformation.privacyOptionsRequirementStatus) {
