@@ -42,13 +42,20 @@ if [ -n "$violations" ]; then
 fi
 
 # Last-resort content scan for credential-shaped material.
+#
+# This script is excluded from its own scan: it necessarily contains the very patterns it looks
+# for, so including it makes the check fail on every clean bundle. That is not hypothetical -- it
+# is exactly how this was first caught.
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 unzip -q "$OUT" -d "$tmp"
-if grep -rIlE '(BEGIN [A-Z ]*PRIVATE KEY|aws_secret_access_key|-----BEGIN OPENSSH)' "$tmp" >/dev/null 2>&1; then
+SECRET_PATTERN='(BEGIN [A-Z ]*PRIVATE KEY|aws_secret_access_key|-----BEGIN OPENSSH)'
+matches=$(grep -rIlE "$SECRET_PATTERN" "$tmp" 2>/dev/null \
+  | grep -v "/scripts/distribution/make-source-bundle\.sh$" || true)
+if [ -n "$matches" ]; then
   echo "REFUSING TO SHIP: credential-shaped content found in $OUT" >&2
-  grep -rIlE '(BEGIN [A-Z ]*PRIVATE KEY|aws_secret_access_key|-----BEGIN OPENSSH)' "$tmp" \
-    | sed "s|$tmp/|  |" >&2
+  # Paths only -- never the matching line, so a secret is not echoed into a log.
+  printf '%s\n' "$matches" | sed "s|$tmp/|  |" >&2
   rm -f "$OUT"
   exit 1
 fi
