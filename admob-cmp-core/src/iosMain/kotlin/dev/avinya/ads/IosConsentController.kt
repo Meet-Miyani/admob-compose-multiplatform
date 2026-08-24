@@ -25,6 +25,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeCallbackTimeoutException
+import dev.avinya.ads.internal.awaitHost
 import dev.avinya.ads.internal.awaitNativeCallback
 import dev.avinya.ads.internal.ownedSnapshot
 
@@ -92,8 +93,18 @@ internal class IosConsentController(
     val consentInformation = UMPConsentInformation.sharedInstance
     val update = requestConsentInfoUpdate(config)
         if (update is ConsentStatus.Failed && !consentInformation.canRequestAds) return@withContext update
-        val rootVC = topViewController()
+        // Waits rather than failing on the first null. topViewController() deliberately
+        // reports null while the top controller is mid-presentation or mid-dismissal, which
+        // is routine at launch — the host's Compose UIViewController is often still being
+        // presented when a startup effect first runs.
+        val rootVC = awaitHost(InitializationTimeouts.consentHost) { topViewController() }
         if (rootVC == null) {
+            AdLogger.w(
+                "No usable iOS root view controller for the UMP consent form after waiting " +
+                    "${InitializationTimeouts.consentHost}. Consent was not gathered on this " +
+                    "attempt; the host " +
+                    "app should retry."
+            )
             _status.value = ConsentStatus.Failed(AdError.message("No root view controller for consent form."))
             return@withContext _status.value
         }
