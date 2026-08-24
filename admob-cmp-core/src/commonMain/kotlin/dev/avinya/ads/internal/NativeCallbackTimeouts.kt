@@ -37,6 +37,21 @@ internal object InitializationTimeouts {
 
     /** Gap between host probes. Invisible at [consentHost]'s scale. */
     val hostPoll: Duration = 50.milliseconds
+
+    /**
+     * How long to wait for the app to become foreground-active before abandoning the ATT prompt
+     * for this launch. Five seconds covers a cold start that is still becoming active and the
+     * Inactive window right after a consent form dismisses; longer means the app was genuinely
+     * launched into the background, where the prompt cannot be presented at all.
+     */
+    val attForeground: Duration = 5.seconds
+
+    /**
+     * Backstop for the ATT completion handler itself. Generous, because a real user reading the
+     * system dialog is inside this window — but bounded, because the handler is documented to
+     * simply never fire in some states, and an unbounded wait here blocks initialize().
+     */
+    val attPrompt: Duration = 60.seconds
 }
 
 /**
