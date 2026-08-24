@@ -90,8 +90,14 @@ internal class IosConsentController(
     }
 
     override suspend fun gatherConsent(config: AdConfig): ConsentStatus = withContext(Dispatchers.Main.immediate) {
-    val consentInformation = UMPConsentInformation.sharedInstance
-    val update = requestConsentInfoUpdate(config)
+        val consentInformation = UMPConsentInformation.sharedInstance
+        // Unlike Android, this DOES route through the public requestConsentInfoUpdate. That is not
+        // an oversight and should not be "harmonised": the iOS info update goes through
+        // UMPConsentInformation.sharedInstance and needs no view controller, so there is no second
+        // host wait to eliminate. Only the consent FORM below needs one, and it is acquired once,
+        // there. On Android the equivalent call does need an Activity, which is why that platform
+        // hoists the acquisition instead.
+        val update = requestConsentInfoUpdate(config)
         if (update is ConsentStatus.Failed && !consentInformation.canRequestAds) return@withContext update
         // Waits rather than failing on the first null. topViewController() deliberately
         // reports null while the top controller is mid-presentation or mid-dismissal, which

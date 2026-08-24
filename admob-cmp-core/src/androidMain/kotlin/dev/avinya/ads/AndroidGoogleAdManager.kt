@@ -645,12 +645,7 @@ private class AndroidConsentController(
     override val canRequestAds: StateFlow<Boolean> = _canRequestAds
 
     override suspend fun requestConsentInfoUpdate(config: AdConfig): ConsentStatus {
-        // Owned snapshot, matching AdManager.initialize(): lastConfig outlives this call and is
-        // reused if showPrivacyOptions() later resumes initialization, so retaining the caller's
-        // object let post-call mutation of its lists/hooks change UMP debug IDs and hook execution.
-        val config = config.ownedSnapshot()
-        lastConfig = config
-        config.dispatchInitializationHooks(AdInitializationPhase.BeforeConsentRequest)
+        val ownedConfig = prepareConsentConfig(config)
         return withContext(Dispatchers.Main.immediate) {
             // Acquired inside the main hop, not before it: this reads Activity lifecycle state,
             // which is main-thread-owned (invariant 5). It waits rather than failing on the first
@@ -658,8 +653,29 @@ private class AndroidConsentController(
             // during any Activity handoff.
             val activity = awaitHost(InitializationTimeouts.consentHost) { activityProvider() }
                 ?: return@withContext failNoActivity()
-            updateWithActivity(activity, config, UserMessagingPlatform.getConsentInformation(appContext))
+            updateWithActivity(activity, ownedConfig, UserMessagingPlatform.getConsentInformation(appContext))
         }
+    }
+
+    /**
+     * Takes ownership of the caller's config and fires the pre-consent hooks.
+     *
+     * Every public consent entry point must do exactly this before touching UMP, and they are the
+     * only callers. Kept as one function so the two cannot drift: [gatherConsent] no longer routes
+     * through [requestConsentInfoUpdate] — it already holds an acquired Activity and would
+     * otherwise wait for a host a second time — so without this the preamble would live in two
+     * places and a change to one would silently miss the other.
+     *
+     * The returned snapshot is what every downstream step must use. `lastConfig` outlives this
+     * call and is reused if `showPrivacyOptions()` later resumes initialization, so retaining the
+     * caller's own object would let post-call mutation of its lists or hooks change UMP debug IDs
+     * and hook execution.
+     */
+    private suspend fun prepareConsentConfig(config: AdConfig): AdConfig {
+        val owned = config.ownedSnapshot()
+        lastConfig = owned
+        owned.dispatchInitializationHooks(AdInitializationPhase.BeforeConsentRequest)
+        return owned
     }
 
     /**
@@ -716,12 +732,8 @@ private class AndroidConsentController(
                 ?: return@withContext failNoActivity()
             val consentInformation = UserMessagingPlatform.getConsentInformation(appContext)
             // The acquired Activity is reused rather than calling the public
-            // requestConsentInfoUpdate, which would wait for a host a second time. The snapshot
-            // and hook dispatch that entry point performs are replicated here so behaviour is
-            // identical.
-            val ownedConfig = config.ownedSnapshot()
-            lastConfig = ownedConfig
-            ownedConfig.dispatchInitializationHooks(AdInitializationPhase.BeforeConsentRequest)
+            // requestConsentInfoUpdate, which would wait for a host a second time.
+            val ownedConfig = prepareConsentConfig(config)
             val update = updateWithActivity(activity, ownedConfig, consentInformation)
             if (update is ConsentStatus.Failed && !consentInformation.canRequestAds()) return@withContext update
             suspendCancellableCoroutine<Unit> { continuation ->
