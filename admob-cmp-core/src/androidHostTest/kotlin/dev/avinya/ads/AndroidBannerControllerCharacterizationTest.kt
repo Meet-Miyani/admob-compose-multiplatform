@@ -34,8 +34,8 @@ class AndroidBannerControllerCharacterizationTest {
             val state = controller().load()
             advanceUntilIdle()
 
-            // Post-D (P0-5) both platforms behave the same here: with no host-supplied
-            // BannerGeometry and no width the platform can resolve, the load FAILS rather
+            // Both platforms behave the same here: with no host-supplied BannerGeometry
+            // and no width the platform can resolve, the load FAILS rather
             // than guessing a screen width. The failure is now raised by BannerCore, so the
             // wording is shared rather than Android's old Activity-specific message — but
             // the contract it encodes (fail, don't guess; name the remedy) is unchanged.

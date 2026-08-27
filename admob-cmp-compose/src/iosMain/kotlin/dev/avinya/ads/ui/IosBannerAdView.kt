@@ -62,8 +62,8 @@ public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, width
         // new event arrives, so a rapid Impression -> Click silently dropped the impression.
         // onEvent is a plain callback with nothing to cancel.
         //
-        // This is NOT the per-view event duplication finding (P1-8) — that needs an
-        // ad-instance identifier on the event model and is owned by sub-project G. This is a
+        // This is NOT the per-view event duplication issue — fixing that needs an
+        // ad-instance identifier on the event model, a separate and larger change. This is a
         // local misuse of collectLatest in this composable.
         controller.events.collect(currentOnEvent)
     }
@@ -76,7 +76,7 @@ public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, width
                 state is AdLoadState.Loaded -> controller.currentIosBannerView()
                 // Idle means cleared/detached and the GADBannerView has been torn down —
                 // drop the reference so Compose stops rendering it. Reached both by an
-                // explicit clear() and by the consent-revocation purge (sub-project A).
+                // explicit clear() and by the consent-revocation purge.
                 // AdLoadState.Idle is a data object, so compare by value: Kotlin/Native
                 // 2.3.20 miscompiles `is <data object>` on when-typed locals.
                 state == AdLoadState.Idle -> null

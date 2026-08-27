@@ -208,10 +208,10 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     override fun availability(): AdAvailability {
         val now = clock()
         val ttl = ttl()
-        // P1-11: this used to filter expired entries WITHOUT mutating, so the expired SDK
-        // objects stayed retained (and loadState stayed Loaded) until some later
-        // show/load/clear happened to touch the slot. Prune as an atomic transition instead,
-        // so a read cannot observe a cache and a load state that disagree.
+        // Expiry MUST prune, not merely filter. A non-mutating filter leaves the expired SDK
+        // objects retained and loadState at Loaded until some later show/load/clear happens to
+        // touch the slot. Pruning here is an atomic transition, so a read can never observe a
+        // cache and a load state that disagree.
         val retiredAds = pruneExpired(now, ttl)
         destroyAds(retiredAds)
         val fresh = slotState.value.cache
@@ -320,11 +320,12 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             finishCancelledLoad(requiredGeneration)
             throw e
         } catch (t: Throwable) {
-            // P1-1: only cancellation was handled, so a throw from onAdLoaded (which rethrows
-            // after destroying the ad), a mapper, or getResponseInfo escaped BEFORE
-            // completeLoad ran — leaving loadState at Loading permanently. finishCancelledLoad
-            // already derives the terminal state from retained inventory, which is exactly the
-            // recovery wanted here, so reuse it rather than inventing a second rule.
+            // Catch Throwable, not just CancellationException. A throw from onAdLoaded (which
+            // rethrows after destroying the ad), a mapper, or getResponseInfo must not escape
+            // BEFORE completeLoad runs, or loadState is left at Loading permanently.
+            // finishCancelledLoad already derives the terminal state from retained inventory,
+            // which is exactly the recovery wanted here, so reuse it rather than inventing a
+            // second rule.
             finishCancelledLoad(requiredGeneration)
             throw t
         }
@@ -447,13 +448,14 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             // close in the timeout case, so the close() call below correctly returns false
             // for that case (already closed) — closedByCore alone would silently swallow
             // the ShowFailed event for exactly the failure mode this watchdog exists to
-            // handle. OR-ing in the flag restores P1-12's emission guarantee without
+            // handle. OR-ing in the flag restores the emission guarantee below without
             // double-emitting for any other path (the flag is only ever true in this one race).
             val closedByCore = handle.close(result is AdShowResult.Shown)
-            // P1-12: a returned Failed used to produce no event at all — only preparation
-            // errors and THROWN exceptions emitted ShowFailed — so a presentation that failed
-            // before its SDK callbacks were installed (Activity / rootViewController
-            // resolution) gave hosts a failed suspend result with no matching event.
+            // A RETURNED Failed must emit ShowFailed here, not only preparation errors and
+            // THROWN exceptions. A presentation that fails before its SDK callbacks are
+            // installed (Activity / rootViewController resolution) returns Failed without
+            // throwing, and would otherwise hand the host a failed suspend result with no
+            // matching event.
             //
             // close() returns true only to whoever performed the terminal close, which is the
             // same gate the platform slots already use before emitting. So this fires exactly
@@ -655,11 +657,11 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             }
 
             val remaining = if (selected != null) fresh.drop(1) else fresh
-            // P1-11: this previously reset to Idle only when an ad was SELECTED, so a slot
-            // whose entire cache had EXPIRED kept publishing Loaded over an empty cache —
-            // isReady false and show() NotReady while loadState still said Loaded. Derive the
-            // state from what actually remains. Only a Loaded claim is downgraded, so a
-            // Failed state is not silently rewritten.
+            // Derive the state from what actually REMAINS, not from whether an ad was selected.
+            // Keying on selection alone lets a slot whose entire cache expired keep publishing
+            // Loaded over an empty cache — isReady false and show() NotReady while loadState
+            // still claims Loaded. Only a Loaded claim is downgraded here, so a Failed state is
+            // never silently rewritten.
             val nextLoadState = if (remaining.isEmpty() && current.loadState is AdLoadState.Loaded) {
                 AdLoadState.Idle
             } else {
@@ -697,7 +699,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     ): FullScreenPresentationHandle {
         lateinit var handle: FullScreenPresentationHandle
         handle = FullScreenPresentationHandle { wasShown ->
-            // B-b: the manager's count is decremented BEFORE activePresentation is cleared.
+            // The manager's count is decremented BEFORE activePresentation is cleared.
             // The old order cleared the slot first, so a concurrent prepareShow could observe
             // this slot as free while the process-wide count still read 1.
             try {
@@ -722,7 +724,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             if (wasShown && placement.cachePolicy.reloadAfterShow) scheduleReload(generation)
         }
         activePresentation.store(handle)
-        // B-a: the +1 is now wrapped exactly like the -1 above. Previously a throwing manager
+        // The +1 is now wrapped exactly like the -1 above. Previously a throwing manager
         // callback propagated out of prepareShow with the ad already removed from cache and
         // activePresentation already set — leaking the cache entry, the presence slot, and (now)
         // the arbiter token. Presence accounting is diagnostics; it must never fail a show.

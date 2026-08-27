@@ -75,7 +75,7 @@ move, it moves into `scripts/release-readiness.sh`.
 
 ## Public API changes
 
-The library's public ABI is frozen as of sub-project O (see invariant 12 in
+The library's public ABI is frozen (see invariant 12 in
 [admob-cmp/CLAUDE.md](admob-cmp/CLAUDE.md)). Additive changes are fine;
 breaking changes need a written migration plan for every consuming app.
 

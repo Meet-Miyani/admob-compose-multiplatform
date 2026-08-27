@@ -32,8 +32,8 @@ internal fun topViewController(): UIViewController? {
  * width would be truthful.
  *
  * Deliberately reads the **key window's** bounds rather than `UIScreen.mainScreen.bounds`.
- * That is the whole point of P0-5: in iPad split view, Slide Over and popovers the app owns
- * a window narrower than the screen, and the old screen-bounds read silently sized every
+ * That is the whole point of this function: in iPad split view, Slide Over and popovers the
+ * app owns a window narrower than the screen, and the old screen-bounds read silently sized every
  * banner to the full display. Window bounds are correct in exactly those cases.
  *
  * Returns null when more than one foreground-active window scene exists: with several live

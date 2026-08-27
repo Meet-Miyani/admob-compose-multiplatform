@@ -111,8 +111,8 @@ class AdLayoutValidatorTest {
 
     @Test
     fun `copy with a changed root changes the identity`() {
-        // P1-10: identity used to default to root.identity() but be stored as ordinary
-        // constructor state, so copy(root = changedRoot) silently kept the OLD identity.
+        // Regression test: identity used to default to root.identity() but be stored as
+        // ordinary constructor state, so copy(root = changedRoot) silently kept the OLD identity.
         val original = AdLayout(
             root = AdContainerNode.Column(
                 modifier = AdModifier.empty,

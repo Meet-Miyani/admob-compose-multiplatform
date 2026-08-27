@@ -70,10 +70,10 @@ class IosAdMappersTest {
 
     @Test
     fun `paid value micros are exact for decimals that Double cannot represent`() {
-        // GMA hands back NSDecimalNumber. The old mapping did doubleValue * 1_000_000 and
-        // truncated, so any value whose exact decimal is not representable in binary floating
-        // point drifted by one or more micros — revenue export then disagreed with the source
-        // SDK (P1-14). 0.07 and 8.87 are the classic non-representable cases.
+        // Pins base-10 arithmetic. GMA hands back NSDecimalNumber; mapping it via
+        // doubleValue * 1_000_000 truncates, so any value whose exact decimal is not
+        // representable in binary floating point drifts by one or more micros and revenue
+        // export disagrees with the source SDK. 0.07 and 8.87 are the classic cases.
         assertEquals(70_000L, NSDecimalNumber.decimalNumberWithString("0.07").toValueMicros())
         assertEquals(8_870_000L, NSDecimalNumber.decimalNumberWithString("8.87").toValueMicros())
         assertEquals(1_150_000L, NSDecimalNumber.decimalNumberWithString("1.15").toValueMicros())

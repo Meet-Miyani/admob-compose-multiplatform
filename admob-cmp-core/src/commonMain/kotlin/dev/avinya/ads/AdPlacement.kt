@@ -115,7 +115,7 @@ public data class AdPlacement(
         require(id.isNotBlank()) { "AdPlacement.id must not be blank." }
         require(cachePolicy.maxSize >= 1) { "AdCachePolicy.maxSize must be at least 1." }
         // Fails CLOSED. AdDebugOptions.testMode only affects UMP — it does NOT make GMA
-        // serve test ads (P0-7), so a developer trusting it requests REAL ads against
+        // serve test ads, so a developer trusting it requests REAL ads against
         // production ad units. That is invalid traffic, and invalid traffic gets AdMob
         // accounts suspended. A warning was not enough; this is a hard stop.
         if (strictTestMode) {

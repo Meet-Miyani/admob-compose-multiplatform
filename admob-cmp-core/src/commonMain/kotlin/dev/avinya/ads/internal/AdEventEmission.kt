@@ -7,11 +7,11 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 /**
  * Publishes [event], logging when the buffer refuses it.
  *
- * P1-16: every emitter called `tryEmit` and discarded the Boolean. `AdEvent` flows have no
- * replay and a finite extra buffer, so a burst against a slow collector dropped impressions,
- * closes, show failures and paid events with no trace anywhere. The stream is presented as a
- * unified event stream but has best-effort datagram semantics; this at least makes *that*
- * loss observable instead of invisible.
+ * Every emitter must route through here rather than calling `tryEmit` directly and discarding
+ * the Boolean. `AdEvent` flows have no replay and a finite extra buffer, so a burst against a
+ * slow collector drops impressions, closes, show failures and paid events with no trace
+ * anywhere. The stream is presented as a unified event stream but has best-effort datagram
+ * semantics; this at least makes *that* loss observable instead of invisible.
  *
  * **What this does NOT catch:** an emission with no collector attached. For a `replay = 0`
  * flow there is nothing to buffer the value into, so it is dropped and `tryEmit` still

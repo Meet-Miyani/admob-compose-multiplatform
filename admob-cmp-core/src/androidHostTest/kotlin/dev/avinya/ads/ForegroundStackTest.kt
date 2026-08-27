@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 /**
- * Pins the ordering contract behind P1-9.
+ * Pins the ordering contract that fixed a stacked-Activity foreground regression.
  *
  * `CurrentActivityTracker` held a single reference, so `A started -> B started -> B stopped`
  * left it with nothing even though A was still in the foreground. Full-screen `canPresent`,

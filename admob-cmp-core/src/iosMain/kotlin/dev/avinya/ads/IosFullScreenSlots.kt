@@ -252,8 +252,8 @@ internal class IosRewardedSlot(
                 loaded.presentFromRootViewController(rootVC) {
                     val adReward = weakLoaded.value?.adReward
                     if (adReward != null) {
-                        // amount is an NSDecimalNumber and may be fractional (P1-14 established
-                        // the exact-decimal pattern for paid values; reuse it here so a mediated
+                        // amount is an NSDecimalNumber and may be fractional (the exact-decimal
+                        // pattern used for paid values applies here too, so a mediated
                         // 0.5/2.5 reward is preserved exactly rather than rounded to 1/3).
                         val earned = AdReward(adReward.amount.toValueMicros(), adReward.type)
                         rewardDelivery?.deliver(earned)
@@ -367,8 +367,8 @@ internal class IosRewardedInterstitialSlot(
                 loaded.presentFromRootViewController(rootVC) {
                     val adReward = weakLoaded.value?.adReward
                     if (adReward != null) {
-                        // amount is an NSDecimalNumber and may be fractional (P1-14 established
-                        // the exact-decimal pattern for paid values; reuse it here so a mediated
+                        // amount is an NSDecimalNumber and may be fractional (the exact-decimal
+                        // pattern used for paid values applies here too, so a mediated
                         // 0.5/2.5 reward is preserved exactly rather than rounded to 1/3).
                         val earned = AdReward(adReward.amount.toValueMicros(), adReward.type)
                         rewardDelivery?.deliver(earned)

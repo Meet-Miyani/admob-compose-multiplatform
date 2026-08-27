@@ -24,7 +24,7 @@ public data class AdLayout(
     /**
      * Stable identity string for the layout, used as a recomposition key.
      *
-     * Deliberately NOT a constructor property (P1-10): `identity` used to default to
+     * Deliberately NOT a constructor property: `identity` used to default to
      * `root.identity()` but be stored as ordinary constructor state, so `copy(root =
      * changedRoot)` silently kept the OLD identity — Kotlin's generated `copy()` only
      * copies constructor properties as-is, it never re-evaluates a default expression.

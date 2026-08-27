@@ -98,10 +98,10 @@ AGENTS.md, not this file.
     `tracking.requestAuthorization()`, then `initialize(config, ConsentMode.InitializeOnlyIfAlreadyAllowed)`. Requesting earlier permanently
     forfeits the IDFA for those requests.
 
-12. **The public ABI is frozen as of sub-project O.** Every breaking change identified by
-    the 2026-07-21 review has been taken or explicitly rejected (see the rejection table in
-    the O plan). Do not take further breaking changes without a written migration plan for
-    every consuming app. Additive changes are fine.
+12. **The public ABI is frozen.** A prior audit of breaking-change candidates against the
+    public surface has been taken or explicitly rejected in full. Do not take further
+    breaking changes without a written migration plan for every consuming app. Additive
+    changes are fine.
 
 ## Demo app & on-device verification
 

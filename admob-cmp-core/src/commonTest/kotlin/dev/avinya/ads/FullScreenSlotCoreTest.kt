@@ -438,9 +438,9 @@ class FullScreenSlotCoreTest {
 
             runCatching { slot.load() }
 
-            // P1-1: the load path caught only CancellationException, so an arbitrary Throwable
-            // propagated out before completeLoad() ran, leaving loadState at Loading with no
-            // live operation behind it. Every later load then coalesced onto that dead state.
+            // Pins: an arbitrary Throwable escaping the load path before completeLoad() runs
+            // must not strand loadState at Loading with no live operation behind it — every
+            // later load would coalesce onto that dead state.
             assertTrue(
                 slot.loadState.value !is AdLoadState.Loading,
                 "an unexpected throwable must not strand the slot in Loading; was ${slot.loadState.value}"
@@ -464,9 +464,9 @@ class FullScreenSlotCoreTest {
 
                 now = Instant.fromEpochSeconds(1000 + 3601) // > 1h TTL
 
-                // P1-11: availability() filtered expired entries without mutating state, and
-                // prepareShow only reset loadState when an ad was actually SELECTED. With the
-                // sole ad expired nothing is selected, so Loaded survived over an empty cache:
+                // Pins: cache and loadState must agree once inventory expires. With the sole ad
+                // expired nothing is selected, so a loadState derived from selection rather than
+                // from what remains would keep claiming Loaded over an empty cache —
                 // isReady == false and show() == NotReady while loadState still said Loaded.
                 assertTrue(!slot.availability().isReady, "expired inventory must not report ready")
                 assertEquals(
@@ -526,11 +526,10 @@ class FullScreenSlotCoreTest {
                 val result = slot.show()
                 advanceUntilIdle()
 
-                // P1-12: the core emitted ShowFailed only for preparation errors or THROWN
-                // exceptions. An ordinary returned Failed — Activity/rootViewController
-                // resolution failing before SDK callbacks are installed — produced a failed
-                // suspend result with no corresponding event, so host analytics saw an
-                // incomplete lifecycle.
+                // Pins: a RETURNED Failed must emit ShowFailed, not just preparation errors and
+                // THROWN exceptions. Activity/rootViewController resolution failing before SDK
+                // callbacks are installed returns Failed without throwing, and must not hand the
+                // host a failed suspend result with no corresponding event.
                 assertIs<AdShowResult.Failed>(result)
                 assertEquals(
                     1,

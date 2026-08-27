@@ -555,8 +555,8 @@ internal class AndroidGoogleAdManager(
      * cancellation handling in FullScreenSlotCore.show()).
      *
      * Banner and native views may briefly render a destroyed SDK object after this
-     * runs; view-state coherence is owned by the banner/native core extraction
-     * (sub-project D) and is not addressed here.
+     * runs; view-state coherence there is owned by BannerCore/NativeAdCoordinatorCore
+     * and is not addressed here.
      */
     private fun purgeOnRevocation() {
         val (bannersSnapshot, slotsSnapshot) = synchronized(registryLock) {
