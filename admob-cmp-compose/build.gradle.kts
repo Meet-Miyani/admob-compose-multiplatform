@@ -18,6 +18,12 @@ kotlin {
     @OptIn(org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation::class)
     abiValidation { enabled.set(true) }
 
+    // Silences the recurring "'expect'/'actual' classes ... are in Beta" warning
+    // (KT-61573) across every target — mirrors admob-cmp-core/build.gradle.kts.
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     android {
         namespace = "dev.avinya.ads.compose"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
