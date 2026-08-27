@@ -31,7 +31,7 @@ Release details and release assets for all versions are published on the
 ## Unreleased
 
 A reliability release covering exception and cancellation behaviour on paths where several
-resources had already been committed. Three changes are observable from host code.
+resources had already been committed. Four changes are observable from host code.
 
 ### `initialize()` now reports a refused configuration
 
@@ -65,10 +65,33 @@ the app.
 
 Native SDK initialization and the UMP consent-information update are now bounded. If the platform
 SDK accepts the call and never invokes its callback, the operation fails with a diagnostic instead of
-suspending forever. Consent fails closed: ad requests stay blocked until consent state is known.
+suspending forever.
+
+A timed-out consent update reports `Failed`, and `canRequestAds` keeps whatever the last *completed*
+refresh established. On a first run that is `false`, so a cold start still admits nothing while the
+consent state is unknown. On a later run a previously granted `true` survives: a dropped network
+round trip is not evidence that consent was withdrawn, and revoking admission on a blip would stop
+ad serving until the next successful refresh without making consent any more correct.
 
 Surfaces that wait for a person — the consent form, the privacy options form, and the ad inspector —
 remain deliberately unbounded.
+
+### Invalid configuration now fails at construction
+
+Configuration objects validate their arguments in `init` and throw `IllegalArgumentException`
+instead of carrying a nonsensical value into the platform SDK:
+
+- `AdAppIds` and `AdUnitIds` reject blank `android` or `ios` values.
+- `FullScreenAdOptions.audioVolume` must be finite and within `0.0f..1.0f`.
+- App-open durations — `coldStartTimeout`, `cooldownBetweenShows`, and `minBackgroundDuration` —
+  must be finite, and positive or non-negative respectively.
+
+<Aside type="caution" title="Behaviour change">
+These are constructor-time throws, so a value that previously degraded quietly at runtime now fails
+where it is built. If any of these are assembled from remote config, a build flavour, or user input,
+validate them before construction or wrap it — most affected code will not have a `try` around what
+used to be a plain object construction.
+</Aside>
 
 ## What changed in 2.1.0?
 

@@ -693,9 +693,21 @@ private class AndroidConsentController(
         val params = buildConsentParams(activity, config)
         // Bounded: this is a non-interactive network round trip, so UMP accepting the call and
         // never calling back used to hang consent admission — and therefore ad serving —
-        // indefinitely. Fails CLOSED: _canRequestAds is left false and the status becomes
-        // Failed, so no ad request proceeds on an unknown consent state. The consent FORM and
-        // privacy options form below stay unbounded on purpose; a person is reading those.
+        // indefinitely.
+        //
+        // On timeout the status becomes Failed, but [canRequestAds] is deliberately NOT reset: it
+        // keeps whatever the last COMPLETED refresh established. On a first run that is false, so a
+        // cold start still admits nothing on an unknown consent state. On a later run it may be a
+        // previously granted true, and a dropped network round trip is not evidence that consent
+        // was withdrawn — revoking admission on a blip would stop ad serving until the next
+        // successful refresh, for no gain in consent correctness. Consent itself has not changed;
+        // only our ability to re-confirm it has, and UMP has already persisted the user's choice.
+        //
+        // Kept identical to `IosConsentController` on purpose: a consent-admission divergence
+        // between the platforms is the kind of thing that is only discovered in production.
+        //
+        // The consent FORM and privacy options form below stay unbounded on purpose; a person is
+        // reading those.
         val error = try {
             awaitNativeCallback(
                 operation = "UMP requestConsentInfoUpdate",

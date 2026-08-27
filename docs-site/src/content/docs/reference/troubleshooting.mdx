@@ -136,9 +136,27 @@ Invoking `initialize()` with conflicting configuration parameters — a differen
 
 ## Constructor validation errors
 
-`AdPlacement` validates configuration parameters upon construction:
-- Throws `IllegalArgumentException` if `id` is blank or `cachePolicy.maxSize` is less than 1.
-- Throws `IllegalArgumentException` if `strictTestMode` is enabled and a production ad unit ID is passed instead of an official Google test unit ID.
+Several configuration types validate their arguments in `init` and throw `IllegalArgumentException`
+rather than carrying an unusable value into the platform SDK.
+
+`AdPlacement`:
+- Throws if `id` is blank or `cachePolicy.maxSize` is less than 1.
+- Throws if `strictTestMode` is enabled and a production ad unit ID is passed instead of an official Google test unit ID.
+
+`AdAppIds` and `AdUnitIds`:
+- Throw if either the `android` or `ios` value is blank. A blank ID previously reached the platform SDK, which failed later and less clearly.
+
+`FullScreenAdOptions`:
+- Throws if `audioVolume` is not finite (`NaN`, `Infinity`) or falls outside `0.0f..1.0f`.
+
+App-open configuration:
+- Throws if `coldStartTimeout` is not finite or not greater than zero.
+- Throws if `cooldownBetweenShows` or `minBackgroundDuration` is not finite or is negative.
+
+Because these are constructor-time throws, a value that used to degrade quietly at runtime now fails
+at the point it is built. If any of these are assembled from remote config, a build flavour, or user
+input, validate before constructing — most call sites will not have a `try` around what looks like a
+plain object construction.
 
 ## Platform video event support
 
