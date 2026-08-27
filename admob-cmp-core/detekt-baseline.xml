@@ -7,7 +7,7 @@
     <ID>ComplexCondition:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore$entry.sessionKey != sessionKey || entry.slotKey != slotKey || entry.generation != holder.core.slotGenerationFor(slotKey) || entry.placement != placement</ID>
     <ID>ComplexCondition:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore$entry.sessionKey != sessionKey || entry.slotKey != slotKey || entry.placement != placement || entry.rendererId != rendererId</ID>
     <ID>ComplexCondition:NativeAdSessionCore.kt$NativeAdSessionCore$!entry.desired || entry.lastError != null || entry.recordId != null || entry.inFlight != null || occupied >= policy.maxRetainedAds</ID>
-    <ID>CyclomaticComplexMethod:FullScreenSlotCore.kt$FullScreenSlotCore$private fun prepareShow( options: FullScreenAdOptions, now: Instant, ttl: Duration, presentabilityError: AdError? ): ShowPreparation&lt;AdT></ID>
+    <ID>CyclomaticComplexMethod:FullScreenSlotCore.kt$FullScreenSlotCore$private fun prepareShow( now: Instant, ttl: Duration, presentabilityError: AdError? ): ShowPreparation&lt;AdT></ID>
     <ID>CyclomaticComplexMethod:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore.PlacementScheduler$private fun startNextLocked(effects: Effects)</ID>
     <ID>CyclomaticComplexMethod:NativeAdGovernor.kt$NativeAdGovernor$private fun trimModerate(): NativeAdTrimResult</ID>
     <ID>LargeClass:FullScreenSlotCoreTest.kt$FullScreenSlotCoreTest</ID>
@@ -84,18 +84,14 @@
     <ID>MaxLineLength:NativeAdSessionCoreTest.kt$NativeAdSessionCoreTest$val loads = core.updateWindow(window("a", "b", "c"))</ID>
     <ID>MaxLineLength:NoOpAdManagerTest.kt$NoOpAdManagerTest$session.updateWindow(dev.avinya.ads.nativead.NativeAdWindow(listOf(dev.avinya.ads.nativead.NativeAdSlot("slot", placement.copy(id = "native", format = AdFormat.Native)))))</ID>
     <ID>MaxLineLength:TestAdIds.kt$AdPlacement("rewarded_transition", AdFormat.RewardedInterstitial, TestAdIds.ANDROID_REWARDED_INTERSTITIAL, TestAdIds.IOS_REWARDED_INTERSTITIAL)</ID>
-    <ID>NewLineAtEndOfFile:NativeAdCoordinatorCoreTest.kt$dev.avinya.ads.NativeAdCoordinatorCoreTest.kt</ID>
-    <ID>UnusedParameter:FullScreenSlotCore.kt$FullScreenSlotCore$options: FullScreenAdOptions</ID>
     <ID>UnusedParameter:IosAdMappersTest.kt$IosAdMappersTest$message: String = "test failure"</ID>
     <ID>UnusedParameter:IosNativeAdPlatform.kt$IosNativeLoadMachine$generation: Long</ID>
     <ID>UnusedParameter:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore.PlacementScheduler$effects: Effects</ID>
     <ID>UnusedPrivateMember:AdEventModelsTest.kt$AdEventModelsTest$private suspend fun showRewardedWithCallback( controller: RewardedAdController, rewards: MutableList&lt;AdReward> ): AdShowResult</ID>
-    <ID>UnusedPrivateProperty:FullScreenSlotCore.kt$FullScreenSlotCore$slotIndex</ID>
     <ID>UnusedPrivateProperty:NativeAdGovernorTest.kt$NativeAdGovernorTest$val loadedSpeculative = admitOne( gov, reserveVisible(gov, NativeAdPriority.Speculative, 1).reservations.single(), )</ID>
     <ID>UnusedPrivateProperty:NativeAdGovernorTest.kt$NativeAdGovernorTest$val records = admitAll( gov, reserveVisible(gov, NativeAdPriority.Speculative, 4).reservations, )</ID>
     <ID>UnusedPrivateProperty:NativeAdGovernorTest.kt$NativeAdGovernorTest$val visibleReservation = reserveVisible(gov, NativeAdPriority.ActiveReadyAhead, 1) .reservations.single()</ID>
     <ID>UseCheckOrError:FullScreenSlotCoreTest.kt$FullScreenSlotCoreTest$throw IllegalStateException("mapper exploded during reload")</ID>
     <ID>UseCheckOrError:NativeAdCoordinatorCoreTest.kt$NativeAdCoordinatorCoreTest$throw IllegalStateException("platform exploded")</ID>
-    <ID>WildcardImport:NoOpControllerRegistry.kt$import dev.avinya.ads.*</ID>
   </CurrentIssues>
 </SmellBaseline>

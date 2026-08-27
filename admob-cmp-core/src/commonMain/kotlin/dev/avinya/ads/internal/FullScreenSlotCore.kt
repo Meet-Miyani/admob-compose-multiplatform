@@ -263,7 +263,13 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         var lastError: AdError? = null
         var acceptedAny = false
         try {
-            for (slotIndex in 0 until preparation.slotsToLoad) {
+            // Repeat count only — no per-iteration index is needed, each iteration fills one
+            // more cache slot independently. A `while` loop (not `for`/`repeat`) because the
+            // generation check below must be able to `break` out early, which `repeat`'s lambda
+            // cannot do.
+            var slotsLoaded = 0
+            while (slotsLoaded < preparation.slotsToLoad) {
+                slotsLoaded++
                 if (!isCurrentGeneration(requiredGeneration)) break
                 // Bounds the WHOLE attempt sequence including retry backoff, not each
                 // attempt: a listener that never calls back would otherwise restart the
@@ -372,7 +378,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         beforeShowCommit()
         val preparation = operationMutex.withLock {
             publicationLock.withLock {
-                prepareShow(options, now, cacheTtl, presentabilityError)
+                prepareShow(now, cacheTtl, presentabilityError)
             }
         }
         destroyAds(preparation.retiredAds)
@@ -502,6 +508,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         destroyAds(retiredAds)
     }
 
+    /** Called by platform slots from SDK callbacks; never assumes a lock. See [emitLoadEventLocked]. */
     internal fun emit(event: AdEvent) {
         _events.emitOrLogDrop(event, "FullScreenSlotCore(${placement.id})")
         globalEvents.emitOrLogDrop(event, "FullScreenSlotCore(${placement.id}) global")
@@ -612,7 +619,6 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     }
 
     private fun prepareShow(
-        options: FullScreenAdOptions,
         now: Instant,
         ttl: Duration,
         presentabilityError: AdError?
@@ -786,7 +792,15 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         destroyAds(retiredAds)
     }
 
-    /** Caller must hold [publicationLock]. */
+    /**
+     * Same body as [emit] — this exists as a distinctly named call-site marker, not different
+     * behavior. [emit] doesn't touch a lock, so calling it directly here would work identically.
+     * The three callers ([prepareLoad], [admitLoadedAd], [completeLoad]) all run inside
+     * [publicationLock] and are emitting an event for the state transition they just committed;
+     * naming that "Locked" documents the caller's context at the point of the call, where
+     * `emit(...)` alone would not. If you are tempted to delete this and call [emit] instead,
+     * that is safe — you would only be removing the marker, not changing behavior.
+     */
     private fun emitLoadEventLocked(event: AdEvent) {
         _events.emitOrLogDrop(event, "FullScreenSlotCore(${placement.id})")
         globalEvents.emitOrLogDrop(event, "FullScreenSlotCore(${placement.id}) global")

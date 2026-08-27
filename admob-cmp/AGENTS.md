@@ -7,7 +7,13 @@ iOS 15+).
 ## Entry points
 
 - Compose: `rememberAdManager()` (process-wide singleton), `LocalAdManager`
-- Android, outside Compose: `AdMob.manager(context)`
+- Android, outside Compose: `AdMob.manager(context)` — takes a `Context` because Android's
+  Activity-lifecycle tracking (`CurrentActivityTracker`) needs one to register against.
+- iOS, outside Compose: `IosAdMob.manager` — a parameterless property; iOS's host-window
+  resolution (`RootViewController.kt`) needs no equivalent context object. The name differs
+  from Android's `AdMob` (harmless, but intentional if you're looking for symmetry: don't
+  rename either without a written migration plan — see "Public API changes" in the root
+  [AGENTS.md](../AGENTS.md)).
 - Placements via `LocalAdPlacements` (provides `AdPlacements`) or your own `AdPlacement` instances
 
 ## Canonical initialization
@@ -256,6 +262,21 @@ Android has no ATT; `adManager.tracking` is a no-op there, always reporting
 | iOS link: `_OBJC_CLASS_$_GADMobileAds` undefined | GMA SPM package missing → step 1 above |
 | iOS link: `_OBJC_CLASS_$_JSContext` undefined | Add `-framework JavaScriptCore` → step 3 above |
 | Banner composable renders nothing | Manager not `Ready`, or `Manual` refresh policy with no `refresh()` call |
+
+## KDoc style for data-class constructors
+
+Three styles existed side by side — a trailing `@param` block (`AdPlacement`), a trailing
+`@property` block (`AdTimeoutPolicy`), and a `/** */` comment directly above each `val`
+(`AdRequestOptions`). Standardize on the third, per-property form for any constructor parameter
+that is a stored property (`val`/`var`) — it is what Dokka renders most usefully next to the
+member itself, and it was already the most common of the three in this codebase. `AdPlacement`
+and `AdTimeoutPolicy` have been converted; migrate others opportunistically when touching them,
+rather than as a standalone sweep.
+
+`@param` remains correct — and is the only option — for a **secondary constructor** whose
+parameters are plain (no `val`/`var`), such as `AdPlacement`'s convenience constructor that takes
+`androidAdUnitId`/`iosAdUnitId` and builds an `AdUnitIds` internally. There is no property to
+attach a doc comment to in that case.
 
 ## Module internals (for agents modifying this library)
 

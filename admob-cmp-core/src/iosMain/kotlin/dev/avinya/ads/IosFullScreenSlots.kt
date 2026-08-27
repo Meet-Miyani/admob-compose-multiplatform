@@ -79,7 +79,6 @@ internal class IosInterstitialSlot(
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<GADInterstitialAd> =
         withContext(Dispatchers.Main.immediate) {
             suspendCancellableCoroutine { continuation ->
-                continuation.invokeOnCancellation { }
                 GADInterstitialAd.loadWithAdUnitID(placement.iosAdUnitId, requestOptions.toGADRequest()) { ad, error ->
                     if (continuation.isActive) {
                         if (error != null) {
@@ -183,7 +182,6 @@ internal class IosRewardedSlot(
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<GADRewardedAd> =
         withContext(Dispatchers.Main.immediate) {
             suspendCancellableCoroutine { continuation ->
-                continuation.invokeOnCancellation { }
                 GADRewardedAd.loadWithAdUnitID(placement.iosAdUnitId, requestOptions.toGADRequest()) { ad, error ->
                     if (continuation.isActive) {
                         if (error != null) {
@@ -298,7 +296,6 @@ internal class IosRewardedInterstitialSlot(
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<GADRewardedInterstitialAd> =
         withContext(Dispatchers.Main.immediate) {
             suspendCancellableCoroutine { continuation ->
-                continuation.invokeOnCancellation { }
                 GADRewardedInterstitialAd.loadWithAdUnitID(placement.iosAdUnitId, requestOptions.toGADRequest()) { ad, error ->
                     if (continuation.isActive) {
                         if (error != null) {
@@ -408,7 +405,6 @@ internal class IosAppOpenSlot(
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<GADAppOpenAd> =
         withContext(Dispatchers.Main.immediate) {
             suspendCancellableCoroutine { continuation ->
-                continuation.invokeOnCancellation { }
                 GADAppOpenAd.loadWithAdUnitID(placement.iosAdUnitId, requestOptions.toGADRequest()) { ad, error ->
                     if (continuation.isActive) {
                         if (error != null) {

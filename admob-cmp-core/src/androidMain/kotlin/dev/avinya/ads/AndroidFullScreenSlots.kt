@@ -119,7 +119,6 @@ internal class AndroidInterstitialSlot(
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<InterstitialAd> =
         withContext(Dispatchers.Main.immediate) {
             suspendCancellableCoroutine { continuation ->
-                continuation.invokeOnCancellation { }
                 InterstitialAd.load(requestOptions.toAndroidAdRequest(placement.androidAdUnitId), object : AdLoadCallback<InterstitialAd> {
                     override fun onAdLoaded(ad: InterstitialAd) {
                         continuation.resumeLoadedAd(ad)
@@ -207,7 +206,6 @@ internal class AndroidRewardedSlot(
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<RewardedAd> =
         withContext(Dispatchers.Main.immediate) {
             suspendCancellableCoroutine { continuation ->
-                continuation.invokeOnCancellation { }
                 RewardedAd.load(requestOptions.toAndroidAdRequest(placement.androidAdUnitId), object : AdLoadCallback<RewardedAd> {
                     override fun onAdLoaded(ad: RewardedAd) {
                         continuation.resumeLoadedAd(ad)
@@ -268,7 +266,6 @@ internal class AndroidRewardedInterstitialSlot(
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<RewardedInterstitialAd> =
         withContext(Dispatchers.Main.immediate) {
             suspendCancellableCoroutine { continuation ->
-                continuation.invokeOnCancellation { }
                 RewardedInterstitialAd.load(requestOptions.toAndroidAdRequest(placement.androidAdUnitId), object : AdLoadCallback<RewardedInterstitialAd> {
                     override fun onAdLoaded(ad: RewardedInterstitialAd) {
                         continuation.resumeLoadedAd(ad)
@@ -325,7 +322,6 @@ internal class AndroidAppOpenSlot(
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<AppOpenAd> =
         withContext(Dispatchers.Main.immediate) {
             suspendCancellableCoroutine { continuation ->
-                continuation.invokeOnCancellation { }
                 AppOpenAd.load(requestOptions.toAndroidAdRequest(placement.androidAdUnitId), object : AdLoadCallback<AppOpenAd> {
                     override fun onAdLoaded(ad: AppOpenAd) {
                         continuation.resumeLoadedAd(ad)

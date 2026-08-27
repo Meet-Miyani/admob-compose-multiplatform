@@ -49,34 +49,38 @@ public data class AdUnitIds(
  * )
  * ```
  *
- * @param id A unique identifier used to cache this placement's controller. (e.g., "home_banner")
- * @param format The ad format (Banner, Native, Interstitial, Rewarded, etc.).
- * @param adUnitIds Your AdMob ad unit IDs for iOS and Android.
- * @param requestOptions Optional custom targeting, keywords, or content URLs.
- * @param cachePolicy Controls how many ads to pre-load and how long they live in memory.
- * @param retryPolicy Controls how the SDK handles network failures when loading ads.
- * @param timeoutPolicy Enforces maximum wait times for loading and showing ads.
- * @param bannerSizePolicy Sizing strategy for banners (adaptive, fixed, fluid).
- * @param bannerRefreshPolicy Controls whether the banner auto-refreshes.
- * @param nativeOptions Layout and behavioral options for native ads.
- * @param fullScreenOptions Display options for full-screen ads.
- * @param enabled When false, the SDK completely ignores this placement. Useful for A/B testing or feature flags.
- * @param strictTestMode A safety net for debugging. When `true`, the SDK throws a hard exception if you accidentally pass a production Ad Unit ID instead of a Google Test ID. Only enable this in debug builds.
  * @throws IllegalArgumentException if [id] is blank, max cache size < 1, or if [strictTestMode] catches a live ad unit ID.
  */
 public data class AdPlacement(
+    /** A unique identifier used to cache this placement's controller. (e.g., "home_banner") */
     val id: String,
+    /** The ad format (Banner, Native, Interstitial, Rewarded, etc.). */
     val format: AdFormat,
+    /** Your AdMob ad unit IDs for iOS and Android. */
     val adUnitIds: AdUnitIds,
+    /** Optional custom targeting, keywords, or content URLs. */
     val requestOptions: AdRequestOptions = AdRequestOptions(),
+    /** Controls how many ads to pre-load and how long they live in memory. */
     val cachePolicy: AdCachePolicy = AdCachePolicy(),
+    /** Controls how the SDK handles network failures when loading ads. */
     val retryPolicy: AdRetryPolicy = AdRetryPolicy(),
+    /** Enforces maximum wait times for loading and showing ads. */
     val timeoutPolicy: AdTimeoutPolicy = AdTimeoutPolicy(),
+    /** Sizing strategy for banners (adaptive, fixed, fluid). */
     val bannerSizePolicy: AdSizePolicy = AdSizePolicy.LargeAnchoredAdaptive(),
+    /** Controls whether the banner auto-refreshes. */
     val bannerRefreshPolicy: BannerRefreshPolicy = BannerRefreshPolicy.AdServerManaged,
+    /** Layout and behavioral options for native ads. */
     val nativeOptions: NativeAdOptions = NativeAdOptions(),
+    /** Display options for full-screen ads. */
     val fullScreenOptions: FullScreenAdOptions = FullScreenAdOptions(),
+    /** When false, the SDK completely ignores this placement. Useful for A/B testing or feature flags. */
     val enabled: Boolean = true,
+    /**
+     * A safety net for debugging. When `true`, the SDK throws a hard exception if you
+     * accidentally pass a production Ad Unit ID instead of a Google Test ID. Only enable this
+     * in debug builds.
+     */
     val strictTestMode: Boolean = false
 ) {
     /**
