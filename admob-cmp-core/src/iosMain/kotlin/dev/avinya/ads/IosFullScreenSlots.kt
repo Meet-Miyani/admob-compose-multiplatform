@@ -27,6 +27,7 @@ import kotlin.native.ref.WeakReference
 import platform.Foundation.NSError
 import platform.Foundation.NSRecursiveLock
 import platform.Foundation.NSThread
+import platform.UIKit.UIViewController
 import platform.darwin.NSObject
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
@@ -106,45 +107,9 @@ internal class IosInterstitialSlot(
         options: FullScreenAdOptions,
         presentation: FullScreenPresentationHandle,
         rewardDelivery: RewardDelivery?
-    ): AdShowResult = withContext(Dispatchers.Main.immediate) {
-        val rootVC = topViewController()
-            ?: return@withContext AdShowResult.Failed(AdError.message("No root view controller."))
-        suspendCancellableCoroutine<AdShowResult> { continuation ->
-            // Cancellation closes only while the core still owns presentation. Once hand-off
-            // wins, this delegate stays retained until the SDK terminal callback closes it.
-            continuation.invokeOnCancellation { presentation.closeIfCoreOwned() }
-            if (!continuation.isActive) return@suspendCancellableCoroutine
-            val delegate = FullScreenDelegate(
-                onOpened = { emit(AdEvent.OpenedFullScreen(placement.id)) },
-                onClosed = {
-                    delegates.terminal(loaded) {
-                        if (presentation.close(wasShown = true)) {
-                            emit(AdEvent.ClosedFullScreen(placement.id))
-                            if (continuation.isActive) continuation.resume(AdShowResult.Shown)
-                        }
-                    }
-                },
-                onFailedToShow = { error ->
-                    delegates.terminal(loaded) {
-                        if (presentation.close(wasShown = false)) {
-                            emit(AdEvent.ShowFailed(placement.id, error))
-                            if (continuation.isActive) continuation.resume(AdShowResult.Failed(error))
-                        }
-                    }
-                },
-                onImpression = { emit(AdEvent.Impression(placement.id)) },
-                onClicked = { emit(AdEvent.Clicked(placement.id)) }
-            )
-            // Hand off before retaining: if cancellation already closed the handle (raced in
-            // via invokeOnCancellation between the isActive check above and here), there will
-            // be no terminal SDK callback to release this delegate — retaining it regardless
-            // would leak the entry in the delegate store until the slot is next reused.
-            if (presentation.tryHandOffToCallbacks()) {
-                delegates.retain(loaded, delegate)
-                loaded.fullScreenContentDelegate = delegate
-                loaded.presentFromRootViewController(rootVC)
-            }
-        }
+    ): AdShowResult = presentFullScreenAd(loaded, presentation, delegates) { rootVC, delegate ->
+        loaded.fullScreenContentDelegate = delegate
+        loaded.presentFromRootViewController(rootVC)
     }
 
     override fun destroyAd(ad: GADInterstitialAd) {
@@ -209,53 +174,24 @@ internal class IosRewardedSlot(
         options: FullScreenAdOptions,
         presentation: FullScreenPresentationHandle,
         rewardDelivery: RewardDelivery?
-    ): AdShowResult = withContext(Dispatchers.Main.immediate) {
-        val rootVC = topViewController()
-            ?: return@withContext AdShowResult.Failed(AdError.message("No root view controller."))
-        options.serverSideVerification?.let { loaded.serverSideVerificationOptions = options.serverSideVerificationOptions() }
-        suspendCancellableCoroutine<AdShowResult> { continuation ->
-            // Cancellation closes only while the core still owns presentation. Once hand-off
-            // wins, this delegate stays retained until the SDK terminal callback closes it.
-            continuation.invokeOnCancellation { presentation.closeIfCoreOwned() }
-            if (!continuation.isActive) return@suspendCancellableCoroutine
-            val delegate = FullScreenDelegate(
-                onOpened = { emit(AdEvent.OpenedFullScreen(placement.id)) },
-                onClosed = {
-                    delegates.terminal(loaded) {
-                        if (presentation.close(wasShown = true)) {
-                            emit(AdEvent.ClosedFullScreen(placement.id))
-                            if (continuation.isActive) continuation.resume(AdShowResult.Shown)
-                        }
-                    }
-                },
-                onFailedToShow = { error ->
-                    delegates.terminal(loaded) {
-                        if (presentation.close(wasShown = false)) {
-                            emit(AdEvent.ShowFailed(placement.id, error))
-                            if (continuation.isActive) continuation.resume(AdShowResult.Failed(error))
-                        }
-                    }
-                },
-                onImpression = { emit(AdEvent.Impression(placement.id)) },
-                onClicked = { emit(AdEvent.Clicked(placement.id)) }
-            )
-            // Hand off before retaining: if cancellation already closed the handle (raced in
-            // via invokeOnCancellation between the isActive check above and here), there will
-            // be no terminal SDK callback to release this delegate — retaining it regardless
-            // would leak the entry in the delegate store until the slot is next reused.
-            if (presentation.tryHandOffToCallbacks()) {
-                delegates.retain(loaded, delegate)
-                loaded.fullScreenContentDelegate = delegate
-                val weakLoaded = WeakReference(loaded)
-                loaded.presentFromRootViewController(rootVC) {
-                    val adReward = weakLoaded.value?.adReward
-                    if (adReward != null) {
-                        // amount is an NSDecimalNumber and may be fractional (the exact-decimal
-                        // pattern used for paid values applies here too, so a mediated
-                        // 0.5/2.5 reward is preserved exactly rather than rounded to 1/3).
-                        val earned = AdReward(adReward.amount.toValueMicros(), adReward.type)
-                        rewardDelivery?.deliver(earned)
-                    }
+    ): AdShowResult {
+        // On Main, unconditionally, before the rootVC check — matches presentFullScreenAd's own
+        // dispatch so this always runs on the SDK's expected thread regardless of whether
+        // presentation ultimately succeeds.
+        withContext(Dispatchers.Main.immediate) {
+            options.serverSideVerification?.let { loaded.serverSideVerificationOptions = options.serverSideVerificationOptions() }
+        }
+        return presentFullScreenAd(loaded, presentation, delegates) { rootVC, delegate ->
+            loaded.fullScreenContentDelegate = delegate
+            val weakLoaded = WeakReference(loaded)
+            loaded.presentFromRootViewController(rootVC) {
+                val adReward = weakLoaded.value?.adReward
+                if (adReward != null) {
+                    // amount is an NSDecimalNumber and may be fractional (the exact-decimal
+                    // pattern used for paid values applies here too, so a mediated
+                    // 0.5/2.5 reward is preserved exactly rather than rounded to 1/3).
+                    val earned = AdReward(adReward.amount.toValueMicros(), adReward.type)
+                    rewardDelivery?.deliver(earned)
                 }
             }
         }
@@ -323,53 +259,24 @@ internal class IosRewardedInterstitialSlot(
         options: FullScreenAdOptions,
         presentation: FullScreenPresentationHandle,
         rewardDelivery: RewardDelivery?
-    ): AdShowResult = withContext(Dispatchers.Main.immediate) {
-        val rootVC = topViewController()
-            ?: return@withContext AdShowResult.Failed(AdError.message("No root view controller."))
-        options.serverSideVerification?.let { loaded.serverSideVerificationOptions = options.serverSideVerificationOptions() }
-        suspendCancellableCoroutine<AdShowResult> { continuation ->
-            // Cancellation closes only while the core still owns presentation. Once hand-off
-            // wins, this delegate stays retained until the SDK terminal callback closes it.
-            continuation.invokeOnCancellation { presentation.closeIfCoreOwned() }
-            if (!continuation.isActive) return@suspendCancellableCoroutine
-            val delegate = FullScreenDelegate(
-                onOpened = { emit(AdEvent.OpenedFullScreen(placement.id)) },
-                onClosed = {
-                    delegates.terminal(loaded) {
-                        if (presentation.close(wasShown = true)) {
-                            emit(AdEvent.ClosedFullScreen(placement.id))
-                            if (continuation.isActive) continuation.resume(AdShowResult.Shown)
-                        }
-                    }
-                },
-                onFailedToShow = { error ->
-                    delegates.terminal(loaded) {
-                        if (presentation.close(wasShown = false)) {
-                            emit(AdEvent.ShowFailed(placement.id, error))
-                            if (continuation.isActive) continuation.resume(AdShowResult.Failed(error))
-                        }
-                    }
-                },
-                onImpression = { emit(AdEvent.Impression(placement.id)) },
-                onClicked = { emit(AdEvent.Clicked(placement.id)) }
-            )
-            // Hand off before retaining: if cancellation already closed the handle (raced in
-            // via invokeOnCancellation between the isActive check above and here), there will
-            // be no terminal SDK callback to release this delegate — retaining it regardless
-            // would leak the entry in the delegate store until the slot is next reused.
-            if (presentation.tryHandOffToCallbacks()) {
-                delegates.retain(loaded, delegate)
-                loaded.fullScreenContentDelegate = delegate
-                val weakLoaded = WeakReference(loaded)
-                loaded.presentFromRootViewController(rootVC) {
-                    val adReward = weakLoaded.value?.adReward
-                    if (adReward != null) {
-                        // amount is an NSDecimalNumber and may be fractional (the exact-decimal
-                        // pattern used for paid values applies here too, so a mediated
-                        // 0.5/2.5 reward is preserved exactly rather than rounded to 1/3).
-                        val earned = AdReward(adReward.amount.toValueMicros(), adReward.type)
-                        rewardDelivery?.deliver(earned)
-                    }
+    ): AdShowResult {
+        // On Main, unconditionally, before the rootVC check — matches presentFullScreenAd's own
+        // dispatch so this always runs on the SDK's expected thread regardless of whether
+        // presentation ultimately succeeds.
+        withContext(Dispatchers.Main.immediate) {
+            options.serverSideVerification?.let { loaded.serverSideVerificationOptions = options.serverSideVerificationOptions() }
+        }
+        return presentFullScreenAd(loaded, presentation, delegates) { rootVC, delegate ->
+            loaded.fullScreenContentDelegate = delegate
+            val weakLoaded = WeakReference(loaded)
+            loaded.presentFromRootViewController(rootVC) {
+                val adReward = weakLoaded.value?.adReward
+                if (adReward != null) {
+                    // amount is an NSDecimalNumber and may be fractional (the exact-decimal
+                    // pattern used for paid values applies here too, so a mediated
+                    // 0.5/2.5 reward is preserved exactly rather than rounded to 1/3).
+                    val earned = AdReward(adReward.amount.toValueMicros(), adReward.type)
+                    rewardDelivery?.deliver(earned)
                 }
             }
         }
@@ -432,45 +339,9 @@ internal class IosAppOpenSlot(
         options: FullScreenAdOptions,
         presentation: FullScreenPresentationHandle,
         rewardDelivery: RewardDelivery?
-    ): AdShowResult = withContext(Dispatchers.Main.immediate) {
-        val rootVC = topViewController()
-            ?: return@withContext AdShowResult.Failed(AdError.message("No root view controller."))
-        suspendCancellableCoroutine<AdShowResult> { continuation ->
-            // Cancellation closes only while the core still owns presentation. Once hand-off
-            // wins, this delegate stays retained until the SDK terminal callback closes it.
-            continuation.invokeOnCancellation { presentation.closeIfCoreOwned() }
-            if (!continuation.isActive) return@suspendCancellableCoroutine
-            val delegate = FullScreenDelegate(
-                onOpened = { emit(AdEvent.OpenedFullScreen(placement.id)) },
-                onClosed = {
-                    delegates.terminal(loaded) {
-                        if (presentation.close(wasShown = true)) {
-                            emit(AdEvent.ClosedFullScreen(placement.id))
-                            if (continuation.isActive) continuation.resume(AdShowResult.Shown)
-                        }
-                    }
-                },
-                onFailedToShow = { error ->
-                    delegates.terminal(loaded) {
-                        if (presentation.close(wasShown = false)) {
-                            emit(AdEvent.ShowFailed(placement.id, error))
-                            if (continuation.isActive) continuation.resume(AdShowResult.Failed(error))
-                        }
-                    }
-                },
-                onImpression = { emit(AdEvent.Impression(placement.id)) },
-                onClicked = { emit(AdEvent.Clicked(placement.id)) }
-            )
-            // Hand off before retaining: if cancellation already closed the handle (raced in
-            // via invokeOnCancellation between the isActive check above and here), there will
-            // be no terminal SDK callback to release this delegate — retaining it regardless
-            // would leak the entry in the delegate store until the slot is next reused.
-            if (presentation.tryHandOffToCallbacks()) {
-                delegates.retain(loaded, delegate)
-                loaded.fullScreenContentDelegate = delegate
-                loaded.presentFromRootViewController(rootVC)
-            }
-        }
+    ): AdShowResult = presentFullScreenAd(loaded, presentation, delegates) { rootVC, delegate ->
+        loaded.fullScreenContentDelegate = delegate
+        loaded.presentFromRootViewController(rootVC)
     }
 
     override fun destroyAd(ad: GADAppOpenAd) {
@@ -480,6 +351,66 @@ internal class IosAppOpenSlot(
     override fun getResponseInfo(ad: GADAppOpenAd): AdResponseInfo? = ad.responseInfo?.toCommon()
 
     override fun canPresent(): AdError? = if (topViewController() != null) null else AdError.message("No root view controller.")
+}
+
+/**
+ * Shared continuation+delegate ceremony for presenting a loaded full-screen ad. Every
+ * `presentAd` override in this file is this function plus exactly one platform call:
+ * `loaded.fullScreenContentDelegate = delegate; loaded.presentFromRootViewController(rootVC)`,
+ * with a reward trailing closure on the two rewarded formats. [installDelegateAndPresent] is
+ * that one call — the four GAD ad types share no common Kotlin interface for their instance
+ * members (`fullScreenContentDelegate`, `presentFromRootViewController`, ...), which is why it
+ * can't be pulled in here too.
+ *
+ * The hand-off invariant lives here now, in exactly one place: retain the delegate — via
+ * [delegates] — only AFTER [FullScreenPresentationHandle.tryHandOffToCallbacks] succeeds. If it
+ * returns false (cancellation raced in first), [installDelegateAndPresent] must never run —
+ * the SDK show never happens, and nothing would ever call `destroyAd` to release a delegate
+ * retained before that check.
+ */
+internal suspend fun <AdT : Any> FullScreenSlotCore<AdT>.presentFullScreenAd(
+    loaded: AdT,
+    presentation: FullScreenPresentationHandle,
+    delegates: FullScreenDelegateStore<AdT>,
+    installDelegateAndPresent: (rootVC: UIViewController, delegate: FullScreenDelegate) -> Unit,
+): AdShowResult = withContext(Dispatchers.Main.immediate) {
+    val rootVC = topViewController()
+        ?: return@withContext AdShowResult.Failed(AdError.message("No root view controller."))
+    suspendCancellableCoroutine<AdShowResult> { continuation ->
+        // Cancellation closes only while the core still owns presentation. Once hand-off
+        // wins, this delegate stays retained until the SDK terminal callback closes it.
+        continuation.invokeOnCancellation { presentation.closeIfCoreOwned() }
+        if (!continuation.isActive) return@suspendCancellableCoroutine
+        val delegate = FullScreenDelegate(
+            onOpened = { emit(AdEvent.OpenedFullScreen(placement.id)) },
+            onClosed = {
+                delegates.terminal(loaded) {
+                    if (presentation.close(wasShown = true)) {
+                        emit(AdEvent.ClosedFullScreen(placement.id))
+                        if (continuation.isActive) continuation.resume(AdShowResult.Shown)
+                    }
+                }
+            },
+            onFailedToShow = { error ->
+                delegates.terminal(loaded) {
+                    if (presentation.close(wasShown = false)) {
+                        emit(AdEvent.ShowFailed(placement.id, error))
+                        if (continuation.isActive) continuation.resume(AdShowResult.Failed(error))
+                    }
+                }
+            },
+            onImpression = { emit(AdEvent.Impression(placement.id)) },
+            onClicked = { emit(AdEvent.Clicked(placement.id)) }
+        )
+        // Hand off before retaining: if cancellation already closed the handle (raced in
+        // via invokeOnCancellation between the isActive check above and here), there will
+        // be no terminal SDK callback to release this delegate — retaining it regardless
+        // would leak the entry in the delegate store until the slot is next reused.
+        if (presentation.tryHandOffToCallbacks()) {
+            delegates.retain(loaded, delegate)
+            installDelegateAndPresent(rootVC, delegate)
+        }
+    }
 }
 
 internal class FullScreenDelegate(
