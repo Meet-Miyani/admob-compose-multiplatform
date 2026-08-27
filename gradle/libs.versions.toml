@@ -1,8 +1,12 @@
 [versions]
-# Unified on admob-cmp's blessed toolchain (Kotlin 2.3.20 / AGP 9.2.1 / Gradle 9.4.1).
+# Unified on admob-cmp's blessed toolchain (Kotlin 2.3.20 / AGP 9.3.1 / Gradle 9.5.0).
 # The module's frozen ABI + experimental abiValidation DSL require Kotlin 2.3.20; a single
 # Gradle build applies one Kotlin plugin version to every module, so the demo app rides it too.
-agp = "9.2.1"
+# AGP 9.3.1 requires Gradle 9.5.0, so `gradle/wrapper/gradle-wrapper.properties` is pinned there
+# and the two move in lockstep. A consuming app that includes this build runs it under THEIR
+# wrapper, so a mismatch is invisible from the app and surfaces only in a standalone build — which
+# is the one `scripts/release-readiness.sh` uses, and therefore the one that gates every release.
+agp = "9.3.1"
 android-compileSdk = "37"
 android-minSdk = "26"
 android-targetSdk = "36"
