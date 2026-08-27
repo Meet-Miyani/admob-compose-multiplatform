@@ -20,7 +20,9 @@ Maven Central as `dev.avinya.ads:admob-cmp`; docs live at
   `dev.avinya.ads.admob-cmp` in `pluginManagement`.
 
 **Sample consumers** (do not publish; exist to exercise the SDK end-to-end):
-`androidApp/`, `iosApp/`, `shared/`, `desktopApp/`, `webApp/`.
+`androidApp/`, `iosApp/`, `shared/`, `desktopApp/`, `webApp/` — the debug-console
+demo — and `showcase/`, the **Fieldnotes** product-shaped reference module (see
+[README.md](README.md#showcase-app--fieldnotes)).
 
 **Docs site:** `docs-site/` (Astro + Starlight, deployed to Cloudflare Pages).
 
