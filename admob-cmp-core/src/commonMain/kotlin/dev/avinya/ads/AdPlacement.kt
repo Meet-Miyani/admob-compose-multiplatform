@@ -49,6 +49,11 @@ public data class AdUnitIds(
  * )
  * ```
  *
+ * Treated as immutable by Compose (declared stable in
+ * `admob-cmp-compose/compose_compiler_config.conf`): every property here is itself either a
+ * primitive, an enum, or another type declared stable there — see [AdRequestOptions]'s KDoc
+ * for the one property whose immutability is a documented contract rather than an enforced one.
+ *
  * @throws IllegalArgumentException if [id] is blank, max cache size < 1, or if [strictTestMode] catches a live ad unit ID.
  */
 public data class AdPlacement(
@@ -147,6 +152,14 @@ public data class AdPlacement(
 /**
  * Per-request targeting and configuration options for ad loads. Android-only
  * fields are silently ignored on iOS.
+ *
+ * Treated as deeply immutable by Compose (declared stable in
+ * `admob-cmp-compose/compose_compiler_config.conf`, since this type is compiled without the
+ * Compose plugin and would otherwise carry no stability metadata at all): [keywords],
+ * [neighboringContentUrls], [categoryExclusions], [customTargeting], and [googleExtras] must
+ * not be mutated after construction. A `data class` constructor cannot defensively copy its
+ * own `val` collections, so this is a documented contract, not an enforced one — pass an
+ * immutable collection (or `.toList()`/`.toSet()`/`.toMap()` a mutable one) at the call site.
  */
 public data class AdRequestOptions(
     /** Keywords for ad targeting. */

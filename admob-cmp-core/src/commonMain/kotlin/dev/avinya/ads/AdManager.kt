@@ -31,9 +31,16 @@ import kotlinx.coroutines.flow.StateFlow
  * of the app, you should use a small, fixed set of placement IDs (e.g., `"home_banner"`, 
  * `"feed_native"`). 
  * 
- * > **Warning:** Never generate dynamic placement IDs for repeating UI items 
- * > (e.g. `"feed_item_1"`, `"feed_item_2"`), as this will leak memory. Reuse the same 
+ * > **Warning:** Never generate dynamic placement IDs for repeating UI items
+ * > (e.g. `"feed_item_1"`, `"feed_item_2"`), as this will leak memory. Reuse the same
  * > placement ID instead; the SDK handles multiple instances automatically.
+ *
+ * Declared stable in `admob-cmp-compose/compose_compiler_config.conf` (this type is compiled
+ * without the Compose plugin and would otherwise carry no stability metadata at all, making
+ * [rememberAdManager]'s value non-skippable everywhere it flows). An implementation must honor
+ * that promise the same way [dev.avinya.ads.nativead.NativeAdSession] does: every observable
+ * change is visible only through a `Flow` property ([status] is a `StateFlow`, [events] a
+ * `SharedFlow`), never through a plain `var` or an unreflected side effect.
  */
 public interface AdManager {
     /** Current initialization and consent state of the SDK. */

@@ -96,6 +96,11 @@ internal fun NSError.toAdError(): AdError {
     )
 }
 
+// AdResponseInfo is declared Compose-stable on the promise that it's deeply immutable
+// (compose_compiler_config.conf). That promise depends on this constructor: `extras` and
+// `adNetworkResponseInfos` below must stay genuinely immutable collections (toStringMap()
+// returns an immutable Map; mapNotNull returns an immutable List) — never pass a
+// MutableMap/MutableList here.
 internal fun GADResponseInfo.toCommon(): AdResponseInfo = AdResponseInfo(
     responseId = responseIdentifier,
     adapterClassName = loadedAdNetworkResponseInfo?.adNetworkClassName,

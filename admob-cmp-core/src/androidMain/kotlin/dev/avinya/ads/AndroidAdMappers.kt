@@ -120,6 +120,11 @@ internal fun LoadAdError.toAdError(): AdError =
 internal fun FullScreenContentError.toAdError(): AdError =
     AdError(code = code.toString(), message = message)
 
+// AdResponseInfo is declared Compose-stable on the promise that it's deeply immutable
+// (compose_compiler_config.conf). That promise depends on this constructor: `extras` and
+// `adNetworkResponseInfos` below must stay genuinely immutable collections (toStringMap()
+// returns an immutable Map via associateWith; mapNotNull returns an immutable List) — never
+// pass a MutableMap/MutableList here.
 internal fun GmaResponseInfo?.toCommon(): AdResponseInfo? = this?.let {
     AdResponseInfo(
         responseId = responseId,
