@@ -32,7 +32,7 @@ jobs:
       should_release: ${{ steps.decide.outputs.should_release }}
       should_deploy_docs: ${{ steps.decide.outputs.should_deploy_docs }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 
@@ -107,24 +107,24 @@ jobs:
     if: needs.gate.outputs.should_deploy_docs == 'true'
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       # The cache MUST be restored before any step that gates on its
       # `cache-hit` output. A step referencing `steps.dokka-cache.outputs` that
       # runs earlier in the job sees an empty string, so `!= 'true'` is
       # trivially true and the guard silently does nothing.
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         id: dokka-cache
         with:
           path: docs-site/public/api
           key: dokka-html-${{ hashFiles('admob-cmp/src/**', 'admob-cmp-core/src/**', 'admob-cmp-compose/src/**', 'admob-cmp/build.gradle.kts', 'admob-cmp-core/build.gradle.kts', 'admob-cmp-compose/build.gradle.kts', 'build.gradle.kts', 'gradle/libs.versions.toml', 'gradle.properties') }}
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         if: steps.dokka-cache.outputs.cache-hit != 'true'
         with:
           distribution: temurin
           java-version: "17"
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
         if: steps.dokka-cache.outputs.cache-hit != 'true'
 
       - name: Assert Xcode 26 (iOS Simulator SDK 26)
@@ -144,7 +144,7 @@ jobs:
       - name: Tar the Dokka dump
         run: tar -czf api-reference.tgz -C docs-site/public api
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: api-reference
           path: api-reference.tgz
@@ -160,14 +160,14 @@ jobs:
       contents: read
       deployments: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           # Starlight's `lastUpdated` reads each page's git history. A shallow
           # clone silently produces no timestamps and empty `dateModified`
           # values in the TechArticle JSON-LD.
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: api-reference
 
@@ -180,7 +180,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "22"
           cache: npm
@@ -221,7 +221,7 @@ jobs:
 
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/master'
-        uses: cloudflare/wrangler-action@v4
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -236,15 +236,26 @@ jobs:
   publish:
     name: Publish to Maven Central
     needs: gate
+    permissions:
+      contents: read
+      # Required by actions/attest-build-provenance to mint and record the attestation.
+      id-token: write
+      attestations: write
     if: needs.gate.outputs.should_release == 'true'
+    # Gates the only job that receives Maven signing and Central credentials behind a protected
+    # environment. Without it, merging a version bump to master immediately uploads a signed
+    # staging deployment with no human in the loop -- the manual Central release step limits final
+    # exposure, but the runner still uses the secrets automatically. Configure required reviewers
+    # on this environment in repository settings; the name here is the half that lives in code.
+    environment: maven-central
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: "17"
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
 
       - name: Assert Xcode 26 (iOS Simulator SDK 26)
         run: xcodebuild -showsdks | grep -q "iphonesimulator26" || { echo "SDK 26 not found"; xcodebuild -showsdks; exit 1; }
@@ -256,6 +267,23 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
+
+      - name: Generate release provenance assets
+        run: ./scripts/distribution/generate-release-provenance.sh "$RUNNER_TEMP/provenance" "$GITHUB_SHA"
+
+      - name: Attest build provenance
+        # First-party GitHub action producing SLSA provenance signed by the workflow identity, so a
+        # consumer can verify WHICH commit and workflow produced these artifacts. Maven Central
+        # signatures prove the publisher's key, not the build's origin.
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: ${{ runner.temp }}/provenance/checksums.txt
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-provenance
+          path: ${{ runner.temp }}/provenance/
+          if-no-files-found: error
 
       - name: Record the manual Central Portal release steps
         run: |
@@ -282,9 +310,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-provenance
+          path: provenance
 
       - name: Tag the release
         run: |
@@ -317,4 +350,6 @@ jobs:
           gh release create "$version" \
             --title "AdMob CMP $version — Compose Multiplatform AdMob SDK" \
             --notes "$notes" \
-            --generate-notes
+            --generate-notes \
+            provenance/checksums.txt \
+            provenance/sbom.spdx.json

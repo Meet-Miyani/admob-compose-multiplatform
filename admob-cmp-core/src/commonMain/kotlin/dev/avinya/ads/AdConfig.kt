@@ -13,7 +13,16 @@ public data class AdAppIds(
     val android: String,
     /** iOS app ID (ca-app-pub-...). */
     val ios: String
-)
+) {
+    init {
+        // Deliberately only non-blank, not a format regex: Ad Manager identifiers do not share
+        // AdMob's ca-app-pub- shape, and rejecting them here would break valid configurations.
+        // A blank id otherwise fails much later, inside a platform SDK call, with a message that
+        // does not name the configuration that caused it.
+        require(android.isNotBlank()) { "AdAppIds.android must not be blank." }
+        require(ios.isNotBlank()) { "AdAppIds.ios must not be blank." }
+    }
+}
 
 /**
  * Top-level SDK configuration for the Google Mobile Ads SDK. Passed to

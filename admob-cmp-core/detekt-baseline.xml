@@ -1,0 +1,101 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:AndroidGoogleAdManager.kt$AndroidConsentController$config.testMode &amp;&amp; (config.testDeviceIds.isNotEmpty() || config.debugOptions.consentTestDeviceIds.isNotEmpty() || config.debugGeography != ConsentDebugGeography.Disabled)</ID>
+    <ID>ComplexCondition:FullScreenSlotCore.kt$FullScreenSlotCore$blockedError == null &amp;&amp; activePresentation.load() == null &amp;&amp; fresh.isNotEmpty() &amp;&amp; presentError == null</ID>
+    <ID>ComplexCondition:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore$entry.sessionKey != sessionKey || entry.slotKey != slotKey || entry.generation != holder.core.slotGenerationFor(slotKey) || entry.placement != placement</ID>
+    <ID>ComplexCondition:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore$entry.sessionKey != sessionKey || entry.slotKey != slotKey || entry.placement != placement || entry.rendererId != rendererId</ID>
+    <ID>ComplexCondition:NativeAdSessionCore.kt$NativeAdSessionCore$!entry.desired || entry.recordId != null || entry.inFlight != null || occupied >= policy.maxRetainedAds</ID>
+    <ID>CyclomaticComplexMethod:FullScreenSlotCore.kt$FullScreenSlotCore$private fun prepareShow( options: FullScreenAdOptions, now: Instant, ttl: Duration, presentabilityError: AdError? ): ShowPreparation&lt;AdT></ID>
+    <ID>CyclomaticComplexMethod:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore.PlacementScheduler$private fun startNextLocked(effects: Effects)</ID>
+    <ID>CyclomaticComplexMethod:NativeAdGovernor.kt$NativeAdGovernor$private fun trimModerate(): NativeAdTrimResult</ID>
+    <ID>LargeClass:FullScreenSlotCoreTest.kt$FullScreenSlotCoreTest</ID>
+    <ID>LargeClass:NativeAdCoordinatorCoreTest.kt$NativeAdCoordinatorCoreTest</ID>
+    <ID>MaxLineLength:AdManager.kt$ConsentController$/** Shows the privacy options form. Should only be called when [privacyOptionsRequirementStatus] is [PrivacyOptionsRequirementStatus.Required]. */</ID>
+    <ID>MaxLineLength:AdManager.kt$NoOpAdManager$override fun rewardedInterstitial(placement: AdPlacement): RewardedInterstitialAdController</ID>
+    <ID>MaxLineLength:AdManager.kt$NoOpRewardedInterstitialAdController$internal</ID>
+    <ID>MaxLineLength:AdPlacement.kt$AdPlacement$*</ID>
+    <ID>MaxLineLength:AdRetryTest.kt$AdRetryTest$private val retryPolicy = AdRetryPolicy(maxAttempts = 3, initialDelay = 10.milliseconds, maxDelay = 100.milliseconds, backoffMultiplier = 2.0)</ID>
+    <ID>MaxLineLength:AndroidFullScreenSlots.kt$&lt;no name provided>$override fun onAdFailedToShowFullScreenContent(error: FullScreenContentError)</ID>
+    <ID>MaxLineLength:AndroidFullScreenSlots.kt$AndroidRewardedInterstitialSlot$RewardedInterstitialAd</ID>
+    <ID>MaxLineLength:AndroidFullScreenSlots.kt$com.google.android.libraries.ads.mobile.sdk.rewarded.ServerSideVerificationOptions(it.userId.orEmpty(), it.customData.orEmpty())</ID>
+    <ID>MaxLineLength:AndroidGoogleAdManager.kt$AndroidConsentController$if</ID>
+    <ID>MaxLineLength:AndroidGoogleAdManager.kt$AndroidConsentController${ if (continuation.isActive) continuation.resume(AdError(code = it.errorCode.toString(), message = it.message)) }</ID>
+    <ID>MaxLineLength:AndroidGoogleAdManager.kt$AndroidGoogleAdManager$slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidAppOpenSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter, fullScreenAudioController) } as AppOpenAdController</ID>
+    <ID>MaxLineLength:AndroidGoogleAdManager.kt$AndroidGoogleAdManager$slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidInterstitialSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter, fullScreenAudioController) } as InterstitialAdController</ID>
+    <ID>MaxLineLength:AndroidGoogleAdManager.kt$AndroidGoogleAdManager$slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidRewardedInterstitialSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter, fullScreenAudioController) } as RewardedInterstitialAdController</ID>
+    <ID>MaxLineLength:AndroidGoogleAdManager.kt$AndroidGoogleAdManager$slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidRewardedSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter, fullScreenAudioController) } as RewardedAdController</ID>
+    <ID>MaxLineLength:AndroidNativeAdPlatform.kt$AndroidNativeAdLoaderFacade$fun loadMany(request: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdRequest, count: Int, callback: NativeAdLoaderCallback)</ID>
+    <ID>MaxLineLength:AndroidNativeAdPlatform.kt$GmaAndroidNativeAdLoaderFacade$override</ID>
+    <ID>MaxLineLength:Fakes.kt$FakeAdManager$override fun rewardedInterstitial(placement: AdPlacement): RewardedInterstitialAdController</ID>
+    <ID>MaxLineLength:IosAdMappers.kt$PublisherPrivacyPersonalizationState.Disabled -> requestConfiguration.publisherPrivacyPersonalizationState = GADPublisherPrivacyPersonalizationStateDisabled</ID>
+    <ID>MaxLineLength:IosAdMappers.kt$PublisherPrivacyPersonalizationState.Enabled -> requestConfiguration.publisherPrivacyPersonalizationState = GADPublisherPrivacyPersonalizationStateEnabled</ID>
+    <ID>MaxLineLength:IosConsentController.kt$IosConsentController$ConsentStatus.Failed(AdError(code = (error.code ?: 0).toString(), message = error.localizedDescription ?: "Consent info update failed."))</ID>
+    <ID>MaxLineLength:IosGoogleAdManager.kt$IosGoogleAdManager$slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { IosAppOpenSlot(ownedPlacement, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter) } as AppOpenAdController</ID>
+    <ID>MaxLineLength:IosGoogleAdManager.kt$IosGoogleAdManager$slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { IosInterstitialSlot(ownedPlacement, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter) } as InterstitialAdController</ID>
+    <ID>MaxLineLength:IosGoogleAdManager.kt$IosGoogleAdManager$slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { IosRewardedInterstitialSlot(ownedPlacement, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter) } as RewardedInterstitialAdController</ID>
+    <ID>MaxLineLength:IosGoogleAdManager.kt$IosGoogleAdManager$slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { IosRewardedSlot(ownedPlacement, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter) } as RewardedAdController</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$GmaIosNativeAdLoaderFacade$add(GADNativeAdImageAdLoaderOptions().apply { disableImageLoading = placement.nativeOptions.disableImageLoading; shouldRequestMultipleImages = placement.nativeOptions.requestMultipleImages })</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$GmaIosNativeAdLoaderFacade$add(GADNativeAdViewAdOptions().apply { preferredAdChoicesPosition = placement.nativeOptions.adChoicesPlacement.toGADAdChoicesPosition() })</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$GmaIosNativeAdLoaderFacade$add(GADVideoOptions().apply { startMuted = placement.nativeOptions.videoOptions.startMuted; customControlsRequested = placement.nativeOptions.videoOptions.customControlsRequested; clickToExpandRequested = placement.nativeOptions.videoOptions.clickToExpandRequested })</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$GmaIosNativeAdLoaderFacade$override</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$IosNativeAdOwners$loaded.ad.paidEventHandler = { value -> value?.toCommon()?.let { emit(AdEvent.Paid(placementId, PaidEvent(placementId, it, loaded.responseInfo), instanceId)) } }</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$IosNativeAdOwners$teardownScope.launch { loaded.ad.paidEventHandler = null; loaded.ad.delegate = null; loaded.ad.mediaContent?.videoController?.delegate = null }</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$IosNativeAdPlatform$override suspend</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$SessionNativeDelegate$private</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$SessionVideoDelegate$override fun videoControllerDidEndVideoPlayback(videoController: GoogleMobileAds.GADVideoController)</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$SessionVideoDelegate$override fun videoControllerDidMuteVideo(videoController: GoogleMobileAds.GADVideoController)</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$SessionVideoDelegate$override fun videoControllerDidPauseVideo(videoController: GoogleMobileAds.GADVideoController)</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$SessionVideoDelegate$override fun videoControllerDidPlayVideo(videoController: GoogleMobileAds.GADVideoController)</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$SessionVideoDelegate$override fun videoControllerDidUnmuteVideo(videoController: GoogleMobileAds.GADVideoController)</ID>
+    <ID>MaxLineLength:IosNativeAdPlatform.kt$private fun GADMediaContent.snapshot()</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$Fake&lt;A:Any> : IosNativeAdLoaderFacade</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$IosNativeAdPlatformTest$@Test fun `active registry strongly retains loader and delegate until finish callback`()</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$IosNativeAdPlatformTest$@Test fun `cancellation settles coroutine but retains invalidated delegate until finish`()</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$IosNativeAdPlatformTest$@Test fun `destroy gate runs teardown once without retaining an ad registry`()</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$IosNativeAdPlatformTest$@Test fun `finish and cancellation race resumes continuation once`()</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$IosNativeAdPlatformTest$@Test fun `google only accepts exact counts one through five and rejects larger before GMA`()</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$IosNativeAdPlatformTest$@Test fun `late invalidated delegate tears down every arriving ad`()</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$IosNativeAdPlatformTest$@Test fun `load machine delegates teardown to the platform facade`()</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$IosNativeAdPlatformTest$@Test fun `memory warning emits critical and observer removal is idempotent`()</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$IosNativeAdPlatformTest$@Test fun `metadata is snapshotted on Main before callback completion`()</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$IosNativeAdPlatformTest$@Test fun `sequential count three creates three loaders without multiple ads option`()</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$IosNativeAdPlatformTest$@Test fun `sequential partial success retains prior ads and terminal error`()</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$IosNativeAdPlatformTest$private fun placement(batching: NativeAdBatching)</ID>
+    <ID>MaxLineLength:IosNativeAdPlatformTest.kt$Warnings : IosMemoryWarnings</ID>
+    <ID>MaxLineLength:IosNativeMemorySignal.kt$IosNativeMemorySignal$internal</ID>
+    <ID>MaxLineLength:IosNativeMemorySignal.kt$SystemIosMemoryWarnings$override fun add(callback: () -> Unit): Any</ID>
+    <ID>MaxLineLength:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore$if (entry.sessionKey != sessionKey || entry.slotKey != slotKey || entry.generation != holder.core.slotGenerationFor(slotKey) || entry.placement != placement) return@withLock null</ID>
+    <ID>MaxLineLength:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore$if (entry.sessionKey != sessionKey || entry.slotKey != slotKey || entry.placement != placement || entry.rendererId != rendererId) return@withLock effects</ID>
+    <ID>MaxLineLength:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore.PlacementScheduler$else</ID>
+    <ID>MaxLineLength:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore.PlacementScheduler$reservationOwners[reservation.id] = ReservationOwner(placementId, requested.holder.core.key, entry.key, entry.generation, reservation)</ID>
+    <ID>MaxLineLength:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore.PlacementScheduler$val maxChunk = if (requested.entries.first().placement.nativeOptions.batching == NativeAdBatching.GoogleOnly) 5 else requested.entries.size</ID>
+    <ID>MaxLineLength:NativeAdCoordinatorCoreTest.kt$NativeAdCoordinatorCoreTest$assertEquals(null, coord.acquireForRender("feed", replacementGeneration, "slot", nativePlacement, "renderer-b"), "stale release cannot unmount the replacement")</ID>
+    <ID>MaxLineLength:NativeAdManagerImpl.kt$NativeAdManagerImpl$override</ID>
+    <ID>MaxLineLength:NativeAdManagerImplTest.kt$GateNativePlatform$override suspend fun load(placement: AdPlacement, count: Int, generation: Long): AdAttemptResult&lt;NativeAdPlatformBatch&lt;String>></ID>
+    <ID>MaxLineLength:NativeAdSessionCore.kt$NativeAdSessionCore$id != null &amp;&amp; slotKey in anchors -> { entry.band = NativeAdBand.Out; entry.mounted = false; reclass += RecordReclassification(id, NativeAdPriority.InactiveAnchor) }</ID>
+    <ID>MaxLineLength:NativeAdSessionCore.kt$NativeAdSessionCore$listOf(NativeAdBand.Visible to window.visible, NativeAdBand.PrefetchAhead to window.prefetchAhead, NativeAdBand.RetainBehind to window.retainBehind).forEach { (band, source) -> source.forEach { if (seen.add(it.key)) result += band to it } }</ID>
+    <ID>MaxLineLength:NativeAdSessionCore.kt$NativeAdSessionCore$private fun demandFor(band: NativeAdBand)</ID>
+    <ID>MaxLineLength:NativeAdSessionCore.kt$NativeAdSessionCore$private fun priorityFor(band: NativeAdBand)</ID>
+    <ID>MaxLineLength:NativeAdSessionCore.kt$NativeAdSessionCore$val retire = mutableListOf&lt;NativeAdRecordId>()</ID>
+    <ID>MaxLineLength:NativeAdSessionCoreTest.kt$NativeAdSessionCoreTest$assertEquals(listOf(NativeAdPriority.ActiveReadyAhead, NativeAdPriority.Speculative, NativeAdPriority.ActiveRetainedBehind), mutation.demands.map { it.admittedPriority })</ID>
+    <ID>MaxLineLength:NativeAdSessionCoreTest.kt$NativeAdSessionCoreTest$key = "feed"</ID>
+    <ID>MaxLineLength:NativeAdSessionCoreTest.kt$NativeAdSessionCoreTest$val loads = core.updateWindow(window("a", "b", "c"))</ID>
+    <ID>MaxLineLength:NoOpAdManagerTest.kt$NoOpAdManagerTest$session.updateWindow(dev.avinya.ads.nativead.NativeAdWindow(listOf(dev.avinya.ads.nativead.NativeAdSlot("slot", placement.copy(id = "native", format = AdFormat.Native)))))</ID>
+    <ID>MaxLineLength:TestAdIds.kt$AdPlacement("rewarded_transition", AdFormat.RewardedInterstitial, TestAdIds.ANDROID_REWARDED_INTERSTITIAL, TestAdIds.IOS_REWARDED_INTERSTITIAL)</ID>
+    <ID>NewLineAtEndOfFile:NativeAdCoordinatorCoreTest.kt$dev.avinya.ads.NativeAdCoordinatorCoreTest.kt</ID>
+    <ID>UnusedParameter:FullScreenSlotCore.kt$FullScreenSlotCore$options: FullScreenAdOptions</ID>
+    <ID>UnusedParameter:IosAdMappersTest.kt$IosAdMappersTest$message: String = "test failure"</ID>
+    <ID>UnusedParameter:IosNativeAdPlatform.kt$IosNativeLoadMachine$generation: Long</ID>
+    <ID>UnusedParameter:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore.PlacementScheduler$effects: Effects</ID>
+    <ID>UnusedPrivateMember:AdEventModelsTest.kt$AdEventModelsTest$private suspend fun showRewardedWithCallback( controller: RewardedAdController, rewards: MutableList&lt;AdReward> ): AdShowResult</ID>
+    <ID>UnusedPrivateProperty:FullScreenSlotCore.kt$FullScreenSlotCore$slotIndex</ID>
+    <ID>UnusedPrivateProperty:NativeAdGovernorTest.kt$NativeAdGovernorTest$val loadedSpeculative = admitOne( gov, reserveVisible(gov, NativeAdPriority.Speculative, 1).reservations.single(), )</ID>
+    <ID>UnusedPrivateProperty:NativeAdGovernorTest.kt$NativeAdGovernorTest$val records = admitAll( gov, reserveVisible(gov, NativeAdPriority.Speculative, 4).reservations, )</ID>
+    <ID>UnusedPrivateProperty:NativeAdGovernorTest.kt$NativeAdGovernorTest$val visibleReservation = reserveVisible(gov, NativeAdPriority.ActiveReadyAhead, 1) .reservations.single()</ID>
+    <ID>UseCheckOrError:FullScreenSlotCoreTest.kt$FullScreenSlotCoreTest$throw IllegalStateException("mapper exploded during reload")</ID>
+    <ID>UseCheckOrError:NativeAdCoordinatorCoreTest.kt$NativeAdCoordinatorCoreTest$throw IllegalStateException("platform exploded")</ID>
+    <ID>WildcardImport:NoOpControllerRegistry.kt$import dev.avinya.ads.*</ID>
+  </CurrentIssues>
+</SmellBaseline>

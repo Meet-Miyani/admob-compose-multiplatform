@@ -1,0 +1,74 @@
+# Detekt configuration for admob-cmp.
+#
+# buildUponDefaultConfig = true, so this file only records DEVIATIONS from Detekt's defaults and the
+# reasoning for each. Rules disabled here are disabled because they fight decisions this codebase has
+# already made deliberately, not because they were noisy.
+build:
+  maxIssues: 0
+
+complexity:
+  LongParameterList:
+    # Ad configuration types are wide by nature: AdPlacement and the platform slots carry many
+    # independent knobs, and collapsing them into parameter objects would change the frozen ABI.
+    active: false
+  LongMethod:
+    # The state machines (FullScreenSlotCore.showInternal, the native coordinator's schedulers) are
+    # long because the ordering constraints are the logic; splitting them hides the sequence.
+    threshold: 120
+  TooManyFunctions:
+    active: false
+  CyclomaticComplexMethod:
+    threshold: 20
+  NestedBlockDepth:
+    threshold: 6
+
+style:
+  MaxLineLength:
+    maxLineLength: 140
+  ReturnCount:
+    # Guard-clause style is used throughout, deliberately.
+    active: false
+  ThrowsCount:
+    active: false
+  LoopWithTooManyJumpStatements:
+    active: false
+  MagicNumber:
+    # Ad SDK constants (batch caps, slice counts, byte limits) are documented at their use site.
+    active: false
+  UnusedPrivateMember:
+    active: true
+
+exceptions:
+  TooGenericExceptionCaught:
+    # Catching Throwable at a boundary is the POINT in several places: host callbacks, publisher
+    # hooks and detached coroutines must not be able to take the process down. Each site says so.
+    active: false
+  SwallowedException:
+    # Same reason: several catches deliberately log and continue rather than rethrow.
+    active: false
+  TooGenericExceptionThrown:
+    active: false
+
+naming:
+  FunctionNaming:
+    # Composables are PascalCase by convention, and tests use backtick-quoted sentence names.
+    functionPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    excludes: ['**/test/**', '**/*Test/**', '**/*Test.kt']
+  MatchingDeclarationName:
+    # Related types are deliberately grouped by concern (IosNativeAdPlatform.kt holds the load
+    # machine, the platform and the owners registry) rather than split one-per-file.
+    active: false
+  TopLevelPropertyNaming:
+    active: false
+
+performance:
+  SpreadOperator:
+    active: false
+
+empty-blocks:
+  EmptyFunctionBlock:
+    # `continuation.invokeOnCancellation { }` and similar no-op callbacks are deliberate: the
+    # registration itself is the point, not the body.
+    active: false
+  EmptyClassBlock:
+    active: false

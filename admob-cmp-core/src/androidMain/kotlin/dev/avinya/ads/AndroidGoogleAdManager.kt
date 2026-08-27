@@ -4,11 +4,19 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import dev.avinya.ads.internal.AdRequestAdmission
+import dev.avinya.ads.internal.AppliedConfigurationDecision
+import dev.avinya.ads.internal.InitializationTimeouts
+import dev.avinya.ads.internal.NativeCallbackTimeoutException
+import dev.avinya.ads.internal.appliedConfigurationDecision
+import dev.avinya.ads.internal.awaitNativeCallback
+import dev.avinya.ads.internal.awaitHost
+import dev.avinya.ads.internal.dispatchAfterInitializeHooks
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
 import dev.avinya.ads.internal.deriveAdmission
 import dev.avinya.ads.internal.ConsentSessionState
 import dev.avinya.ads.internal.ownedSnapshot
 import dev.avinya.ads.internal.NativeAdManagerImpl
+import dev.avinya.ads.internal.emitOrLogDrop
 import dev.avinya.ads.nativead.AndroidNativeAdPlatform
 import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
@@ -66,6 +74,17 @@ internal class AndroidGoogleAdManager(
     // instance is the whole process's arbiter. Every full-screen slot this manager creates
     // shares it, and AppOpenAdCoordinator probes it through FullScreenPresenceAware.
     override val fullScreenArbiter: FullScreenPresentationArbiter = FullScreenPresentationArbiter()
+
+    /**
+     * Shared by every full-screen slot, so a dismissed ad reverts audio to the global state this
+     * manager actually applied to GMA rather than to hardcoded defaults.
+     *
+     * The supplier is deliberately lazy: slots are created before `initialize()` completes, and
+     * `null` correctly means "the host configured nothing, so GMA's own defaults apply".
+     */
+    private val fullScreenAudioController =
+        AndroidFullScreenAudioController { appliedConfigIdentity?.globalRequestConfiguration }
+
     private fun onPresentationChanged(delta: Int) {
         synchronized(presenceLock) {
             presenceCount = (presenceCount + delta).coerceAtLeast(0)
@@ -103,7 +122,11 @@ internal class AndroidGoogleAdManager(
         policy = null,
         platform = AndroidNativeAdPlatform(),
         canRequestAds = { adRequestBlockedError() == null },
-        eventSink = { _events.tryEmit(it) },
+        // Routed through the shared drop-aware helper like every other emitter. This path called
+        // tryEmit and discarded the Boolean -- the exact pattern emitOrLogDrop was introduced to
+        // remove -- so a dropped native event was silent, precisely where batching makes bursts
+        // most likely.
+        eventSink = { _events.emitOrLogDrop(it, "NativeAds") },
     )
     override val nativeAds: NativeAdManager = nativeManager
 
@@ -314,16 +337,27 @@ internal class AndroidGoogleAdManager(
         requestedIdentity: AdInitializationConfigIdentity,
         requestedNativeAdMemoryPolicy: NativeAdMemoryPolicy,
     ): AdManagerStatus? = mobileAdsInitializationMutex.withLock {
-        val appliedIdentity = appliedConfigIdentity ?: return@withLock null
-        if (appliedIdentity != requestedIdentity) {
-            AdLogger.w("Android MobileAds already has a different effective configuration; ignoring this request.")
-            return@withLock publishAppliedTerminalLocked(appliedTerminalStatus ?: _status.value)
+        val decision = appliedConfigurationDecision(
+            appliedIdentity = appliedConfigIdentity,
+            requestedIdentity = requestedIdentity,
+            configuredNativePolicy = nativeManager.configuredPolicyOrNull(),
+            requestedNativePolicy = requestedNativeAdMemoryPolicy,
+            appliedTerminalStatus = appliedTerminalStatus,
+            currentStatus = _status.value,
+        )
+        when (decision) {
+            is AppliedConfigurationDecision.NotApplied -> null
+            is AppliedConfigurationDecision.Accepted ->
+                decision.publish?.let(::publishAppliedTerminalLocked)
+            is AppliedConfigurationDecision.Conflict -> {
+                AdLogger.w("Android MobileAds configuration conflict. ${decision.reason}")
+                // Publish the TRUE status, return the rejection. Publishing the rejection would
+                // make adRequestBlockedError() block every ad request process-wide, breaking the
+                // caller whose configuration was actually accepted.
+                publishAppliedTerminalLocked(decision.publish)
+                decision.rejection
+            }
         }
-        nativeManager.configuredPolicyOrNull()?.takeIf { it != requestedNativeAdMemoryPolicy }?.let {
-            AdLogger.w("Android native ad memory policy is already configured; ignoring this request.")
-            return@withLock publishAppliedTerminalLocked(appliedTerminalStatus ?: _status.value)
-        }
-        appliedTerminalStatus?.let(::publishAppliedTerminalLocked)
     }
 
     private suspend fun appliedTerminalStatus(): AdManagerStatus? =
@@ -376,12 +410,16 @@ internal class AndroidGoogleAdManager(
         // Runs on nativeInitializationScope (a detached SupervisorJob scope), not on any
         // individual caller's coroutine, so cancelling one initialize() caller can never
         // interrupt this operation — every caller (leader and followers) only awaits its
-        // result. AfterMobileAdsInitialize dispatches here, before Applied/Ready is
-        // published below: once appliedConfigIdentity/appliedTerminalStatus are set, every
-        // future initialize() with the same identity short-circuits via appliedOutcome()
-        // and never re-enters this block, so a hook that ran only after publication could
-        // be skipped forever by a caller cancellation. Running it first guarantees it fires
-        // exactly once, unconditionally, whenever native init succeeds.
+        // result. THAT detachment is what makes AfterMobileAdsInitialize fire exactly once
+        // whenever native init succeeds; an earlier comment here credited the hook's position
+        // *before* publication, which was wrong and cost correctness elsewhere.
+        //
+        // Native acceptance is now committed BEFORE the hook runs. A throwing publisher hook
+        // used to leave appliedConfigIdentity null while GMA was already initialized, so a
+        // retry with a different app ID sailed past appliedOutcome() and tried to reconfigure
+        // an immutable process singleton. The tradeoff is that a concurrent same-identity
+        // initialize() may observe Ready while the hook is still running — strictly better
+        // than desynchronizing the wrapper from native reality.
         val completion = nativeInitializationScope.async(start = CoroutineStart.LAZY) {
             val result = try {
                 AdLogger.d("Android initializing MobileAds with global request configuration.")
@@ -389,9 +427,18 @@ internal class AndroidGoogleAdManager(
                     .setRequestConfiguration(requestedIdentity.globalRequestConfiguration.toAndroidRequestConfiguration())
                     .build()
                 withContext(Dispatchers.IO) {
-                    suspendCancellableCoroutine { continuation ->
-                        MobileAds.initialize(appContext, initializationConfig) {
-                            if (continuation.isActive) continuation.resume(Unit)
+                    // Bounded: GMA can accept the call and never invoke the callback, which used to
+                    // leave initialize() suspended forever. A timeout is NOT a CancellationException
+                    // (see awaitNativeCallback), so it reaches the catch below as a real failure and
+                    // leaves the identity uncommitted — making a retry the correct next step.
+                    awaitNativeCallback(
+                        operation = "MobileAds.initialize",
+                        timeout = InitializationTimeouts.nativeInitialize
+                    ) {
+                        suspendCancellableCoroutine { continuation ->
+                            MobileAds.initialize(appContext, initializationConfig) {
+                                if (continuation.isActive) continuation.resume(Unit)
+                            }
                         }
                     }
                 }
@@ -408,12 +455,27 @@ internal class AndroidGoogleAdManager(
                 // after MobileAds.initialize's callback so adapter statuses are populated,
                 // and before the After hook so a publisher hook can read them.
                 androidDiagnostics.captureSnapshotOnMain()
-                config.dispatchInitializationHooks(AdInitializationPhase.AfterMobileAdsInitialize)
                 mobileAdsInitializationMutex.withLock {
-                    configureNativeAdsAfterAcceptedInitialization(config)
+                    // Native GMA is initialized at this point and can never be reconfigured, so
+                    // the identity commit below must be unconditional. configureNativeAds can
+                    // throw -- NativeAdManagerImpl.configure has a check(existing == null) -- which
+                    // is the same trap as a throwing hook, one step earlier.
+                    try {
+                        configureNativeAdsAfterAcceptedInitialization(config)
+                    } catch (t: Throwable) {
+                        AdLogger.e(
+                            "Failed to bind the native ad memory policy after Android MobileAds " +
+                                "initialization. GMA stays initialized and Ready; native ad " +
+                                "capacity keeps its previously configured policy.",
+                            t
+                        )
+                    }
                     appliedConfigIdentity = requestedIdentity
                     appliedTerminalStatus = AdManagerStatus.Ready
                 }
+                // AFTER the commit, and isolated: a publisher hook is host code, so its failure is
+                // reported but must never make the native singleton look unapplied.
+                dispatchAfterInitializeHooks(config)
                 NativeInitializationResult.Applied
             } catch (failure: Throwable) {
                 NativeInitializationResult.Failed(failure)
@@ -532,7 +594,7 @@ internal class AndroidGoogleAdManager(
                 "The factory function and placement.format must agree."
         }
         checkPlacementCollision(ownedPlacement)
-        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidInterstitialSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter) } as InterstitialAdController
+        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidInterstitialSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter, fullScreenAudioController) } as InterstitialAdController
     }
 
     override fun rewarded(placement: AdPlacement): RewardedAdController = synchronized(registryLock) {
@@ -542,7 +604,7 @@ internal class AndroidGoogleAdManager(
                 "The factory function and placement.format must agree."
         }
         checkPlacementCollision(ownedPlacement)
-        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidRewardedSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter) } as RewardedAdController
+        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidRewardedSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter, fullScreenAudioController) } as RewardedAdController
     }
 
     override fun rewardedInterstitial(placement: AdPlacement): RewardedInterstitialAdController = synchronized(registryLock) {
@@ -552,7 +614,7 @@ internal class AndroidGoogleAdManager(
                 "The factory function and placement.format must agree."
         }
         checkPlacementCollision(ownedPlacement)
-        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidRewardedInterstitialSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter) } as RewardedInterstitialAdController
+        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidRewardedInterstitialSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter, fullScreenAudioController) } as RewardedInterstitialAdController
     }
 
     override fun appOpen(placement: AdPlacement): AppOpenAdController = synchronized(registryLock) {
@@ -562,7 +624,7 @@ internal class AndroidGoogleAdManager(
                 "The factory function and placement.format must agree."
         }
         checkPlacementCollision(ownedPlacement)
-        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidAppOpenSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter) } as AppOpenAdController
+        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { AndroidAppOpenSlot(ownedPlacement, activityProvider, _events, ::adRequestBlockedError, ::onPresentationChanged, fullScreenArbiter, fullScreenAudioController) } as AppOpenAdController
     }
 }
 
@@ -583,40 +645,96 @@ private class AndroidConsentController(
     override val canRequestAds: StateFlow<Boolean> = _canRequestAds
 
     override suspend fun requestConsentInfoUpdate(config: AdConfig): ConsentStatus {
-        lastConfig = config
-        config.dispatchInitializationHooks(AdInitializationPhase.BeforeConsentRequest)
-        val activity = activityProvider()
-            ?: return fail("No current Android Activity for UMP consent.")
+        val ownedConfig = prepareConsentConfig(config)
         return withContext(Dispatchers.Main.immediate) {
-            val consentInformation = UserMessagingPlatform.getConsentInformation(appContext)
-            val params = buildConsentParams(activity, config)
-            val error = suspendCancellableCoroutine { continuation ->
-                consentInformation.requestConsentInfoUpdate(
-                    activity,
-                    params,
-                    { if (continuation.isActive) continuation.resume(null) },
-                    { if (continuation.isActive) continuation.resume(AdError(code = it.errorCode.toString(), message = it.message)) }
-                )
-            }
-            updatePrivacyState(consentInformation)
-            _canRequestAds.value = consentInformation.canRequestAds()
-            val status = if (error == null) {
-                consentInformationStatus(consentInformation).also { _status.value = it }
-            } else if (consentInformation.canRequestAds()) {
-                consentInformationStatus(consentInformation).also { _status.value = it }
-            } else {
-                ConsentStatus.Failed(error).also { _status.value = it }
-            }
-            status
+            // Acquired inside the main hop, not before it: this reads Activity lifecycle state,
+            // which is main-thread-owned (invariant 5). It waits rather than failing on the first
+            // null because ForegroundStack legitimately empties for a few hundred milliseconds
+            // during any Activity handoff.
+            val activity = awaitHost(InitializationTimeouts.consentHost) { activityProvider() }
+                ?: return@withContext failNoActivity()
+            updateWithActivity(activity, ownedConfig, UserMessagingPlatform.getConsentInformation(appContext))
         }
     }
 
-    override suspend fun gatherConsent(config: AdConfig): ConsentStatus {
-        val activity = activityProvider()
-            ?: return fail("No current Android Activity for UMP consent.")
-        return withContext(Dispatchers.Main.immediate) {
+    /**
+     * Takes ownership of the caller's config and fires the pre-consent hooks.
+     *
+     * Every public consent entry point must do exactly this before touching UMP, and they are the
+     * only callers. Kept as one function so the two cannot drift: [gatherConsent] no longer routes
+     * through [requestConsentInfoUpdate] — it already holds an acquired Activity and would
+     * otherwise wait for a host a second time — so without this the preamble would live in two
+     * places and a change to one would silently miss the other.
+     *
+     * The returned snapshot is what every downstream step must use. `lastConfig` outlives this
+     * call and is reused if `showPrivacyOptions()` later resumes initialization, so retaining the
+     * caller's own object would let post-call mutation of its lists or hooks change UMP debug IDs
+     * and hook execution.
+     */
+    private suspend fun prepareConsentConfig(config: AdConfig): AdConfig {
+        val owned = config.ownedSnapshot()
+        lastConfig = owned
+        owned.dispatchInitializationHooks(AdInitializationPhase.BeforeConsentRequest)
+        return owned
+    }
+
+    /**
+     * The UMP info-update sequence, given a host that has already been acquired.
+     *
+     * Split out so each PUBLIC consent entry point acquires the host exactly once.
+     * [gatherConsent] used to call [requestConsentInfoUpdate], which re-acquired it — two waits
+     * for one logical operation. Callers are responsible for being on Main.
+     */
+    private suspend fun updateWithActivity(
+        activity: Activity,
+        config: AdConfig,
+        consentInformation: ConsentInformation,
+    ): ConsentStatus {
+        val params = buildConsentParams(activity, config)
+        // Bounded: this is a non-interactive network round trip, so UMP accepting the call and
+        // never calling back used to hang consent admission — and therefore ad serving —
+        // indefinitely. Fails CLOSED: _canRequestAds is left false and the status becomes
+        // Failed, so no ad request proceeds on an unknown consent state. The consent FORM and
+        // privacy options form below stay unbounded on purpose; a person is reading those.
+        val error = try {
+            awaitNativeCallback(
+                operation = "UMP requestConsentInfoUpdate",
+                timeout = InitializationTimeouts.consentInfoUpdate
+            ) {
+                suspendCancellableCoroutine<AdError?> { continuation ->
+                    consentInformation.requestConsentInfoUpdate(
+                        activity,
+                        params,
+                        { if (continuation.isActive) continuation.resume(null) },
+                        { if (continuation.isActive) continuation.resume(AdError(code = it.errorCode.toString(), message = it.message)) }
+                    )
+                }
+            }
+        } catch (timeout: NativeCallbackTimeoutException) {
+            AdLogger.e("Android UMP consent info update timed out.", timeout)
+            return fail(timeout.message ?: "UMP consent info update timed out.")
+        }
+        updatePrivacyState(consentInformation)
+        _canRequestAds.value = consentInformation.canRequestAds()
+        val status = if (error == null) {
+            consentInformationStatus(consentInformation).also { _status.value = it }
+        } else if (consentInformation.canRequestAds()) {
+            consentInformationStatus(consentInformation).also { _status.value = it }
+        } else {
+            ConsentStatus.Failed(error).also { _status.value = it }
+        }
+        return status
+    }
+
+    override suspend fun gatherConsent(config: AdConfig): ConsentStatus =
+        withContext(Dispatchers.Main.immediate) {
+            val activity = awaitHost(InitializationTimeouts.consentHost) { activityProvider() }
+                ?: return@withContext failNoActivity()
             val consentInformation = UserMessagingPlatform.getConsentInformation(appContext)
-            val update = requestConsentInfoUpdate(config)
+            // The acquired Activity is reused rather than calling the public
+            // requestConsentInfoUpdate, which would wait for a host a second time.
+            val ownedConfig = prepareConsentConfig(config)
+            val update = updateWithActivity(activity, ownedConfig, consentInformation)
             if (update is ConsentStatus.Failed && !consentInformation.canRequestAds()) return@withContext update
             suspendCancellableCoroutine<Unit> { continuation ->
                 UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
@@ -631,7 +749,6 @@ private class AndroidConsentController(
             val status = consentInformationStatus(consentInformation).also { _status.value = it }
             status
         }
-    }
 
     override suspend fun showPrivacyOptions(): Boolean {
         val activity = activityProvider() ?: return false
@@ -665,6 +782,22 @@ private class AndroidConsentController(
 
     private fun fail(message: String): ConsentStatus =
         ConsentStatus.Failed(AdError.message(message)).also { _status.value = it }
+
+    /**
+     * The host was absent for the whole `InitializationTimeouts.consentHost` window.
+     *
+     * Kept as one helper so both consent entry points log identically and the public
+     * [ConsentStatus.Failed] message stays byte-identical to what it has always been —
+     * only the warning above it is new.
+     */
+    private fun failNoActivity(): ConsentStatus {
+        AdLogger.w(
+            "No usable Android Activity for UMP consent after waiting " +
+                "${InitializationTimeouts.consentHost}. Consent was not gathered on this attempt; " +
+                "the host app should retry."
+        )
+        return fail("No current Android Activity for UMP consent.")
+    }
 
     private fun updatePrivacyState(consentInformation: ConsentInformation) {
         _privacy.value = when (consentInformation.privacyOptionsRequirementStatus) {

@@ -23,6 +23,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import dev.avinya.ads.internal.InitializationTimeouts
+import dev.avinya.ads.internal.NativeCallbackTimeoutException
+import dev.avinya.ads.internal.awaitHost
+import dev.avinya.ads.internal.awaitNativeCallback
+import dev.avinya.ads.internal.ownedSnapshot
 
 internal class IosConsentController(
     val onCanRequestAds: suspend (AdConfig) -> Unit
@@ -39,36 +44,73 @@ internal class IosConsentController(
     override val canRequestAds: StateFlow<Boolean> = _canRequestAds
 
     override suspend fun requestConsentInfoUpdate(config: AdConfig): ConsentStatus = withContext(Dispatchers.Main.immediate) {
+        // Owned snapshot, matching AdManager.initialize(): lastConfig outlives this call and is
+        // reused if showPrivacyOptions() later resumes initialization, so retaining the caller's
+        // object let post-call mutation of its lists/hooks change UMP debug IDs and hook execution.
+        val config = config.ownedSnapshot()
         lastConfig = config
         config.dispatchInitializationHooks(AdInitializationPhase.BeforeConsentRequest)
         val consentInformation = UMPConsentInformation.sharedInstance
-        suspendCancellableCoroutine { continuation ->
-            continuation.invokeOnCancellation { }
-            consentInformation.requestConsentInfoUpdateWithParameters(buildParams(config)) { error ->
-                if (continuation.isActive) {
-                    updatePrivacyState(consentInformation)
-                    _canRequestAds.value = consentInformation.canRequestAds
-                    val result = if (error == null) {
-                        consentInformationStatus(consentInformation)
-                    } else if (consentInformation.canRequestAds) {
-                        consentInformationStatus(consentInformation)
-                    } else {
-                        ConsentStatus.Failed(AdError(code = (error.code ?: 0).toString(), message = error.localizedDescription ?: "Consent info update failed."))
+        // Bounded: this is a non-interactive network round trip, so UMP accepting the call and never
+        // calling back used to hang consent admission -- and therefore ad serving -- indefinitely.
+        // Fails CLOSED: _canRequestAds stays false and the status becomes Failed, so no ad request
+        // proceeds on an unknown consent state. The consent FORM and privacy options form stay
+        // unbounded on purpose; a person is reading those.
+        try {
+            awaitNativeCallback(
+                operation = "UMP requestConsentInfoUpdate",
+                timeout = InitializationTimeouts.consentInfoUpdate
+            ) {
+                suspendCancellableCoroutine<Unit> { continuation ->
+                    continuation.invokeOnCancellation { }
+                    consentInformation.requestConsentInfoUpdateWithParameters(buildParams(config)) { error ->
+                        if (continuation.isActive) {
+                            updatePrivacyState(consentInformation)
+                            _canRequestAds.value = consentInformation.canRequestAds
+                            val result = if (error == null) {
+                                consentInformationStatus(consentInformation)
+                            } else if (consentInformation.canRequestAds) {
+                                consentInformationStatus(consentInformation)
+                            } else {
+                                ConsentStatus.Failed(AdError(code = (error.code ?: 0).toString(), message = error.localizedDescription ?: "Consent info update failed."))
+                            }
+                            _status.value = result
+                            continuation.resume(Unit)
+                        }
                     }
-                    _status.value = result
-                    continuation.resume(Unit)
                 }
             }
+        } catch (timeout: NativeCallbackTimeoutException) {
+            AdLogger.e("iOS UMP consent info update timed out.", timeout)
+            _status.value = ConsentStatus.Failed(
+                AdError.message(timeout.message ?: "UMP consent info update timed out.")
+            )
         }
         _status.value
     }
 
     override suspend fun gatherConsent(config: AdConfig): ConsentStatus = withContext(Dispatchers.Main.immediate) {
-    val consentInformation = UMPConsentInformation.sharedInstance
-    val update = requestConsentInfoUpdate(config)
+        val consentInformation = UMPConsentInformation.sharedInstance
+        // Unlike Android, this DOES route through the public requestConsentInfoUpdate. That is not
+        // an oversight and should not be "harmonised": the iOS info update goes through
+        // UMPConsentInformation.sharedInstance and needs no view controller, so there is no second
+        // host wait to eliminate. Only the consent FORM below needs one, and it is acquired once,
+        // there. On Android the equivalent call does need an Activity, which is why that platform
+        // hoists the acquisition instead.
+        val update = requestConsentInfoUpdate(config)
         if (update is ConsentStatus.Failed && !consentInformation.canRequestAds) return@withContext update
-        val rootVC = topViewController()
+        // Waits rather than failing on the first null. topViewController() deliberately
+        // reports null while the top controller is mid-presentation or mid-dismissal, which
+        // is routine at launch — the host's Compose UIViewController is often still being
+        // presented when a startup effect first runs.
+        val rootVC = awaitHost(InitializationTimeouts.consentHost) { topViewController() }
         if (rootVC == null) {
+            AdLogger.w(
+                "No usable iOS root view controller for the UMP consent form after waiting " +
+                    "${InitializationTimeouts.consentHost}. Consent was not gathered on this " +
+                    "attempt; the host " +
+                    "app should retry."
+            )
             _status.value = ConsentStatus.Failed(AdError.message("No root view controller for consent form."))
             return@withContext _status.value
         }

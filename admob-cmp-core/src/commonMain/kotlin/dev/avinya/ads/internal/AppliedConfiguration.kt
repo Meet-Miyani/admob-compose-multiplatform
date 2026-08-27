@@ -1,0 +1,106 @@
+package dev.avinya.ads.internal
+
+import dev.avinya.ads.AdError
+import dev.avinya.ads.AdErrorCode
+import dev.avinya.ads.AdInitializationConfigIdentity
+import dev.avinya.ads.AdManagerStatus
+import dev.avinya.ads.nativead.NativeAdMemoryPolicy
+
+/**
+ * What a repeat `initialize()` should do, given what the process singleton already accepted.
+ *
+ * Extracted from the two platform managers, whose `appliedOutcome` bodies were byte-identical apart
+ * from a log prefix. Both now adapt this one decision, which keeps them from drifting and — more
+ * importantly — makes the semantics testable in `commonTest`: the platform managers reach
+ * `MobileAds`/`GADMobileAds` through statics, so they cannot be exercised end-to-end without a
+ * static-mocking dependency.
+ */
+internal sealed interface AppliedConfigurationDecision {
+
+    /** No configuration has been accepted yet, so the caller should proceed with initialization. */
+    data object NotApplied : AppliedConfigurationDecision
+
+    /**
+     * The request matches what was already applied; it is idempotent.
+     *
+     * @property publish the terminal status to republish, or `null` when initialization has not yet
+     *   reached a terminal state and the caller should leave the current status alone.
+     */
+    data class Accepted(val publish: AdManagerStatus?) : AppliedConfigurationDecision
+
+    /**
+     * The request asks for a configuration the process singleton cannot adopt.
+     *
+     * @property publish the manager's **true** status, which must still be published. Publishing
+     *   [rejection] instead would be a serious bug: `adRequestBlockedError()` blocks every ad
+     *   request whenever the status is not [AdManagerStatus.Ready], so it would take down ad serving
+     *   process-wide for the caller whose configuration *was* accepted.
+     * @property rejection the non-retryable failure returned to **this** caller only, so a refused
+     *   configuration stops looking like success.
+     */
+    data class Conflict(
+        val publish: AdManagerStatus,
+        val rejection: AdManagerStatus.Failed,
+        val reason: String,
+    ) : AppliedConfigurationDecision
+}
+
+/**
+ * The ad SDKs initialize a process-wide singleton exactly once, so a second `initialize()` with
+ * different values cannot be honoured. [reason] names the facet that conflicted.
+ */
+internal fun initializationConflictError(reason: String): AdError = AdError(
+    code = AdErrorCode.INITIALIZATION_CONFLICT,
+    message = "$reason The ad SDK configures a process-wide singleton that cannot be " +
+        "reconfigured after initialization. Restart the process to apply a different " +
+        "configuration, or call initialize() once with the configuration you want.",
+)
+
+/**
+ * Decides the outcome of a repeat `initialize()`.
+ *
+ * @param appliedIdentity identity already accepted by the platform singleton, or `null` if none.
+ * @param configuredNativePolicy native-ad memory policy already bound, or `null` if none.
+ * @param appliedTerminalStatus terminal status recorded when the configuration was accepted.
+ * @param currentStatus the manager's live status, used only when no terminal status was recorded.
+ */
+internal fun appliedConfigurationDecision(
+    appliedIdentity: AdInitializationConfigIdentity?,
+    requestedIdentity: AdInitializationConfigIdentity,
+    configuredNativePolicy: NativeAdMemoryPolicy?,
+    requestedNativePolicy: NativeAdMemoryPolicy,
+    appliedTerminalStatus: AdManagerStatus?,
+    currentStatus: AdManagerStatus,
+): AppliedConfigurationDecision {
+    if (appliedIdentity == null) return AppliedConfigurationDecision.NotApplied
+
+    val truth = appliedTerminalStatus ?: currentStatus
+    fun conflict(reason: String) = AppliedConfigurationDecision.Conflict(
+        publish = truth,
+        rejection = AdManagerStatus.Failed(
+            error = initializationConflictError(reason),
+            retryable = false,
+        ),
+        reason = reason,
+    )
+
+    if (appliedIdentity.platformAppId != requestedIdentity.platformAppId) {
+        return conflict(
+            "This AdManager already initialized with app ID " +
+                "'${appliedIdentity.platformAppId}', but '${requestedIdentity.platformAppId}' " +
+                "was requested."
+        )
+    }
+    if (appliedIdentity.globalRequestConfiguration != requestedIdentity.globalRequestConfiguration) {
+        return conflict(
+            "This AdManager already initialized with a different global request configuration."
+        )
+    }
+    if (configuredNativePolicy != null && configuredNativePolicy != requestedNativePolicy) {
+        return conflict(
+            "This AdManager already bound native ad memory policy $configuredNativePolicy, " +
+                "but $requestedNativePolicy was requested."
+        )
+    }
+    return AppliedConfigurationDecision.Accepted(appliedTerminalStatus)
+}

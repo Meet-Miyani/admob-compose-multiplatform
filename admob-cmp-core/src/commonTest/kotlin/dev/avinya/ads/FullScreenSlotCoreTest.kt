@@ -6,6 +6,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -18,8 +19,11 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
+import kotlin.coroutines.ContinuationInterceptor
 import kotlin.time.Instant
 import kotlin.time.Duration.Companion.seconds
 
@@ -758,69 +762,345 @@ class FullScreenSlotCoreTest {
     }
 
     @Test
-    fun `show with audio options applies overrides and restores on success`() = runTest(StandardTestDispatcher()) {
-        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        try {
-            var appliedMuted: Boolean? = null
-            var appliedVolume: Float? = null
-            var restored = false
-            val audioController = object : dev.avinya.ads.internal.FullScreenAudioController {
-                override fun applyOverrides(options: FullScreenAdOptions): dev.avinya.ads.internal.AudioRestoreHandle? {
-                    appliedMuted = options.audioMuted
-                    appliedVolume = options.audioVolume
-                    return dev.avinya.ads.internal.AudioRestoreHandle { restored = true }
-                }
-            }
-            val slot = FakeFullScreenSlot(
-                testPlacement,
-                testGlobalEvents(),
-                unblockedAdRequestError(),
-                tickClock(),
-                audioController = audioController
-            )
-            slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
-            slot.load()
+    fun `show with audio options applies overrides and restores on success`() = runSlotTest {
+        val audioController = RecordingAudioController()
+        val slot = FakeFullScreenSlot(
+            testPlacement,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            audioController = audioController
+        )
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.load()
 
-            val options = FullScreenAdOptions(audioMuted = true, audioVolume = 0.5f)
-            val result = slot.show(options)
+        val options = FullScreenAdOptions(audioMuted = true, audioVolume = 0.5f)
+        val result = slot.show(options)
 
-            assertIs<AdShowResult.Shown>(result)
-            assertEquals(true, appliedMuted)
-            assertEquals(0.5f, appliedVolume)
-            assertTrue(restored)
-        } finally {
-            Dispatchers.resetMain()
-        }
+        assertIs<AdShowResult.Shown>(result)
+        assertEquals(true, audioController.appliedMuted)
+        assertEquals(0.5f, audioController.appliedVolume)
+        assertEquals(1, audioController.restoreCount)
     }
 
     @Test
-    fun `show with audio options restores on presentation failure`() = runTest(StandardTestDispatcher()) {
-        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        try {
-            var restored = false
-            val audioController = object : dev.avinya.ads.internal.FullScreenAudioController {
-                override fun applyOverrides(options: FullScreenAdOptions): dev.avinya.ads.internal.AudioRestoreHandle? {
-                    return dev.avinya.ads.internal.AudioRestoreHandle { restored = true }
-                }
-            }
-            val slot = FakeFullScreenSlot(
-                testPlacement,
-                testGlobalEvents(),
-                unblockedAdRequestError(),
-                tickClock(),
-                audioController = audioController,
-                presentHandler = { _, _, _ -> AdShowResult.Failed(AdError.message("show failed")) }
-            )
-            slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
-            slot.load()
+    fun `show with audio options restores on presentation failure`() = runSlotTest {
+        val audioController = RecordingAudioController()
+        val slot = FakeFullScreenSlot(
+            testPlacement,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            audioController = audioController,
+            presentHandler = { _, _, _ -> AdShowResult.Failed(AdError.message("show failed")) }
+        )
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.load()
 
-            val options = FullScreenAdOptions(audioMuted = true)
-            val result = slot.show(options)
+        val options = FullScreenAdOptions(audioMuted = true)
+        val result = slot.show(options)
 
-            assertIs<AdShowResult.Failed>(result)
-            assertTrue(restored)
-        } finally {
-            Dispatchers.resetMain()
+        assertIs<AdShowResult.Failed>(result)
+        assertEquals(1, audioController.restoreCount)
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Audio override ownership. The override used to be applied outside showInternal's
+    // try and restored in its finally, which leaked the process-wide presentation gate,
+    // restored audio mid-ad on caller cancellation, and let a failing restore replace the
+    // primary result. FullScreenPresentationHandle now owns the whole lifetime.
+    // ---------------------------------------------------------------------------------
+
+    @Test
+    fun `audio apply failure retires the ad and releases the process-wide token`() = runSlotTest {
+        val arbiter = FullScreenPresentationArbiter()
+        val events = testGlobalEvents()
+        val failures = mutableListOf<AdEvent.ShowFailed>()
+        val collector = launch {
+            events.collect { if (it is AdEvent.ShowFailed) failures += it }
         }
+        val audioController = RecordingAudioController(failOnApply = RuntimeException("audio exploded"))
+        val slot = FakeFullScreenSlot(
+            testPlacement,
+            events,
+            unblockedAdRequestError(),
+            tickClock(),
+            arbiter = arbiter,
+            audioController = audioController
+        )
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.load()
+
+        val result = slot.show(FullScreenAdOptions(audioMuted = true))
+        advanceUntilIdle()
+
+        assertIs<AdShowResult.Failed>(result)
+        // The ad was already out of the cache when the override threw, so the handle's terminal
+        // close is the only thing that can retire it.
+        assertEquals(listOf("ad1"), slot.destroyedAds)
+        // The headline: a stranded token here blocks EVERY later full-screen ad for the process.
+        assertFalse(arbiter.isHeld, "the arbiter token must not survive an audio apply failure")
+        assertEquals(1, failures.size, "exactly one ShowFailed must be emitted")
+        assertTrue(
+            failures.single().error.message.contains("audio", ignoreCase = true),
+            "the error should name audio, not report a generic presentation failure"
+        )
+
+        // And the slot is genuinely reusable, which is what a leaked token would prevent.
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad2"))
+        slot.load()
+        assertIs<AdShowResult.Shown>(slot.show())
+        collector.cancel()
+    }
+
+    @Test
+    fun `presence accounting returns to zero when the audio apply fails`() = runSlotTest {
+        val deltas = mutableListOf<Int>()
+        val slot = FakeFullScreenSlot(
+            testPlacement,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            onPresentationChanged = { deltas += it },
+            audioController = RecordingAudioController(failOnApply = RuntimeException("nope"))
+        )
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.load()
+
+        slot.show(FullScreenAdOptions(audioVolume = 0.25f))
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, -1), deltas, "presence must be balanced even when the override throws")
+    }
+
+    @Test
+    fun `cancelling show after hand-off defers the audio restore to the platform close`() = runSlotTest {
+        val audioController = RecordingAudioController()
+        var captured: dev.avinya.ads.internal.FullScreenPresentationHandle? = null
+        val slot = FakeFullScreenSlot(
+            testPlacement,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            onPresentationHandOff = { captured = it },
+            audioController = audioController
+        )
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.load()
+
+        val job = launch { slot.show(FullScreenAdOptions(audioMuted = true)) }
+        advanceUntilIdle()
+        assertNotNull(captured, "the presentation should have reached hand-off")
+
+        job.cancelAndJoin()
+        advanceUntilIdle()
+        // The ad is STILL ON SCREEN: the SDK owns the presentation after hand-off. Restoring here
+        // would end the documented per-presentation override while the user is watching.
+        assertEquals(0, audioController.restoreCount, "caller cancellation must not restore audio")
+
+        captured!!.close(wasShown = true)
+        advanceUntilIdle()
+        assertEquals(1, audioController.restoreCount, "the terminal platform close restores exactly once")
+    }
+
+    @Test
+    fun `hand-off timeout before the SDK is reached restores audio exactly once`() = runSlotTest {
+        val audioController = RecordingAudioController()
+        val slot = FakeFullScreenSlot(
+            testPlacement,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            audioController = audioController,
+            stallBeforeHandOff = true
+        )
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.load()
+
+        val result = slot.show(FullScreenAdOptions(audioMuted = true))
+        advanceUntilIdle()
+
+        assertIs<AdShowResult.Failed>(result)
+        // Pre-hand-off the core still owns the presentation, so the watchdog's close must restore.
+        assertEquals(1, audioController.restoreCount)
+    }
+
+    @Test
+    fun `a throwing audio restore does not change a successful show result`() = runSlotTest {
+        val arbiter = FullScreenPresentationArbiter()
+        val audioController = RecordingAudioController(failOnRestore = RuntimeException("restore exploded"))
+        val slot = FakeFullScreenSlot(
+            testPlacement,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            arbiter = arbiter,
+            audioController = audioController
+        )
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.load()
+
+        val result = slot.show(FullScreenAdOptions(audioMuted = true))
+        advanceUntilIdle()
+
+        assertIs<AdShowResult.Shown>(result)
+        assertEquals(1, audioController.restoreCount)
+        // A throw escaping runAudioRestore would abort the rest of the terminal close, which is
+        // what actually releases the arbiter and retires the ad.
+        assertFalse(arbiter.isHeld, "cleanup failure must not strand the presentation token")
+        assertEquals(listOf("ad1"), slot.destroyedAds)
+    }
+
+    @Test
+    fun `a throwing audio restore does not mask a typed presentation failure`() = runSlotTest {
+        val slot = FakeFullScreenSlot(
+            testPlacement,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            audioController = RecordingAudioController(failOnRestore = RuntimeException("restore exploded")),
+            presentHandler = { _, _, _ -> AdShowResult.Failed(AdError.message("the real failure")) }
+        )
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.load()
+
+        val result = slot.show(FullScreenAdOptions(audioMuted = true))
+        advanceUntilIdle()
+
+        val failed = assertIs<AdShowResult.Failed>(result)
+        assertEquals("the real failure", failed.error.message, "the primary outcome must survive")
+    }
+
+    @Test
+    fun `caller cancellation before hand-off is preserved and still restores audio`() = runSlotTest {
+        val audioController = RecordingAudioController()
+        val slot = FakeFullScreenSlot(
+            testPlacement,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            audioController = audioController,
+            stallBeforeHandOff = true
+        )
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.load()
+
+        val job = launch { slot.show(FullScreenAdOptions(audioMuted = true)) }
+        advanceUntilIdle()
+        job.cancelAndJoin()
+        advanceUntilIdle()
+
+        // Pre-hand-off there is no SDK callback to close the token, so closeIfCoreOwned() must
+        // both release the presentation and revert the override.
+        assertEquals(1, audioController.restoreCount)
+    }
+
+    @Test
+    fun `applies audio overrides on the main dispatcher`() = runSlotTest {
+        val audioController = RecordingAudioController()
+        val slot = FakeFullScreenSlot(
+            testPlacement,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            audioController = audioController
+        )
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.load()
+
+        // Invoke from a worker dispatcher: the caller's context must not decide where GMA is
+        // touched. There is no Looper/NSThread equivalent in commonTest, so compare the
+        // ContinuationInterceptor identity against Main's.
+        val mainInterceptor = withContext(Dispatchers.Main.immediate) {
+            currentCoroutineContext()[ContinuationInterceptor]
+        }
+        withContext(StandardTestDispatcher(testScheduler)) {
+            slot.show(FullScreenAdOptions(audioMuted = true))
+        }
+        advanceUntilIdle()
+
+        assertNotNull(audioController.applyInterceptor)
+        assertSame(
+            mainInterceptor,
+            audioController.applyInterceptor,
+            "applyOverrides reaches GMA and must observe Dispatchers.Main"
+        )
+    }
+
+    @Test
+    fun `a null audio restore handle is tolerated`() = runSlotTest {
+        val audioController = RecordingAudioController(returnNullHandle = true)
+        val slot = FakeFullScreenSlot(
+            testPlacement,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            audioController = audioController
+        )
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.load()
+
+        assertIs<AdShowResult.Shown>(slot.show(FullScreenAdOptions(audioMuted = true)))
+        assertEquals(0, audioController.restoreCount)
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Detached reload after show. loadForGeneration deliberately rethrows unexpected
+    // mapper / onAdLoaded / getResponseInfo failures so a foreground caller sees them,
+    // but the reload is launched into a scope nobody awaits — so that rethrow reached a
+    // Main coroutine's uncaught handler and could kill the host process.
+    // ---------------------------------------------------------------------------------
+
+    @Test
+    fun `a throwing automatic reload does not escape as an uncaught exception`() = runSlotTest {
+        val reloading = testPlacement.copy(cachePolicy = AdCachePolicy(reloadAfterShow = true))
+        var loads = 0
+        val slot = FakeFullScreenSlot(
+            reloading,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            loadHandler = { _ ->
+                loads++
+                // First load succeeds and is shown; the reload it triggers blows up the way a
+                // publisher mapper or getResponseInfo can.
+                if (loads == 1) AdAttemptResult.Success("ad1")
+                else throw IllegalStateException("mapper exploded during reload")
+            }
+        )
+        slot.load()
+        assertIs<AdShowResult.Shown>(slot.show())
+        advanceUntilIdle()
+
+        // Reaching here at all is the assertion: an uncaught throw on the Main test dispatcher
+        // fails runTest. Belt and braces on the observable state:
+        assertEquals(2, loads, "the reload should have been attempted")
+        assertFalse(slot.loadState.value is AdLoadState.Loading, "state must not be stuck Loading")
+    }
+
+    @Test
+    fun `the slot still works after a failed automatic reload`() = runSlotTest {
+        val reloading = testPlacement.copy(cachePolicy = AdCachePolicy(reloadAfterShow = true))
+        var loads = 0
+        val slot = FakeFullScreenSlot(
+            reloading,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            loadHandler = { _ ->
+                loads++
+                if (loads == 2) throw IllegalStateException("mapper exploded during reload")
+                AdAttemptResult.Success("ad$loads")
+            }
+        )
+        slot.load()
+        slot.show()
+        advanceUntilIdle()
+
+        // The supervisor must still be alive and the slot usable: a manual load succeeds and the
+        // ad can be presented.
+        slot.load()
+        advanceUntilIdle()
+        assertIs<AdShowResult.Shown>(slot.show())
     }
 }

@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:AdLayoutPreview.kt$margin.startDp != 0f || margin.topDp != 0f || margin.endDp != 0f || margin.bottomDp != 0f</ID>
+    <ID>ComplexCondition:AdLayoutPreview.kt$padding.startDp != 0f || padding.topDp != 0f || padding.endDp != 0f || padding.bottomDp != 0f</ID>
+    <ID>ComplexCondition:AndroidNativeAdLayoutRenderer.kt$AndroidNativeAdLayoutRenderer$modifier.backgroundArgb != null || modifier.borderColorArgb != null || modifier.cornerRadiusDp != null || modifier.borderRadiusDp != null</ID>
+    <ID>ComplexCondition:IosNativeAdView.kt$!measuredHeight.isFinite() || measuredHeight &lt;= 0.0 || !currentHeight.isFinite() || currentHeight &lt;= 0.0</ID>
+    <ID>ComplexCondition:LayoutSource.kt$l == 0f &amp;&amp; t == 0f &amp;&amp; r == 0f &amp;&amp; b == 0f</ID>
+    <ID>CyclomaticComplexMethod:AdLayoutPreview.kt$@Composable private fun RenderAdLayoutPreviewNode( node: AdNode, data: AdLayoutPreviewData, modifier: Modifier = Modifier )</ID>
+    <ID>CyclomaticComplexMethod:AdLayoutPreview.kt$internal fun AdModifier.toComposeModifier(): Modifier</ID>
+    <ID>CyclomaticComplexMethod:AdLayoutValidator.kt$AdLayoutValidator$public fun validate(root: AdNode): AdLayoutValidationReport</ID>
+    <ID>CyclomaticComplexMethod:AndroidBannerAdView.kt$@Composable public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, widthDp: Int?, onEvent: (AdEvent) -> Unit)</ID>
+    <ID>CyclomaticComplexMethod:EventFilter.kt$internal fun AdEvent.detailLine(): String</ID>
+    <ID>CyclomaticComplexMethod:IosNativeAdRenderer.kt$IosNativeAdRenderer$private fun renderStack( children: List&lt;AdNode>, isHorizontal: Boolean, spacing: Float, modifier: AdModifier, crossAxisPlacement: AdAxisPlacement, mainAxisPlacement: AdAxisPlacement, ): UIView</ID>
+    <ID>MaxLineLength:AdLayout.kt$is AdContainerNode.Column -> "column(mod=$modifier,ha=$horizontalAlignment,va=$verticalAlignment,sp=$spacingDp,children=${children.joinToString("|") { it.identity() }})"</ID>
+    <ID>MaxLineLength:AdLayout.kt$is AdContainerNode.Row -> "row(mod=$modifier,ha=$horizontalAlignment,va=$verticalAlignment,sp=$spacingDp,children=${children.joinToString("|") { it.identity() }})"</ID>
+    <ID>MaxLineLength:AdLayoutValidator.kt$AdLayoutValidator$warnings += warning("missing_ad_choices_space", "Native layout should reserve space for the SDK-owned AdChoices overlay.", "root")</ID>
+    <ID>MaxLineLength:AndroidNativeAdLayoutRenderer.kt$AndroidNativeAdLayoutRenderer$FrameLayout.LayoutParams(modifier.width.toLayoutParam(density), modifier.height.toLayoutParam(density), alignment.toAndroidGravity())</ID>
+    <ID>MaxLineLength:AndroidNativeAdLayoutRenderer.kt$AndroidNativeAdLayoutRenderer$addView(wrapForMeasurement(buildNode(child, nativeAdView), child.modifier), frameParams(child.modifier, node.contentAlignment))</ID>
+    <ID>MaxLineLength:AndroidNativeAdLayoutRenderer.kt$AndroidNativeAdLayoutRenderer$if</ID>
+    <ID>MaxLineLength:AndroidNativeAdLayoutRenderer.kt$AndroidNativeAdLayoutRenderer$view.setPadding(dp(modifier.padding.startDp), dp(modifier.padding.topDp), dp(modifier.padding.endDp), dp(modifier.padding.bottomDp))</ID>
+    <ID>MaxLineLength:AndroidNativeRenderBindingTest.kt$AndroidNativeRenderBindingTest$assertFalse(isNativeEventForLease(placementId = "native", adInstanceId = "current", event = AdEvent.Impression("native", "replaced")))</ID>
+    <ID>MaxLineLength:FormatsTab.kt$DebugMono("slot: ${state.slots[slot.key].label()} · manager loaded ${managerState.loadedAds}, reserved ${managerState.reservedLoads}")</ID>
+    <ID>MaxLineLength:IosNativeAdRenderer.kt$IosNativeAdRenderer$val descriptor = UIFont.systemFontOfSize(size, weight).fontDescriptor.fontDescriptorWithDesign(UIFontDescriptorSystemDesignMonospaced)</ID>
+    <ID>MaxLineLength:IosNativeAdRenderer.kt$IosNativeAdRenderer$val descriptor = UIFont.systemFontOfSize(size, weight).fontDescriptor.fontDescriptorWithDesign(UIFontDescriptorSystemDesignSerif)</ID>
+    <ID>MaxLineLength:IosNativeRenderBindingTest.kt$IosNativeRenderBindingTest$assertFalse(isNativeEventForLease(placementId = "native", adInstanceId = "current", event = AdEvent.Impression("native", "replaced")))</ID>
+    <ID>MaxLineLength:IosNativeRenderBindingTest.kt$IosNativeRenderBindingTest$assertFalse(isNativeEventForLease(placementId = "native", adInstanceId = "first", event = AdEvent.VideoStarted("native", adInstanceId = "second")))</ID>
+    <ID>MaxLineLength:IosNativeRenderBindingTest.kt$IosNativeRenderBindingTest$assertTrue(isNativeEventForLease(placementId = "native", adInstanceId = "first", event = AdEvent.VideoStarted("native", adInstanceId = "first")))</ID>
+    <ID>UnusedPrivateMember:AdDebugScreen.kt$@OptIn(ExperimentalFoundationApi::class) @Preview @Composable private fun ConsoleHandlePreview()</ID>
+    <ID>UnusedPrivateMember:AdDebugScreen.kt$@OptIn(ExperimentalFoundationApi::class) @Preview @Composable private fun ConsolePanelPreview()</ID>
+    <ID>UnusedPrivateMember:AdDebugScreen.kt$@Preview @Composable private fun AdDebugScreenPreview()</ID>
+    <ID>UnusedPrivateMember:AdDebugScreen.kt$@Preview @Composable private fun HeaderPreview()</ID>
+  </CurrentIssues>
+</SmellBaseline>

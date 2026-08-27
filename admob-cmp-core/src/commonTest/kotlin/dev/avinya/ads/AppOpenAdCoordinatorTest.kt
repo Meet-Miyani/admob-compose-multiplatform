@@ -8,9 +8,14 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 
@@ -318,4 +323,120 @@ class AppOpenAdCoordinatorTest {
                 "the coordinator must recover once the token is released"
             )
         }
+
+    // ---------------------------------------------------------------------------------
+    // stop() ownership. It used to cancel only the foreground collector and the
+    // cold-start preload; the show/reload coroutines launched from a foreground
+    // transition went onto the CALLER's scope and outlived stop() entirely.
+    // ---------------------------------------------------------------------------------
+
+    @Test
+    fun `stop cancels an automatic show already in flight`() = runTest(StandardTestDispatcher()) {
+        val foreground = MutableStateFlow(false)
+        val showGate = CompletableDeferred<Unit>()
+        var showCompleted = false
+        // Gate show(), which is what showNow() calls. An earlier version of this test gated
+        // showIfAvailable() and therefore proved nothing.
+        var showStarted = false
+        val controller = FakeAppOpenAdController(beforeShow = {
+            showStarted = true
+            showGate.await()
+            showCompleted = true
+        })
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler))
+        var now = Instant.fromEpochSeconds(1000)
+        val coordinator = AppOpenAdCoordinator(
+            manager = FakeAdManager(),
+            controller = controller,
+            config = AppOpenConfig(preloadOnStart = false),
+            foregroundEvents = foreground,
+            clock = { now },
+        )
+
+        coordinator.start(scope)
+        // Let the collector observe the initial `false` first: onBackground() records the timestamp
+        // that the minBackgroundDuration gate compares against. Without this drain the first
+        // emission the collector sees is `true`, backgroundedAtInstant is still null, and the
+        // elapsed duration is ZERO -- so no automatic show is attempted and the test proves nothing.
+        advanceUntilIdle()
+        now = Instant.fromEpochSeconds(1005)
+        foreground.value = true
+        advanceUntilIdle()               // the show is now suspended on the gate
+
+        // Guards against the test proving nothing: if the automatic show never started, the
+        // assertion below would pass no matter what stop() does.
+        assertTrue(showStarted, "the automatic show should be suspended mid-flight by now")
+
+        coordinator.stop()
+        showGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(showCompleted, "no automatic show may complete after stop()")
+        // The host's own scope must survive: the coordinator owns a child, not the parent.
+        assertTrue(scope.isActive, "stop() must not cancel the caller's scope")
+    }
+
+    @Test
+    fun `a restart does not let a stale child act`() = runTest(StandardTestDispatcher()) {
+        val foreground = MutableStateFlow(false)
+        val firstGate = CompletableDeferred<Unit>()
+        var shows = 0
+        val controller = FakeAppOpenAdController(beforeShow = {
+            shows++
+            if (shows == 1) firstGate.await()
+        })
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler))
+        var now = Instant.fromEpochSeconds(1000)
+        val coordinator = AppOpenAdCoordinator(
+            manager = FakeAdManager(),
+            controller = controller,
+            config = AppOpenConfig(preloadOnStart = false),
+            foregroundEvents = foreground,
+            clock = { now },
+        )
+
+        coordinator.start(scope)
+        // Let the collector observe the initial `false` first: onBackground() records the timestamp
+        // that the minBackgroundDuration gate compares against. Without this drain the first
+        // emission the collector sees is `true`, backgroundedAtInstant is still null, and the
+        // elapsed duration is ZERO -- so no automatic show is attempted and the test proves nothing.
+        advanceUntilIdle()
+        now = Instant.fromEpochSeconds(1005)
+        foreground.value = true
+        advanceUntilIdle()
+
+        // Restart while the first show is still suspended. The stale child must not be able to
+        // release the admission it holds and let a second show through behind the new lifecycle.
+        coordinator.stop()
+        coordinator.start(scope)
+        firstGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(shows <= 1, "a stale child from the previous lifecycle acted after restart")
+    }
+
+    @Test
+    fun `cancelling the host scope stops the coordinator`() = runTest(StandardTestDispatcher()) {
+        val foreground = MutableStateFlow(false)
+        val controller = FakeAppOpenAdController()
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler))
+        var now = Instant.fromEpochSeconds(1000)
+        val coordinator = AppOpenAdCoordinator(
+            manager = FakeAdManager(),
+            controller = controller,
+            config = AppOpenConfig(preloadOnStart = false),
+            foregroundEvents = foreground,
+            clock = { now },
+        )
+
+        coordinator.start(scope)
+        advanceUntilIdle()
+        scope.cancel()
+        now = Instant.fromEpochSeconds(1005)
+        foreground.value = true
+        advanceUntilIdle()
+
+        // Parenting the lifecycle to the caller's Job keeps the host in control.
+        assertFalse(controller.showCalled, "a cancelled host scope must stop automatic shows")
+    }
 }

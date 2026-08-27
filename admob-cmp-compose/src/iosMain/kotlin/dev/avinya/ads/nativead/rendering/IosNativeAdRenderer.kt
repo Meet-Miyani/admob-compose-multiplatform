@@ -631,11 +631,18 @@ internal class IosNativeAdRenderer(
      * Paired with required `<=` containment constraints this is the Auto Layout idiom for "size to
      * the largest child": the container shrinks until the first child stops it. The priority sits
      * below `UILayoutPriorityDefaultLow` so a child's own content hugging always wins.
+     *
+     * It must also stay strictly below [SHRINK_TO_FIT_CEILING] — the priority the host measures
+     * with in `systemLayoutSizeFittingSize(verticalFittingPriority:)`. Sitting *at* it made the two
+     * "collapse this axis" pressures tie, so the solver had no unique answer and the fitted height
+     * came back dependent on the view's current frame rather than on its content: one ad flipped
+     * between 654pt and 716pt on alternate passes, latching whichever value happened to coincide
+     * with the host height at the moment the ad was registered.
      */
     private fun shrinkToFit(view: UIView, isWidth: Boolean): NSLayoutConstraint =
         (if (isWidth) view.widthAnchor else view.heightAnchor)
             .constraintEqualToConstant(0.0)
-            .also { it.priority = UILayoutPriorityFittingSizeLevel }
+            .also { it.priority = SHRINK_TO_FIT_PRIORITY }
 
     // ---------------------------------------------------------------------------------------
     // Assets
@@ -883,7 +890,12 @@ private const val CIRCLE_CLIP_RADIUS: Double = 10_000.0
 private val UILayoutConstraintAxisHorizontal = platform.UIKit.UILayoutConstraintAxisHorizontal
 private val UILayoutConstraintAxisVertical = platform.UIKit.UILayoutConstraintAxisVertical
 private val UILayoutPriorityDefaultLow = platform.UIKit.UILayoutPriorityDefaultLow
-private val UILayoutPriorityFittingSizeLevel = platform.UIKit.UILayoutPriorityFittingSizeLevel
+
+/** `UILayoutPriorityFittingSizeLevel` — what `IosNativeAdHostView` measures the content with. */
+private val SHRINK_TO_FIT_CEILING = platform.UIKit.UILayoutPriorityFittingSizeLevel
+
+/** Strictly below [SHRINK_TO_FIT_CEILING]; see `shrinkToFit`. */
+private val SHRINK_TO_FIT_PRIORITY = SHRINK_TO_FIT_CEILING - 1f
 
 /**
  * Sits below every default hugging priority so a weighted child yields to its siblings and takes

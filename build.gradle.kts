@@ -12,6 +12,70 @@ plugins {
     // Dokka publication. Subprojects then apply `id("org.jetbrains.dokka")`
     // without a version, resolving it from this build's script classpath.
     alias(libs.plugins.dokka)
+    alias(libs.plugins.detekt)
+    alias(libs.plugins.kover) apply false
+}
+
+// Static analysis, scoped to the PUBLISHED modules. The sample apps and showcase are consumers,
+// not shipped code, and folding them in would bury real findings in demo-quality noise.
+//
+// Deliberately wired into scripts/release-readiness.sh only, never into release.yml: running no SDK
+// verification in CI is a standing decision for this repository.
+val detektedProjects = setOf("admob-cmp", "admob-cmp-core", "admob-cmp-compose")
+
+subprojects {
+    if (name !in detektedProjects) return@subprojects
+    apply(plugin = "io.gitlab.arturbosch.detekt")
+    extensions.configure<io.gitlab.arturbosch.detekt.extensions.DetektExtension> {
+        parallel = true
+        buildUponDefaultConfig = true
+        config.setFrom(rootProject.layout.projectDirectory.file("gradle/detekt.yml"))
+        // Per module: the baseline task writes one file per project, so a shared path would have
+        // each module overwrite the previous one and silently baseline only the last.
+        baseline = layout.projectDirectory.file("detekt-baseline.xml").asFile
+        basePath = rootProject.projectDir.absolutePath
+        // Detekt defaults to src/main/kotlin, which does not exist in a Kotlin Multiplatform
+        // layout -- without this every module reports NO-SOURCE and the gate passes vacuously.
+        source.setFrom(layout.projectDirectory.dir("src"))
+    }
+
+    // Coverage regression control, per module. Root-level Kover aggregation cannot resolve a
+    // Kotlin Multiplatform project that publishes iOS framework variants -- it sees
+    // debugFrameworkIosArm64 and friends and cannot choose -- so each module verifies itself and
+    // the gate runs both.
+    //
+    // The threshold is a RATCHET, not a target: it records where coverage stands so a change that
+    // meaningfully erodes the suite fails the gate. Raise it when coverage improves; treat any
+    // proposal to LOWER it as a discussion, not a mechanical edit.
+    if (name != "admob-cmp") {
+        apply(plugin = "org.jetbrains.kotlinx.kover")
+        extensions.configure<kotlinx.kover.gradle.plugin.dsl.KoverProjectExtension> {
+            reports {
+                filters {
+                    excludes {
+                        // Debug UI and Compose-generated singletons are exercised visually, not by
+                        // unit tests; counting them would depress the number without saying
+                        // anything about SDK correctness.
+                        classes("dev.avinya.ads.debug.*", "*ComposableSingletons*")
+                    }
+                }
+                verify {
+                    rule("Line coverage must not regress") {
+                        bound { minValue = coverageFloorFor(name) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Per-module line-coverage floors. See the ratchet note above. */
+fun coverageFloorFor(module: String): Int = when (module) {
+    // Measured at the time of writing: core 68.7%, compose 46.1%. Set a few points below so
+    // ordinary churn does not trip the gate while a real erosion of the suite does.
+    "admob-cmp-core" -> 65
+    "admob-cmp-compose" -> 43
+    else -> 0
 }
 
 // Dokka Gradle plugin v2 aggregates through the `dokka` configuration, not

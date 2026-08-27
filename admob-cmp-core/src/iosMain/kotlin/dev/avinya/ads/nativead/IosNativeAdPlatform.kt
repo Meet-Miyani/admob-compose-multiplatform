@@ -112,7 +112,17 @@ internal class IosNativeLoadMachine<A : Any>(private val facade: IosNativeAdLoad
         val flight = Flight(placement, count, multiple, result)
         locked { active += flight }
         result.invokeOnCompletion { cause -> if (cause != null) flight.invalidate() }
-        flight.start()
+        try {
+            flight.start()
+        } catch (t: Throwable) {
+            // facade.start() can throw synchronously -- constructing GADAdLoader, resolving the top
+            // view controller, or an ObjC exception surfacing into Kotlin. The flight was already in
+            // `active` and may already have accepted ads via onAd, so without this the load count
+            // leaked for the process lifetime (throttling all later native capacity), the Deferred
+            // never completed, and accepted GADNativeAd objects were retained with no teardown.
+            flight.abandon(t)
+            throw t
+        }
         return result
     }
 
@@ -147,6 +157,22 @@ internal class IosNativeLoadMachine<A : Any>(private val facade: IosNativeAdLoad
             })
         }
 
+        /**
+         * Terminal cleanup for a flight whose start threw: exactly-once, and safe to interleave
+         * with a late callback from a facade that partially installed itself.
+         */
+        fun abandon(cause: Throwable) {
+            val retired = locked {
+                if (finished) return@locked emptyList()
+                finished = true
+                invalid = true
+                active.remove(this)
+                ads.toList().also { ads.clear() }
+            }
+            retired.forEach(::destroy)
+            result.completeExceptionally(cause)
+        }
+
         fun invalidate() {
             val retired = locked {
                 if (invalid) emptyList() else {
@@ -171,24 +197,68 @@ internal class IosNativeLoadMachine<A : Any>(private val facade: IosNativeAdLoad
     private inline fun <T> locked(block: () -> T): T { lock.lock(); return try { block() } finally { lock.unlock() } }
 }
 
+/**
+ * Placement attribution for every admitted native ad.
+ *
+ * Owns the map behind a lock rather than exposing a bare `mutableMapOf`. `load` and `bindEvents` are
+ * main-confined, but `destroy` is not suspend and the coordinator invokes it from `Effects.run()` on
+ * `Dispatchers.Default` -- so register and remove genuinely ran concurrently. On Kotlin/Native that
+ * is a memory-safety hazard, not merely a lost update, and the visible symptom was an event bound
+ * with an empty or wrong placement id under load/eviction races.
+ *
+ * A lock rather than main-confinement, so `destroy` stays non-suspend. That is what lets the
+ * coordinator keep performing platform destruction outside its own lock.
+ */
+internal class NativePlacementRegistry<A : Any> {
+    private val lock = NSRecursiveLock()
+    private val placements = mutableMapOf<A, String>()
+
+    val size: Int get() = locked { placements.size }
+
+    fun register(ads: List<A>, placementId: String) = locked {
+        ads.forEach { ad -> placements[ad] = placementId }
+    }
+
+    fun placementOf(ad: A): String? = locked { placements[ad] }
+
+    fun remove(ad: A) {
+        locked { placements.remove(ad) }
+    }
+
+    private inline fun <T> locked(block: () -> T): T {
+        lock.lock()
+        return try {
+            block()
+        } finally {
+            lock.unlock()
+        }
+    }
+}
+
 /** Coordinator platform boundary for iOS native-ad sessions. */
 internal class IosNativeAdPlatform(
     private val facade: IosNativeAdLoaderFacade<LoadedNativeAd> = GmaIosNativeAdLoaderFacade(),
 ) : NativeAdPlatform<LoadedNativeAd> {
     private val machine = IosNativeLoadMachine(facade)
-    private val placements = mutableMapOf<LoadedNativeAd, String>()
+
+    private val placements = NativePlacementRegistry<LoadedNativeAd>()
 
     override suspend fun load(placement: AdPlacement, count: Int, generation: Long): AdAttemptResult<NativeAdPlatformBatch<LoadedNativeAd>> =
         withContext(Dispatchers.Main.immediate) {
             val batch = machine.load(placement, count, generation).await()
-            batch.ads.forEach { placements[it] = placement.id }
+            placements.register(batch.ads, placement.id)
             batch.toAttemptResult()
         }
 
     override suspend fun bindEvents(ad: LoadedNativeAd, adInstanceId: String, emit: (AdEvent) -> Unit) =
-        withContext(Dispatchers.Main.immediate) { IosNativeAdOwners.bind(ad, placements[ad] ?: "", adInstanceId, emit) }
+        withContext(Dispatchers.Main.immediate) {
+            IosNativeAdOwners.bind(ad, placements.placementOf(ad) ?: "", adInstanceId, emit)
+        }
 
-    override fun destroy(ad: LoadedNativeAd) { placements.remove(ad); machine.destroy(ad) }
+    override fun destroy(ad: LoadedNativeAd) {
+        placements.remove(ad)
+        machine.destroy(ad)
+    }
     override fun responseInfo(ad: LoadedNativeAd): AdResponseInfo? = ad.responseInfo
     override fun mediaInfo(ad: LoadedNativeAd): NativeMediaInfo? = ad.mediaInfo
 }

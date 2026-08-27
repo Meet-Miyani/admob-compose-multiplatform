@@ -20,7 +20,18 @@ public data class FullScreenAdOptions(
     val serverSideVerification: ServerSideVerificationOptions? = null,
     val audioMuted: Boolean? = null,
     val audioVolume: Float? = null
-)
+) {
+    init {
+        // coerceIn does NOT sanitise NaN -- it returns NaN -- so clamping downstream was never
+        // enough to keep an invalid float out of the platform audio setter.
+        audioVolume?.let {
+            require(it.isFinite()) { "FullScreenAdOptions.audioVolume must be finite, was $it." }
+            require(it in 0.0f..1.0f) {
+                "FullScreenAdOptions.audioVolume must be within 0.0..1.0, was $it."
+            }
+        }
+    }
+}
 
 /**
  * Server-side verification options for rewarded and rewarded-interstitial

@@ -546,13 +546,6 @@ internal class NativeAdCoordinatorCore<A : Any>(
             if (currentJob == null) startNextLocked(effects)
         }
 
-        fun cancelLocked(effects: Effects) {
-            currentJob?.let(effects.cancel::add)
-            currentJob = null
-            queue.clear()
-            releaseReservationsLocked()
-        }
-
         fun clearQueuedLocked() {
             queue.clear()
             releaseReservationsLocked()
@@ -573,11 +566,36 @@ internal class NativeAdCoordinatorCore<A : Any>(
         }
 
         fun cancelSlotLocked(sessionKey: String, invalidation: SlotGeneration, effects: Effects) {
+            // Demand is grouped by placement only, so one window update over slots a, b and c on
+            // the same placement becomes a SINGLE batch of three entries. Two bugs followed from
+            // treating a batch as indivisible:
+            //
+            //  - Removal required `entries.all { … }` to match the invalidation, so a batch of
+            //    [a@1, b@1, c@1] with only a@1 invalidated satisfied no predicate. The stale entry
+            //    stayed queued, later won a governor permit, inflated the requested count, and its
+            //    ad was loaded and then destroyed on arrival at recordAdmitted — a wasted network
+            //    load and a wasted ad, with hard-cap capacity burned while live slots sat deferred.
+            //  - The recordDeferred sweep matched on (slotKey, generation) with no session guard,
+            //    but `generation` is a PER-SESSION counter. Session B legitimately holds
+            //    ("item-0", 1) at the same time as session A, so invalidating A's item-0@1 cleared
+            //    inFlight on B's queued slot. B's batch then survived removal on the session-key
+            //    mismatch, loaded, and was rejected at recordAdmitted — leaving B's slot Empty.
+            //
+            // Rebuilding per entry, scoped to the session, fixes both and drops emptied batches.
+            val surviving = mutableListOf<Batch>()
             queue.forEach { batch ->
-                batch.entries.filter { it.key == invalidation.slotKey && it.generation == invalidation.generation }
-                    .forEach { batch.holder.core.recordDeferred(it.key, it.generation) }
+                if (batch.holder.core.key != sessionKey) {
+                    surviving += batch
+                    return@forEach
+                }
+                val (invalidated, live) = batch.entries.partition { entry ->
+                    entry.key == invalidation.slotKey && entry.generation == invalidation.generation
+                }
+                invalidated.forEach { batch.holder.core.recordDeferred(it.key, it.generation) }
+                if (live.isNotEmpty()) surviving += Batch(batch.holder, live)
             }
-            queue.removeAll { batch -> batch.holder.core.key == sessionKey && batch.entries.all { it.key == invalidation.slotKey && it.generation == invalidation.generation } }
+            queue.clear()
+            queue.addAll(surviving)
             val owners = reservationOwners.values.filter {
                 it.sessionKey == sessionKey && it.slotKey == invalidation.slotKey && it.slotGeneration == invalidation.generation
             }
@@ -597,7 +615,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
             if (candidateEntries.size < requested.entries.size) {
                 queue.add(0, Batch(requested.holder, requested.entries.drop(candidateEntries.size)))
             }
-            val grantedEntries = mutableListOf<SlotDemandEntry>()
+            val grantedPairs = mutableListOf<ReservationSlotPair>()
             candidateEntries.forEach { entry ->
                 val decision = governor.reserve(
                     demandClass = entry.demandClass,
@@ -623,7 +641,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 } else {
                     val pair = ReservationSlotPair(reservation, entry)
                     activeReservations += pair
-                    grantedEntries += entry
+                    grantedPairs += pair
                     reservationOwners[reservation.id] = ReservationOwner(placementId, requested.holder.core.key, entry.key, entry.generation, reservation)
                 }
             }
@@ -635,12 +653,16 @@ internal class NativeAdCoordinatorCore<A : Any>(
             // room), the platform only sees the granted size — never
             // zero, because reserve with allowPartial=true still
             // surfaces whatever fit.
-            val grantedCount = grantedEntries.size
+            val grantedCount = grantedPairs.size
             if (grantedCount == 0) {
                 processNextOrCleanupLocked(effects)
                 return
             }
-            val launchedPairs = activeReservations.toList()
+            // This call's own grants, not the whole activeReservations list. Result binding is
+            // positional against grantedCount, so any pair lingering from an earlier launch would
+            // shift the ad-to-slot mapping. Serialisation via currentJob keeps the two equal today,
+            // which made that an invariant held by accident; deriving it here makes it structural.
+            val launchedPairs = grantedPairs.toList()
             currentJob = scope.launch {
                 try {
                     var attempted = false
@@ -724,15 +746,40 @@ internal class NativeAdCoordinatorCore<A : Any>(
         private fun handleCancelled(launchedPairs: List<ReservationSlotPair>, submittedGen: Long) {
             val effects = lock.withLock {
                 val effects = Effects()
+                // Siblings of an invalidated slot are still wanted. cancelSlotLocked cancels the
+                // whole in-flight job to drop ONE slot, so every other slot in that batch loses its
+                // load through no fault of its own. Marking them Deferred and stopping there left
+                // them Empty until something external re-drove demand (updateWindow / setMounted /
+                // expireSlot) — and since a deferred slot holds no record, the TTL sweep never
+                // touches it, so an unchanged viewport left them empty indefinitely.
+                val resubmit = mutableMapOf<String, MutableList<SlotDemandEntry>>()
                 if (generation == submittedGen) {
                     livePairs(launchedPairs).forEach { pair ->
-                        reservationOwners[pair.reservation.id]?.let { owner ->
-                            sessions[owner.sessionKey]?.core?.recordDeferred(owner.slotKey, owner.slotGeneration)
+                        val owner = reservationOwners[pair.reservation.id] ?: return@forEach
+                        val holder = sessions[owner.sessionKey]
+                        // A closed session is already removed from `sessions`, so the null check
+                        // covers closure; `active` covers a deactivated one.
+                        if (holder != null && holder.active) {
+                            // Deliberately NOT recordDeferred here. recordAdmitted requires
+                            // entry.inFlight == generation, and recordDeferred nulls it — so
+                            // deferring first and re-queueing after would guarantee the ad we just
+                            // asked for is rejected on arrival. Leaving the slot in flight is what
+                            // makes the resubmission actually deliver.
+                            resubmit.getOrPut(owner.sessionKey) { mutableListOf() } += pair.entry
+                        } else {
+                            // Nothing can carry this demand any more; settle it so the slot is not
+                            // left believing a load is still in flight.
+                            holder?.core?.recordDeferred(owner.slotKey, owner.slotGeneration)
                         }
                     }
                 }
                 currentJob = null
                 releaseReservationsLocked()
+                // Re-queue before processNextOrCleanupLocked, which is what starts the next batch —
+                // and which would otherwise delete this scheduler outright once the queue is empty.
+                resubmit.forEach { (sessionKey, entries) ->
+                    sessions[sessionKey]?.let { holder -> queue.add(Batch(holder, entries)) }
+                }
                 processNextOrCleanupLocked(effects)
                 effects
             }

@@ -26,20 +26,38 @@ import kotlinx.coroutines.withContext
 import kotlin.native.ref.WeakReference
 import platform.Foundation.NSError
 import platform.Foundation.NSRecursiveLock
+import platform.Foundation.NSThread
 import platform.darwin.NSObject
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 
+/**
+ * Unlike Android, iOS needs no injected state: `GADMobileAds.sharedInstance.applicationMuted` and
+ * `applicationVolume` are readable properties, so the true pre-override values can be snapshotted
+ * here. Keep the asymmetry — it reflects the two SDKs, not an oversight.
+ */
 internal object IosFullScreenAudioController : FullScreenAudioController {
-    override fun applyOverrides(options: FullScreenAdOptions): AudioRestoreHandle? {
+    override suspend fun applyOverrides(options: FullScreenAdOptions): AudioRestoreHandle? {
         if (options.audioMuted == null && options.audioVolume == null) return null
         val previousMuted = GADMobileAds.sharedInstance.applicationMuted
         val previousVolume = GADMobileAds.sharedInstance.applicationVolume
         options.audioMuted?.let { GADMobileAds.sharedInstance.applicationMuted = it }
         options.audioVolume?.let { GADMobileAds.sharedInstance.applicationVolume = it.coerceIn(0f, 1f) }
         return AudioRestoreHandle {
-            GADMobileAds.sharedInstance.applicationMuted = previousMuted
-            GADMobileAds.sharedInstance.applicationVolume = previousVolume
+            // restore() is not a suspend context and can be driven from a GMA callback thread or
+            // the hand-off watchdog, so hop via GCD — mirroring the awaitClose hop in
+            // ForegroundSignal.ios.kt. Immediate when already on Main so the restore cannot be
+            // overtaken by the next show()'s Main.immediate apply.
+            audioRestoreOnMain {
+                options.audioMuted?.let { GADMobileAds.sharedInstance.applicationMuted = previousMuted }
+                options.audioVolume?.let { GADMobileAds.sharedInstance.applicationVolume = previousVolume }
+            }
         }
     }
+}
+
+private fun audioRestoreOnMain(block: () -> Unit) {
+    if (NSThread.isMainThread) block() else dispatch_async(dispatch_get_main_queue(), block)
 }
 
 internal class IosInterstitialSlot(
