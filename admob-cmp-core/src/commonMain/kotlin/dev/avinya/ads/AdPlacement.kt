@@ -49,34 +49,43 @@ public data class AdUnitIds(
  * )
  * ```
  *
- * @param id A unique identifier used to cache this placement's controller. (e.g., "home_banner")
- * @param format The ad format (Banner, Native, Interstitial, Rewarded, etc.).
- * @param adUnitIds Your AdMob ad unit IDs for iOS and Android.
- * @param requestOptions Optional custom targeting, keywords, or content URLs.
- * @param cachePolicy Controls how many ads to pre-load and how long they live in memory.
- * @param retryPolicy Controls how the SDK handles network failures when loading ads.
- * @param timeoutPolicy Enforces maximum wait times for loading and showing ads.
- * @param bannerSizePolicy Sizing strategy for banners (adaptive, fixed, fluid).
- * @param bannerRefreshPolicy Controls whether the banner auto-refreshes.
- * @param nativeOptions Layout and behavioral options for native ads.
- * @param fullScreenOptions Display options for full-screen ads.
- * @param enabled When false, the SDK completely ignores this placement. Useful for A/B testing or feature flags.
- * @param strictTestMode A safety net for debugging. When `true`, the SDK throws a hard exception if you accidentally pass a production Ad Unit ID instead of a Google Test ID. Only enable this in debug builds.
+ * Treated as immutable by Compose (declared stable in
+ * `admob-cmp-compose/compose_compiler_config.conf`): every property here is itself either a
+ * primitive, an enum, or another type declared stable there — see [AdRequestOptions]'s KDoc
+ * for the one property whose immutability is a documented contract rather than an enforced one.
+ *
  * @throws IllegalArgumentException if [id] is blank, max cache size < 1, or if [strictTestMode] catches a live ad unit ID.
  */
 public data class AdPlacement(
+    /** A unique identifier used to cache this placement's controller. (e.g., "home_banner") */
     val id: String,
+    /** The ad format (Banner, Native, Interstitial, Rewarded, etc.). */
     val format: AdFormat,
+    /** Your AdMob ad unit IDs for iOS and Android. */
     val adUnitIds: AdUnitIds,
+    /** Optional custom targeting, keywords, or content URLs. */
     val requestOptions: AdRequestOptions = AdRequestOptions(),
+    /** Controls how many ads to pre-load and how long they live in memory. */
     val cachePolicy: AdCachePolicy = AdCachePolicy(),
+    /** Controls how the SDK handles network failures when loading ads. */
     val retryPolicy: AdRetryPolicy = AdRetryPolicy(),
+    /** Enforces maximum wait times for loading and showing ads. */
     val timeoutPolicy: AdTimeoutPolicy = AdTimeoutPolicy(),
+    /** Sizing strategy for banners (adaptive, fixed, fluid). */
     val bannerSizePolicy: AdSizePolicy = AdSizePolicy.LargeAnchoredAdaptive(),
+    /** Controls whether the banner auto-refreshes. */
     val bannerRefreshPolicy: BannerRefreshPolicy = BannerRefreshPolicy.AdServerManaged,
+    /** Layout and behavioral options for native ads. */
     val nativeOptions: NativeAdOptions = NativeAdOptions(),
+    /** Display options for full-screen ads. */
     val fullScreenOptions: FullScreenAdOptions = FullScreenAdOptions(),
+    /** When false, the SDK completely ignores this placement. Useful for A/B testing or feature flags. */
     val enabled: Boolean = true,
+    /**
+     * A safety net for debugging. When `true`, the SDK throws a hard exception if you
+     * accidentally pass a production Ad Unit ID instead of a Google Test ID. Only enable this
+     * in debug builds.
+     */
     val strictTestMode: Boolean = false
 ) {
     /**
@@ -115,7 +124,7 @@ public data class AdPlacement(
         require(id.isNotBlank()) { "AdPlacement.id must not be blank." }
         require(cachePolicy.maxSize >= 1) { "AdCachePolicy.maxSize must be at least 1." }
         // Fails CLOSED. AdDebugOptions.testMode only affects UMP — it does NOT make GMA
-        // serve test ads (P0-7), so a developer trusting it requests REAL ads against
+        // serve test ads, so a developer trusting it requests REAL ads against
         // production ad units. That is invalid traffic, and invalid traffic gets AdMob
         // accounts suspended. A warning was not enough; this is a hard stop.
         if (strictTestMode) {
@@ -143,6 +152,14 @@ public data class AdPlacement(
 /**
  * Per-request targeting and configuration options for ad loads. Android-only
  * fields are silently ignored on iOS.
+ *
+ * Treated as deeply immutable by Compose (declared stable in
+ * `admob-cmp-compose/compose_compiler_config.conf`, since this type is compiled without the
+ * Compose plugin and would otherwise carry no stability metadata at all): [keywords],
+ * [neighboringContentUrls], [categoryExclusions], [customTargeting], and [googleExtras] must
+ * not be mutated after construction. A `data class` constructor cannot defensively copy its
+ * own `val` collections, so this is a documented contract, not an enforced one — pass an
+ * immutable collection (or `.toList()`/`.toSet()`/`.toMap()` a mutable one) at the call site.
  */
 public data class AdRequestOptions(
     /** Keywords for ad targeting. */

@@ -1,0 +1,93 @@
+---
+title: "Compose stability for AdMob CMP types"
+description: "Why AdPlacement, NativeAdSession, and AdManager are unstable to the Compose compiler by default, and how to declare them stable in your own composables."
+sidebar:
+  label: "Compose stability"
+---
+
+import { Aside, LinkCard } from '@astrojs/starlight/components';
+
+## Why AdMob CMP types are unstable by default
+
+`admob-cmp-core` — the module that defines `AdPlacement`, `AdManager`,
+`AdRequestOptions`, and every other type this SDK passes into a composable —
+is deliberately compiled **without** the Compose compiler plugin. That split
+shipped in `1.0.2` so the shared state machines and platform code have no
+Compose dependency at all.
+
+The cost is that none of those types carry the `@StabilityInferred` metadata
+the Compose compiler normally generates. A type compiled outside the Compose
+plugin is unstable by default to any module that consumes it — regardless of
+whether every property is a `val` and nothing about it ever mutates. Inside
+`admob-cmp-compose`, this is fixed with a stability configuration file (see
+below); a consumer app writing its **own** composables over these types
+needs the same fix, or those composables silently recompose every time,
+never skipping.
+
+<Aside type="tip">
+You can confirm this for your own composables. Build with
+`-PcomposeReports=true` (see [the Compose docs on the compiler
+report](https://developer.android.com/develop/ui/compose/performance/stability/diagnose#compiler-metrics))
+and check `build/compose-reports/*-composables.txt` for a parameter listed
+as `unstable AdPlacement` or `unstable NativeAdSession`.
+</Aside>
+
+## Declaring the same types stable
+
+Add a stability configuration file to your app module — the exact mechanism
+`admob-cmp-compose` uses internally, in
+[`compose_compiler_config.conf`](https://github.com/Meet-Miyani/admob-compose-multiplatform/blob/master/admob-cmp-compose/compose_compiler_config.conf):
+
+```
+// app/compose_compiler_config.conf
+dev.avinya.ads.AdPlacement
+dev.avinya.ads.AdUnitIds
+dev.avinya.ads.AdRequestOptions
+dev.avinya.ads.AdCachePolicy
+dev.avinya.ads.AdExpirationPolicy
+dev.avinya.ads.AdRetryPolicy
+dev.avinya.ads.AdTimeoutPolicy
+dev.avinya.ads.AdSizePolicy
+dev.avinya.ads.BannerRefreshPolicy
+dev.avinya.ads.FullScreenAdOptions
+dev.avinya.ads.nativead.NativeAdOptions
+dev.avinya.ads.AdError
+dev.avinya.ads.AdResponseInfo
+dev.avinya.ads.AdNetworkResponseInfo
+dev.avinya.ads.AdManager
+dev.avinya.ads.nativead.NativeAdSession
+```
+
+Comments in this file must start with `//` — the compiler's config parser
+rejects `#`.
+
+Wire it into your `build.gradle.kts`, next to wherever your app applies the
+Compose Compiler Gradle plugin:
+
+```kotlin
+composeCompiler {
+    stabilityConfigurationFiles.add(
+        layout.projectDirectory.file("compose_compiler_config.conf")
+    )
+}
+```
+
+Only list a type once you've read its KDoc contract — a stability
+declaration is a promise the compiler trusts without checking. The one that
+matters most: **`AdRequestOptions`'s `keywords`, `neighboringContentUrls`,
+`categoryExclusions`, `customTargeting`, and `googleExtras` must not be
+mutated after construction.** Kotlin's `data class` cannot defensively copy
+its own `val` collections, so pass an immutable collection (or
+`.toList()`/`.toSet()`/`.toMap()` a mutable one) at the call site — mutating
+one of these after handing it to `AdPlacement` breaks the promise silently,
+with no crash and no warning, only a composable that fails to recompose
+when it should.
+
+Do not wildcard `dev.avinya.ads.*`. That would also declare every
+**internal** type in the package stable, most of which genuinely mutate.
+
+<LinkCard
+  title="See it applied"
+  description="The showcase reference app (Fieldnotes) applies this exact configuration — see showcase/compose_compiler_config.conf."
+  href="/project/showcase/"
+/>

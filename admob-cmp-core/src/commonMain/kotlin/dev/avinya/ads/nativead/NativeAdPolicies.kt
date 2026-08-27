@@ -40,12 +40,19 @@ import kotlin.time.Duration.Companion.minutes
  */
 public data class NativeAdMemoryPolicy(
     val softLimit: Int = 4,
-    val hardLimit: Int = 6,
+    val hardLimit: Int = DEFAULT_HARD_LIMIT,
     val inactiveSessionLimit: Int = 1,
     val maxInactiveSessions: Int = 32,
-    val maxSessionRecords: Int = 64,
+    val maxSessionRecords: Int = DEFAULT_MAX_SESSION_RECORDS,
     val inactiveSessionTtl: Duration = 30.minutes,
 ) {
+    public companion object {
+        /** [hardLimit]'s default, exposed so callers reading only the default need not allocate a policy. */
+        public const val DEFAULT_HARD_LIMIT: Int = 6
+        /** [maxSessionRecords]'s default, exposed so callers reading only the default need not allocate a policy. */
+        public const val DEFAULT_MAX_SESSION_RECORDS: Int = 64
+    }
+
     init {
         require(softLimit > 0) { "NativeAdMemoryPolicy.softLimit must be positive, was $softLimit." }
         require(hardLimit > 0) { "NativeAdMemoryPolicy.hardLimit must be positive, was $hardLimit." }

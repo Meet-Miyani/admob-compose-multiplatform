@@ -72,7 +72,7 @@ class AdEventModelsTest {
         assertEquals("p8", AdEvent.VideoEnded("p8").placementId)
     }
 
-    // P1-8: Impression/Clicked/Paid gained an optional adInstanceId so a NativeAdView can
+    // Impression/Clicked/Paid gained an optional adInstanceId so a NativeAdView can
     // filter a shared pool's events flow down to its own leased ad.
     @Test
     fun `AdEvent Impression carries the optional adInstanceId`() {

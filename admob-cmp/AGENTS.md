@@ -7,7 +7,13 @@ iOS 15+).
 ## Entry points
 
 - Compose: `rememberAdManager()` (process-wide singleton), `LocalAdManager`
-- Android, outside Compose: `AdMob.manager(context)`
+- Android, outside Compose: `AdMob.manager(context)` — takes a `Context` because Android's
+  Activity-lifecycle tracking (`CurrentActivityTracker`) needs one to register against.
+- iOS, outside Compose: `IosAdMob.manager` — a parameterless property; iOS's host-window
+  resolution (`RootViewController.kt`) needs no equivalent context object. The name differs
+  from Android's `AdMob` (harmless, but intentional if you're looking for symmetry: don't
+  rename either without a written migration plan — see "Public API changes" in the root
+  [AGENTS.md](../AGENTS.md)).
 - Placements via `LocalAdPlacements` (provides `AdPlacements`) or your own `AdPlacement` instances
 
 ## Canonical initialization
@@ -257,6 +263,21 @@ Android has no ATT; `adManager.tracking` is a no-op there, always reporting
 | iOS link: `_OBJC_CLASS_$_JSContext` undefined | Add `-framework JavaScriptCore` → step 3 above |
 | Banner composable renders nothing | Manager not `Ready`, or `Manual` refresh policy with no `refresh()` call |
 
+## KDoc style for data-class constructors
+
+Three styles existed side by side — a trailing `@param` block (`AdPlacement`), a trailing
+`@property` block (`AdTimeoutPolicy`), and a `/** */` comment directly above each `val`
+(`AdRequestOptions`). Standardize on the third, per-property form for any constructor parameter
+that is a stored property (`val`/`var`) — it is what Dokka renders most usefully next to the
+member itself, and it was already the most common of the three in this codebase. `AdPlacement`
+and `AdTimeoutPolicy` have been converted; migrate others opportunistically when touching them,
+rather than as a standalone sweep.
+
+`@param` remains correct — and is the only option — for a **secondary constructor** whose
+parameters are plain (no `val`/`var`), such as `AdPlacement`'s convenience constructor that takes
+`androidAdUnitId`/`iosAdUnitId` and builds an `AdUnitIds` internally. There is no property to
+attach a doc comment to in that case.
+
 ## Module internals (for agents modifying this library)
 
 - `internal/FullScreenSlotCore` — shared load/show state machine: a
@@ -305,3 +326,40 @@ Android has no ATT; `adManager.tracking` is a no-op there, always reporting
   `dev.avinya.ads.admob-cmp` Gradle plugin (`build/admob-cmp-ios-frameworks/`,
   version-stamped). Bindings-only distribution — NEVER add `staticLibraries`
   to the `.def` files.
+- **Never cite a line number in a cross-file comment.** A comment pointing at
+  `OtherFile.kt:123` goes stale the moment either file is edited, and nothing
+  catches it — one already had (`AndroidGoogleAdManager.kt` cited a line in
+  `IosGoogleAdManager.kt` that had drifted by 46 lines and, worse, no longer
+  supported the claim being made). Name the symbol instead
+  (`IosGoogleAdManager.admissionScope`), which survives reformatting and
+  reordering.
+- **Comments state invariants, not history.** Write what must remain true and
+  what breaks if it is violated, in the present tense. Git history is where
+  "what changed and when" belongs.
+
+  ```kotlin
+  // NO  — changelog voice; the reader gets a story, not a rule
+  // P1-11: this used to filter expired entries WITHOUT mutating, so the
+  // expired SDK objects stayed retained until some later call.
+
+  // YES — invariant voice; the reader gets a rule they can follow
+  // Expiry MUST prune, not merely filter. A non-mutating filter leaves the
+  // expired SDK objects retained and loadState at Loaded until some later
+  // show/load/clear happens to touch the slot.
+  ```
+
+  Specifically, do not write: **ticket/plan IDs** (`P1-11`, `sub-project O`) —
+  they die with the tracker and this repo has already had to strip a whole
+  round of them; **dates or authors** — `git blame` owns those; **status
+  labels** (`Regression:`, `Fixed:`, `Bugfix:`) — they classify without
+  instructing, and every such comment could carry one.
+
+  The one case where naming the *old, broken* version earns its place is
+  Chesterton's Fence: the correct code looks over-complicated and someone will
+  "clean it up" straight back into the defect. Then say so outright —
+  `IosAdMappers.toValueMicros` tells the reader not to reduce it to
+  `doubleValue * 1_000_000`, because that is precisely the edit they would make.
+  That is a guardrail, not history.
+
+  In tests, prefer `// Pins: <contract>` — a regression test documents the
+  behaviour it locks down, not the incident that prompted it.

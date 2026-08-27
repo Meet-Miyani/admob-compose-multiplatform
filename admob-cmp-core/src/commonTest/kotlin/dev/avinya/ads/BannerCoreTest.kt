@@ -141,7 +141,7 @@ class BannerCoreTest {
         assertEquals(
             custom,
             platform.lastRequestOptions,
-            "refresh() must replay the options the original load resolved, not placement defaults (P1-4)"
+            "refresh() must replay the options the original load resolved, not placement defaults"
         )
     }
 
@@ -283,9 +283,8 @@ class BannerCoreTest {
             core.load(BannerGeometry(320), AdSizePolicy.LargeAnchoredAdaptive(), testRequestOptions()) { null }
         }
 
-        // P1-1: only CancellationException was handled, so an arbitrary Throwable escaped with
-        // loadState stuck at Loading — the refresh loop then waits forever on
-        // `loadState !is Loading`, which never becomes true again.
+        // Pins: an arbitrary Throwable must not escape with loadState stuck at Loading — the
+        // refresh loop waits on `loadState !is Loading`, so it would never resume.
         assertTrue(
             core.loadState.value !is AdLoadState.Loading,
             "an unexpected throwable must not strand the controller in Loading; was ${core.loadState.value}"
@@ -349,7 +348,7 @@ class BannerCoreTest {
         assertEquals(listOf<AdSizePolicy>(policy, policy), platform.loadedPolicies)
     }
 
-    // The replay record has two owners: load() owns requestOptions (P1-4), the host's
+    // The replay record has two owners: load() owns requestOptions, the host's
     // container measurement owns size/sizePolicy. These two tests pin BOTH halves. They must
     // pass together — an implementation that picks one whole record over another (rather than
     // merging per-owner on write) fails exactly one of them, which is how this regressed twice.

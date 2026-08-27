@@ -96,12 +96,17 @@ internal fun NSError.toAdError(): AdError {
     )
 }
 
+// AdResponseInfo is declared Compose-stable on the promise that it's deeply immutable
+// (compose_compiler_config.conf). That promise depends on this constructor: `extras` and
+// `adNetworkResponseInfos` below must stay genuinely immutable collections (toStringMap()
+// returns an immutable Map; mapNotNull returns an immutable List) — never pass a
+// MutableMap/MutableList here.
 internal fun GADResponseInfo.toCommon(): AdResponseInfo = AdResponseInfo(
     responseId = responseIdentifier,
     adapterClassName = loadedAdNetworkResponseInfo?.adNetworkClassName,
-    // P1-15: iOS returned an empty map here while Android mapped responseExtras, so
-    // mediation troubleshooting and experiment attribution silently lost data on one
-    // platform only. GADResponseInfo.extrasDictionary is the documented equivalent
+    // Must stay mapped: Android populates this from responseExtras, so leaving iOS empty
+    // silently loses mediation troubleshooting and experiment attribution on one platform
+    // only. GADResponseInfo.extrasDictionary is the documented equivalent
     // ("extra parameters that may be returned in an ad response").
     extras = extrasDictionary.toStringMap(),
     loadedAdNetworkResponseInfo = loadedAdNetworkResponseInfo?.toCommon(),
@@ -133,10 +138,10 @@ private fun GADAdNetworkResponseInfo.toCommon(): AdNetworkResponseInfo = AdNetwo
 /**
  * Converts a GMA decimal ad value to exact micros.
  *
- * P1-14: this used to be `doubleValue * 1_000_000` truncated to Long. Values whose exact
- * decimal is not representable in binary floating point — 0.07 and 8.87 are the textbook
- * cases — drifted by one or more micros, so exported revenue no longer matched the source
- * SDK. All arithmetic now stays in `NSDecimalNumber`, which is base-10.
+ * All arithmetic MUST stay in `NSDecimalNumber`, which is base-10. Do not "simplify" this to
+ * `doubleValue * 1_000_000`: values whose exact decimal is not representable in binary
+ * floating point — 0.07 and 8.87 are the textbook cases — drift by one or more micros, and
+ * exported revenue then disagrees with the source SDK.
  *
  * Rounding is explicit: half-up at the micro, applied only below micro precision.
  */

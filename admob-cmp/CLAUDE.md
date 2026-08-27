@@ -98,28 +98,31 @@ AGENTS.md, not this file.
     `tracking.requestAuthorization()`, then `initialize(config, ConsentMode.InitializeOnlyIfAlreadyAllowed)`. Requesting earlier permanently
     forfeits the IDFA for those requests.
 
-12. **The public ABI is frozen as of sub-project O.** Every breaking change identified by
-    the 2026-07-21 review has been taken or explicitly rejected (see the rejection table in
-    the O plan). Do not take further breaking changes without a written migration plan for
-    every consuming app. Additive changes are fine.
+12. **The public ABI is frozen.** A prior audit of breaking-change candidates against the
+    public surface has been taken or explicitly rejected in full. Do not take further
+    breaking changes without a written migration plan for every consuming app. Additive
+    changes are fine.
 
 ## Demo app & on-device verification
 
-- The composeApp demo only wires a **native** ad (`feed_native`, in the profile /
-  "You" → TrendingSection). No `BannerAdView` / interstitial is placed in the
-  demo, so banner-rotation and full-screen paths are not reachable there.
-- To exercise ads on a device the SDK must initialize: the demo defaults to
-  `ConsentMode.InitializeOnlyIfAlreadyAllowed`, which correctly **defers** init
-  when no consent exists. For a quick local ad check, temporarily switch
-  `composeApp/.../App.kt` to `ConsentMode.SkipConsent` (test ad units only) and
-  revert after.
+- `androidApp`/`iosApp` launch `shared`'s `App()`, which on Android/iOS
+  (`adCapableMain`) forwards straight to `ShowcaseApp()` from `showcase/` — the
+  **Fieldnotes** reference module. It wires all six ad formats: banner
+  (`BannerLabScreen`), interstitial and rewarded (`FullScreenLabScreen`),
+  app-open (`AppOpenLabScreen`, `AppOpenHost`), and native (`NativeLabScreen`,
+  `NativeAdCard`), reachable from **Profile → SDK Lab**, plus native ads
+  embedded directly in the feed and a rewarded coin economy under Rewards.
+- To exercise ads on a device the SDK must initialize: `AdStartupController`
+  (`showcase/.../domain/ad/AdStartupController.kt`) calls `initialize(config,
+  ConsentMode.InitializeOnlyIfAlreadyAllowed)`, which correctly **defers** init
+  when no consent exists. For a quick local ad check, temporarily change that
+  call to `ConsentMode.SkipConsent` (test ad units only) and revert after.
 - Test ad units come from `TestAdIds`; the manifest uses Google's sample
   AdMob App ID. Real ad fetches are blocked by ad-filtering DNS
   (e.g. AdGuard `private_dns`) even when the network is otherwise up — symptom is
   `ERR_CONNECTION_REFUSED` to `googleads.g.doubleclick.net`. Disable private DNS
   to load real test ads.
-- Logcat tag is `AdMobCMP`. The native pipeline logs
-  `preload requested → load started → loading completed loaded=N →
-  preload finished state=Loaded → acquired token=… nativeAdFound=true`.
-  Google's "AdMob native ad validator — No implementation issues found" card
-  rendering on screen confirms correct native-ad binding.
+- Logcat tag is `AdMobCMP`. Google's "AdMob native ad validator — No
+  implementation issues found" card rendering on screen (Profile → SDK Lab →
+  Native, on-device or simulator) confirms correct native-ad binding; unit
+  tests never touch a real constraint here.

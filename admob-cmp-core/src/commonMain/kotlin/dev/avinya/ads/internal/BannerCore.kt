@@ -75,8 +75,8 @@ internal interface BannerPlatform<V : Any, S : Any> {
  * keep-the-old-banner-until-the-new-one-lands swap.
  *
  * Restores CLAUDE.md invariant #6: geometry is a host-supplied *input*, never something
- * the controller reaches for. Both controllers previously violated this — Android through
- * `Activity`, iOS through `UIScreen.mainScreen.bounds` (P0-5).
+ * the controller reaches for. A controller must never reach for `Activity` (Android) or
+ * `UIScreen.mainScreen.bounds` (iOS) to resolve a width.
  */
 internal class BannerCore<V : Any, S : Any>(
     val placement: AdPlacement,
@@ -102,14 +102,14 @@ internal class BannerCore<V : Any, S : Any>(
 
     // The single record refresh() replays. Its fields have two DIFFERENT owners with
     // different lifetimes, so it is merged on write rather than chosen between on read:
-    //   - requestOptions is owned by the load() caller. P1-4: a refresh must replay the
+    //   - requestOptions is owned by the load() caller. A refresh must replay the
     //     options that call resolved, never rebuild them from placement.requestOptions.
     //   - size/sizePolicy are owned by the host's container measurement and change on every
     //     resize (rotation, split-screen, fold).
-    // This was previously two records (lastRequest / registeredRequest) picked between in
-    // refresh(). That cannot work: choosing either whole record discards the other owner's
-    // half — preferring the load record replayed a stale width after a resize, preferring
-    // the geometry record dropped custom request options. See registerGeometry.
+    // Keep this ONE merged record. Two records (a load record and a geometry record) picked
+    // between in refresh() cannot work: choosing either whole record discards the other owner's
+    // half — preferring the load record replays a stale width after a resize, preferring the
+    // geometry record drops custom request options. See registerGeometry.
     private var replayRequest: ResolvedBannerRequest<S>? = null
 
     // Count of live UI attachments (BannerAdView composables) bound to this controller.
@@ -169,7 +169,7 @@ internal class BannerCore<V : Any, S : Any>(
 
     suspend fun refresh(blockedError: () -> AdError? = { null }): AdLoadState {
         val requiredGeneration = currentGeneration()
-        // P1-4: replay the WHOLE resolved request, not just the size. There is exactly one
+        // Replay the WHOLE resolved request, not just the size. There is exactly one
         // replay record; load() and registerGeometry each update the fields they own, so no
         // precedence decision is needed here.
         val resolved = platform.withStateLock { replayRequest }
@@ -192,8 +192,8 @@ internal class BannerCore<V : Any, S : Any>(
      * Updates ONLY the geometry-derived fields of the replay record. The host re-measures on
      * every rotation, split-screen change and fold, and a re-measure is not a statement about
      * request options — so [requestOptions] seeds the record only when no load has resolved
-     * options yet. Overwriting them here would undo P1-4; ignoring the new geometry would
-     * make [refresh] replay a stale width for the rest of the session.
+     * options yet. Overwriting them here would undo the resolved-options rule above; ignoring
+     * the new geometry would make [refresh] replay a stale width for the rest of the session.
      */
     fun registerGeometry(
         geometry: BannerGeometry,
@@ -313,10 +313,10 @@ internal class BannerCore<V : Any, S : Any>(
             onCancelled(requiredGeneration)
             throw e
         } catch (t: Throwable) {
-            // P1-1: only cancellation was handled, so a throw from a beta SDK call or a
-            // mapper escaped with the state stuck at Loading. That is worse than it looks
-            // here: BannerAdView's refresh loop awaits `loadState !is Loading`, which would
-            // then never become true again, silently killing refresh for that placement.
+            // Catch Throwable, not just CancellationException. A throw from a beta SDK call
+            // or a mapper must not escape with the state stuck at Loading: BannerAdView's
+            // refresh loop awaits `loadState !is Loading`, so a Loading state that never
+            // resolves silently kills refresh for that placement forever.
             //
             // The displayed banner is deliberately left alone — same reasoning as an
             // ordinary failed refresh (no blank flash) — so the state stays Loaded whenever
@@ -364,7 +364,7 @@ internal class BannerCore<V : Any, S : Any>(
      * `BannerAdView` reads Idle as "cleared/destroyed, drop the reference" and blanked the
      * slot. A restarted `LaunchedEffect`, a resize or an explicit cancel would wipe a perfectly
      * live ad. This is the same inventory-blindness fixed for native-ad loads in the
-     * pool (P1-3); the banner never got the matching fix.
+     * pool; the banner never got the matching fix.
      */
     private fun onCancelled(requiredGeneration: Long) {
         platform.withStateLock {

@@ -57,7 +57,7 @@ internal open class FakeFullScreenSlot(
     // exercise process-wide arbitration pass one shared instance to two slots.
     arbiter: FullScreenPresentationArbiter = FullScreenPresentationArbiter(),
     beforeShowCommit: suspend () -> Unit = {},
-    // Models the P1-12 scenario: presentAd fails EARLY — Activity / rootViewController
+    // Models a presentAd early-failure scenario: it fails EARLY — Activity / rootViewController
     // resolution blows up before any SDK callback is installed — so it returns Failed
     // without ever handing off or closing the presentation handle. The platform therefore
     // never emits a terminal event, and the core is the only thing that can.

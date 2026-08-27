@@ -35,7 +35,7 @@ internal class NativeAdManagerImpl<A : Any>(
         get() = managerLock.withLock { configuredPolicy } ?: NativeAdMemoryPolicy()
 
     private val _state = MutableStateFlow(
-        NativeAdManagerState(0, 0, 0, 0, policy?.hardLimit ?: NativeAdMemoryPolicy().hardLimit),
+        NativeAdManagerState(0, 0, 0, 0, policy?.hardLimit ?: NativeAdMemoryPolicy.DEFAULT_HARD_LIMIT),
     )
     override val state: StateFlow<NativeAdManagerState> = _state
 
@@ -123,20 +123,13 @@ internal class NativeAdManagerImpl<A : Any>(
         if (existing != null) {
             val existingPolicy = existing.handle?.policy ?: policy
             if (existingPolicy != policy) {
-                throw IllegalStateException(
-                    "NativeAdCoordinatorCore: session '$key' already exists with " +
-                        "a different policy (maxRetainedAds=${existingPolicy.maxRetainedAds}, " +
-                        "retainBehind=${existingPolicy.retainBehind}, " +
-                        "prefetchAhead=${existingPolicy.prefetchAhead}); " +
-                        "close the existing session before reusing the key with a new policy."
-                )
+                throw IllegalStateException(sessionPolicyMismatchMessage(key, existingPolicy))
             }
             return existing.handle!!
         }
-        if (dormantSessions.size >= NativeAdMemoryPolicy().maxSessionRecords) {
+        if (dormantSessions.size >= NativeAdMemoryPolicy.DEFAULT_MAX_SESSION_RECORDS) {
             throw IllegalStateException(
-                "NativeAdCoordinatorCore: maxSessionRecords (${NativeAdMemoryPolicy().maxSessionRecords}) " +
-                    "reached; cannot create session '$key'."
+                sessionRegistryFullMessage(NativeAdMemoryPolicy.DEFAULT_MAX_SESSION_RECORDS, key)
             )
         }
         val published = MutableStateFlow(NativeAdSessionState(active = false, slots = emptyMap()))

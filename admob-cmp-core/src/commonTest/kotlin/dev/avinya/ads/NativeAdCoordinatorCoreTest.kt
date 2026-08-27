@@ -724,9 +724,10 @@ class NativeAdCoordinatorCoreTest {
         coord.updateWindow("victim", windowWith("item-0"))
         runCurrent()
 
-        // Invalidate the BLOCKER's item-0. The sweep used to match on (slotKey, generation) only,
-        // so it cleared inFlight on the victim's queued slot; the victim's batch then survived the
-        // session-scoped removal, loaded, and was rejected at recordAdmitted -- stuck Empty.
+        // Invalidate the BLOCKER's item-0. Pins that the sweep matches on session as well as
+        // (slotKey, generation): matching on the pair alone clears inFlight on the VICTIM's
+        // queued slot, whose batch then survives session-scoped removal, loads, and is rejected
+        // at recordAdmitted -- stuck Empty.
         coord.updateWindow("blocker", NativeAdWindow(visible = emptyList()))
         runCurrent()
         gate.complete(Unit)
@@ -754,11 +755,11 @@ class NativeAdCoordinatorCoreTest {
         runCurrent()
         assertEquals(1, platform.loadCalls.size, "one batch covering both slots must be in flight")
 
-        // Dropping `a` used to cancel the whole in-flight job, so `b` lost its load through no
-        // fault of its own: it was deferred, then resubmitted, spending a second network request
-        // for a slot that never left the viewport. The batch now runs to completion instead --
+        // Pins: dropping `a` must NOT cancel the whole in-flight batch. Cancelling costs `b` a
+        // load through no fault of its own -- deferred, then resubmitted, spending a second
+        // network request for a slot that never left the viewport. The batch runs to completion:
         // `a`'s ad is discarded on arrival because its reservation is no longer live, and `b` is
-        // filled from the load that had already been paid for.
+        // filled from the load already paid for.
         // NOTE there is deliberately no second updateWindow for `b` below.
         // runCurrent, not advanceUntilIdle: the batch is still gated, and advancing virtual time
         // here would run it past the placement's 30s load timeout before the ad could arrive.

@@ -69,10 +69,19 @@ subprojects {
     }
 }
 
-/** Per-module line-coverage floors. See the ratchet note above. */
+/**
+ * Per-module line-coverage floors. See the ratchet note above.
+ *
+ * Measured at the time of writing: core 68.7%, compose 46.1%. Set a few points below so
+ * ordinary churn does not trip the gate while a real erosion of the suite does.
+ *
+ * Aspiration, not a gate: `admob-cmp-compose` is the layer consumers see directly
+ * (`BannerAdView`, `NativeAdView`, the layout DSL renderers), so its coverage matters more
+ * than the number alone suggests — target 60% as the platform-specific renderers
+ * (`AndroidNativeAdLayoutRenderer`, `IosNativeAdRenderer`) gain tests. Raise the floor itself
+ * only after coverage has actually moved; do not raise it ahead of the suite.
+ */
 fun coverageFloorFor(module: String): Int = when (module) {
-    // Measured at the time of writing: core 68.7%, compose 46.1%. Set a few points below so
-    // ordinary churn does not trip the gate while a real erosion of the suite does.
     "admob-cmp-core" -> 65
     "admob-cmp-compose" -> 43
     else -> 0

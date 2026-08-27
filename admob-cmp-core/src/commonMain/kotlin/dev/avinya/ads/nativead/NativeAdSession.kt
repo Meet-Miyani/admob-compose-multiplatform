@@ -173,6 +173,14 @@ public data class NativeAdManagerState(
  * policy causes [NativeAdManager.session] to throw. Closing a session via
  * [close] retires every record it owns; subsequent calls to [close] are
  * no-ops.
+ *
+ * Declared stable in `admob-cmp-compose/compose_compiler_config.conf` (this type is compiled
+ * without the Compose plugin and would otherwise carry no stability metadata at all). An
+ * implementation must honor that promise: [key] and [policy] never change identity after
+ * construction, and every other observable change — slot admission, activation, closure —
+ * must be visible only through [state]. Adding a plain `var` here, or a method whose effect
+ * isn't reflected in [state], would silently break recomposition for anything holding this
+ * session across a `remember`.
  */
 public interface NativeAdSession {
     /** Stable session key. Identifies the session inside the [NativeAdManager]. */

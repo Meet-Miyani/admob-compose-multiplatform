@@ -88,6 +88,20 @@ final enum class dev.avinya.ads/AdInitializationPhase : kotlin/Enum<dev.avinya.a
     final fun values(): kotlin/Array<dev.avinya.ads/AdInitializationPhase> // dev.avinya.ads/AdInitializationPhase.values|values#static(){}[0]
 }
 
+final enum class dev.avinya.ads/AdLogLevel : kotlin/Enum<dev.avinya.ads/AdLogLevel> { // dev.avinya.ads/AdLogLevel|null[0]
+    enum entry Debug // dev.avinya.ads/AdLogLevel.Debug|null[0]
+    enum entry Error // dev.avinya.ads/AdLogLevel.Error|null[0]
+    enum entry Info // dev.avinya.ads/AdLogLevel.Info|null[0]
+    enum entry Verbose // dev.avinya.ads/AdLogLevel.Verbose|null[0]
+    enum entry Warn // dev.avinya.ads/AdLogLevel.Warn|null[0]
+
+    final val entries // dev.avinya.ads/AdLogLevel.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.avinya.ads/AdLogLevel> // dev.avinya.ads/AdLogLevel.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.avinya.ads/AdLogLevel // dev.avinya.ads/AdLogLevel.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.avinya.ads/AdLogLevel> // dev.avinya.ads/AdLogLevel.values|values#static(){}[0]
+}
+
 final enum class dev.avinya.ads/AdPlatform : kotlin/Enum<dev.avinya.ads/AdPlatform> { // dev.avinya.ads/AdPlatform|null[0]
     enum entry Android // dev.avinya.ads/AdPlatform.Android|null[0]
     enum entry Ios // dev.avinya.ads/AdPlatform.Ios|null[0]
@@ -209,6 +223,10 @@ final enum class dev.avinya.ads/PublisherPrivacyPersonalizationState : kotlin/En
 
     final fun valueOf(kotlin/String): dev.avinya.ads/PublisherPrivacyPersonalizationState // dev.avinya.ads/PublisherPrivacyPersonalizationState.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.avinya.ads/PublisherPrivacyPersonalizationState> // dev.avinya.ads/PublisherPrivacyPersonalizationState.values|values#static(){}[0]
+}
+
+abstract fun interface dev.avinya.ads/AdLogSink { // dev.avinya.ads/AdLogSink|null[0]
+    abstract fun log(dev.avinya.ads/AdLogLevel, kotlin/String, kotlin/String, kotlin/Throwable?) // dev.avinya.ads/AdLogSink.log|log(dev.avinya.ads.AdLogLevel;kotlin.String;kotlin.String;kotlin.Throwable?){}[0]
 }
 
 abstract interface dev.avinya.ads.nativead/IosNativeAdRenderLease { // dev.avinya.ads.nativead/IosNativeAdRenderLease|null[0]
@@ -965,6 +983,13 @@ final class dev.avinya.ads.nativead/NativeAdMemoryPolicy { // dev.avinya.ads.nat
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.nativead/NativeAdMemoryPolicy.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.avinya.ads.nativead/NativeAdMemoryPolicy.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.avinya.ads.nativead/NativeAdMemoryPolicy.toString|toString(){}[0]
+
+    final object Companion { // dev.avinya.ads.nativead/NativeAdMemoryPolicy.Companion|null[0]
+        final const val DEFAULT_HARD_LIMIT // dev.avinya.ads.nativead/NativeAdMemoryPolicy.Companion.DEFAULT_HARD_LIMIT|{}DEFAULT_HARD_LIMIT[0]
+            final fun <get-DEFAULT_HARD_LIMIT>(): kotlin/Int // dev.avinya.ads.nativead/NativeAdMemoryPolicy.Companion.DEFAULT_HARD_LIMIT.<get-DEFAULT_HARD_LIMIT>|<get-DEFAULT_HARD_LIMIT>(){}[0]
+        final const val DEFAULT_MAX_SESSION_RECORDS // dev.avinya.ads.nativead/NativeAdMemoryPolicy.Companion.DEFAULT_MAX_SESSION_RECORDS|{}DEFAULT_MAX_SESSION_RECORDS[0]
+            final fun <get-DEFAULT_MAX_SESSION_RECORDS>(): kotlin/Int // dev.avinya.ads.nativead/NativeAdMemoryPolicy.Companion.DEFAULT_MAX_SESSION_RECORDS.<get-DEFAULT_MAX_SESSION_RECORDS>|<get-DEFAULT_MAX_SESSION_RECORDS>(){}[0]
+    }
 }
 
 final class dev.avinya.ads.nativead/NativeAdOptions { // dev.avinya.ads.nativead/NativeAdOptions|null[0]
@@ -1660,6 +1685,13 @@ final object dev.avinya.ads/AdErrorCode { // dev.avinya.ads/AdErrorCode|null[0]
 }
 
 final object dev.avinya.ads/AdLogger { // dev.avinya.ads/AdLogger|null[0]
+    final var minLevel // dev.avinya.ads/AdLogger.minLevel|{}minLevel[0]
+        final fun <get-minLevel>(): dev.avinya.ads/AdLogLevel // dev.avinya.ads/AdLogger.minLevel.<get-minLevel>|<get-minLevel>(){}[0]
+        final fun <set-minLevel>(dev.avinya.ads/AdLogLevel) // dev.avinya.ads/AdLogger.minLevel.<set-minLevel>|<set-minLevel>(dev.avinya.ads.AdLogLevel){}[0]
+    final var sink // dev.avinya.ads/AdLogger.sink|{}sink[0]
+        final fun <get-sink>(): dev.avinya.ads/AdLogSink? // dev.avinya.ads/AdLogger.sink.<get-sink>|<get-sink>(){}[0]
+        final fun <set-sink>(dev.avinya.ads/AdLogSink?) // dev.avinya.ads/AdLogger.sink.<set-sink>|<set-sink>(dev.avinya.ads.AdLogSink?){}[0]
+
     final fun d(kotlin/String) // dev.avinya.ads/AdLogger.d|d(kotlin.String){}[0]
     final fun e(kotlin/String) // dev.avinya.ads/AdLogger.e|e(kotlin.String){}[0]
     final fun e(kotlin/String, kotlin/Throwable?) // dev.avinya.ads/AdLogger.e|e(kotlin.String;kotlin.Throwable?){}[0]

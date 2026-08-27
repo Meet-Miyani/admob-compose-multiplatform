@@ -91,6 +91,14 @@ kotlin {
     }
 }
 
+composeCompiler {
+    // See compose_compiler_config.conf — showcase demonstrates the setup a consumer app
+    // should copy for its own composables over admob-cmp-core types.
+    stabilityConfigurationFiles.add(
+        layout.projectDirectory.file("compose_compiler_config.conf")
+    )
+}
+
 room {
     schemaDirectory("$projectDir/schemas")
 }

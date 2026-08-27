@@ -31,14 +31,14 @@ internal fun topViewController(): UIViewController? {
  * Best-effort viewport width in points for a headless banner load, or null when no single
  * width would be truthful.
  *
- * Deliberately reads the **key window's** bounds rather than `UIScreen.mainScreen.bounds`.
- * That is the whole point of P0-5: in iPad split view, Slide Over and popovers the app owns
- * a window narrower than the screen, and the old screen-bounds read silently sized every
- * banner to the full display. Window bounds are correct in exactly those cases.
+ * MUST read the **key window's** bounds, never `UIScreen.mainScreen.bounds`. In iPad split
+ * view, Slide Over and popovers the app owns a window narrower than the screen, and a
+ * screen-bounds read silently sizes every banner to the full display. Window bounds are correct
+ * in exactly those cases.
  *
  * Returns null when more than one foreground-active window scene exists: with several live
- * windows of the same app there is no single "the" width, and guessing one is what this
- * whole change exists to stop. Hosts should supply [BannerGeometry] instead — `BannerAdView`
+ * windows of the same app there is no single "the" width, and guessing one is exactly what
+ * this function must not do. Hosts should supply [BannerGeometry] instead — `BannerAdView`
  * does so automatically from its own measurement.
  */
 internal fun keyWindowWidthDp(): Int? {

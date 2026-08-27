@@ -20,7 +20,9 @@ Maven Central as `dev.avinya.ads:admob-cmp`; docs live at
   `dev.avinya.ads.admob-cmp` in `pluginManagement`.
 
 **Sample consumers** (do not publish; exist to exercise the SDK end-to-end):
-`androidApp/`, `iosApp/`, `shared/`, `desktopApp/`, `webApp/`.
+`androidApp/`, `iosApp/`, `shared/`, `desktopApp/`, `webApp/` — the debug-console
+demo — and `showcase/`, the **Fieldnotes** product-shaped reference module (see
+[README.md](README.md#showcase-app--fieldnotes)).
 
 **Docs site:** `docs-site/` (Astro + Starlight, deployed to Cloudflare Pages).
 
@@ -75,7 +77,7 @@ move, it moves into `scripts/release-readiness.sh`.
 
 ## Public API changes
 
-The library's public ABI is frozen as of sub-project O (see invariant 12 in
+The library's public ABI is frozen (see invariant 12 in
 [admob-cmp/CLAUDE.md](admob-cmp/CLAUDE.md)). Additive changes are fine;
 breaking changes need a written migration plan for every consuming app.
 

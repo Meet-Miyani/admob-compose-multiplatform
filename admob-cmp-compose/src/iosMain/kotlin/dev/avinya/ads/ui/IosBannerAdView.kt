@@ -62,8 +62,8 @@ public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, width
         // new event arrives, so a rapid Impression -> Click silently dropped the impression.
         // onEvent is a plain callback with nothing to cancel.
         //
-        // This is NOT the per-view event duplication finding (P1-8) — that needs an
-        // ad-instance identifier on the event model and is owned by sub-project G. This is a
+        // This is NOT the per-view event duplication issue — fixing that needs an
+        // ad-instance identifier on the event model, a separate and larger change. This is a
         // local misuse of collectLatest in this composable.
         controller.events.collect(currentOnEvent)
     }
@@ -76,7 +76,7 @@ public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, width
                 state is AdLoadState.Loaded -> controller.currentIosBannerView()
                 // Idle means cleared/detached and the GADBannerView has been torn down —
                 // drop the reference so Compose stops rendering it. Reached both by an
-                // explicit clear() and by the consent-revocation purge (sub-project A).
+                // explicit clear() and by the consent-revocation purge.
                 // AdLoadState.Idle is a data object, so compare by value: Kotlin/Native
                 // 2.3.20 miscompiles `is <data object>` on when-typed locals.
                 state == AdLoadState.Idle -> null
@@ -89,10 +89,10 @@ public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, width
     }
 
     BoxWithConstraints(modifier = modifier) {
-        // BoxWithConstraints always provides maxWidth inside a laid-out composable, so the
-        // old UIScreen.mainScreen fallback was dead in practice — and wrong wherever it did
-        // fire (split view, Slide Over, popovers). It was the last inline screen read in the
-        // banner path.
+        // BoxWithConstraints always provides maxWidth inside a laid-out composable. Do not add
+        // a UIScreen.mainScreen fallback here: it is unreachable in practice and wrong wherever
+        // it would fire (split view, Slide Over, popovers). The banner path holds no inline
+        // screen reads.
         val resolvedWidth = remember(widthDp, maxWidth) {
             widthDp?.coerceAtLeast(1)
                 ?: maxWidth.value.takeIf { it.isFinite() && it > 0f }?.toInt()?.coerceAtLeast(1)
@@ -114,9 +114,9 @@ public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, width
                 )
                 return@LaunchedEffect
             }
-            // Android gates the initial load on lifecycle >= STARTED. iOS had no gate at
-            // all, so a cold start into the background loaded a banner nobody could see
-            // and billed an impression for it.
+            // The initial load MUST be gated on foreground, mirroring Android's
+            // lifecycle >= STARTED gate. Ungated, a cold start into the background loads a
+            // banner nobody can see and bills an impression for it.
             snapshotFlow { isForeground }.first { it }
             controller.load(
                 geometry = BannerGeometry(resolvedWidth),
@@ -134,17 +134,16 @@ public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, width
             if (policy !is BannerRefreshPolicy.SdkManaged) return@LaunchedEffect
             while (true) {
                 delay(policy.interval)
-                // Await the gate instead of dropping the cycle. The previous `if` skipped
-                // the refresh entirely and waited another full interval, costing an
-                // interval of stale inventory every time the app was backgrounded or the
-                // banner scrolled off at the wrong moment. Android has awaited since its
-                // visibility fix. isVisible is measured on-screen fraction: foreground only
+                // AWAIT the gate; never `if`-skip the cycle. Skipping waits another full
+                // interval, costing an interval of stale inventory every time the app is
+                // backgrounded or the banner scrolls off at the wrong moment. Android awaits
+                // here too. isVisible is measured on-screen fraction: foreground only
                 // tells us the SCREEN is visible, so a banner scrolled out of a lazy list
                 // still passes it, and refreshing it bills an impression nobody could view
                 // — what AdMob's viewability policy treats as invalid traffic.
                 snapshotFlow { isForeground && isVisible }.first { it }
-                // A refresh landing mid-load used to be dropped too; wait for the in-flight
-                // load to settle and refresh promptly instead.
+                // A refresh landing mid-load must NOT be dropped: wait for the in-flight
+                // load to settle, then refresh promptly.
                 snapshotFlow { controller.loadState.value !is AdLoadState.Loading }.first { it }
                 controller.load(
                     geometry = BannerGeometry(resolvedWidth),

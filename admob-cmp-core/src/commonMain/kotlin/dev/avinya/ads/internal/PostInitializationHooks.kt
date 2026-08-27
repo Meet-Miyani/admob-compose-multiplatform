@@ -13,10 +13,11 @@ import kotlinx.coroutines.isActive
  *
  * These hooks are host code running after the process-wide ad SDK singleton has been initialized and
  * its identity committed. Nothing they do can un-initialize it, so their failure must not be
- * reported as an initialization failure — which is exactly what used to happen: the hooks ran
- * *before* the identity was committed, so a throwing hook left the wrapper believing no
- * configuration had been applied while GMA was already running. A later `initialize()` with a
- * different app ID would then try to reconfigure an immutable singleton.
+ * reported as an initialization failure.
+ *
+ * They MUST run after the identity commit, never before it. Dispatched earlier, a throwing hook
+ * leaves the wrapper believing no configuration was applied while GMA is already running, and a
+ * later `initialize()` with a different app ID then tries to reconfigure an immutable singleton.
  *
  * Failure is logged rather than tracked in a field. The health that matters — whether native
  * acceptance happened — is already the applied identity and terminal status; a hook failure only

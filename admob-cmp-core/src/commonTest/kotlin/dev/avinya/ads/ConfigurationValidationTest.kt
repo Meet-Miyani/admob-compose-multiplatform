@@ -10,10 +10,10 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * Construction-time validation for public configuration types.
  *
- * These all previously accepted nonsense and failed later — inside a platform SDK call, or by
- * silently changing policy — with a message that did not name the configuration responsible. The
- * repo already sets this precedent: `AdPlacement` hard-`require`s on `strictTestMode` rather than
- * warning.
+ * Each must reject nonsense AT CONSTRUCTION. Accepting it defers the failure into a platform
+ * SDK call, or silently changes policy, and the resulting message does not name the
+ * configuration responsible. `AdPlacement` sets the precedent: it hard-`require`s on
+ * `strictTestMode` rather than warning.
  */
 class ConfigurationValidationTest {
 

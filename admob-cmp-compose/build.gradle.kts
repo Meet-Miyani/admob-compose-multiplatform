@@ -78,6 +78,21 @@ kotlin {
     }
 }
 
+composeCompiler {
+    // See compose_compiler_config.conf for why each entry is a truthful promise, not a shortcut.
+    stabilityConfigurationFiles.add(
+        layout.projectDirectory.file("compose_compiler_config.conf")
+    )
+
+    // Opt-in metrics: -PcomposeReports=true. Off by default so ordinary builds stay fast; this
+    // is the objective proof that a change to stability actually improved skippability — read
+    // build/compose-reports/*-composables.txt after building with the flag.
+    if (providers.gradleProperty("composeReports").isPresent) {
+        metricsDestination.set(layout.buildDirectory.dir("compose-metrics"))
+        reportsDestination.set(layout.buildDirectory.dir("compose-reports"))
+    }
+}
+
 publishing {
     publications.named<MavenPublication>("kotlinMultiplatform") {
         pom.withXml(PromotePomDependenciesToCompileScope("dev.avinya.ads", setOf("admob-cmp-core")))

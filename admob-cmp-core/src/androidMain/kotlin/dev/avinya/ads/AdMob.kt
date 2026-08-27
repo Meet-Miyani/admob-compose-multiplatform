@@ -33,7 +33,7 @@ public object AdMob {
 /**
  * Weakly-held, most-recent-last ordering of foreground entries.
  *
- * Extracted from [CurrentActivityTracker] so the sequencing behind P1-9 is testable without
+ * Extracted from [CurrentActivityTracker] so this ordering contract is testable without
  * Robolectric — this source set cannot construct a real `Activity`.
  *
  * Entries are weak so a leaked or forgotten remove cannot pin an Activity in memory;
@@ -76,9 +76,9 @@ internal class CurrentActivityTracker : Application.ActivityLifecycleCallbacks {
     private val lock = Any()
     private var registeredApplication: Application? = null
 
-    // P1-9: this was a single WeakReference, so `A started -> B started -> B stopped` cleared
-    // it outright and reported no Activity even though A was still in the foreground. Track
-    // the whole started set and fall back to the one beneath instead.
+    // Must track the whole started SET, not a single reference. With one reference,
+    // `A started -> B started -> B stopped` clears it outright and reports no Activity even
+    // though A is still in the foreground; the stack falls back to the one beneath instead.
     private val started = ForegroundStack<Activity> { !it.isFinishing && !it.isDestroyed }
 
     val currentActivity: Activity? get() = started.current()
@@ -123,8 +123,8 @@ internal class CurrentActivityTracker : Application.ActivityLifecycleCallbacks {
     }
 
     private fun clearIfMatching(activity: Activity) {
-        // Remove only this instance. Clearing the whole reference is what lost A when B
-        // stopped above it (P1-9).
+        // Remove only THIS instance — never clear the whole stack, which would lose A when B
+        // stops above it.
         started.remove(activity)
     }
 }

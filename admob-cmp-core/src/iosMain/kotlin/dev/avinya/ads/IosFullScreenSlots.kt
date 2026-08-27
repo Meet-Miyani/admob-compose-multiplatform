@@ -79,7 +79,6 @@ internal class IosInterstitialSlot(
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<GADInterstitialAd> =
         withContext(Dispatchers.Main.immediate) {
             suspendCancellableCoroutine { continuation ->
-                continuation.invokeOnCancellation { }
                 GADInterstitialAd.loadWithAdUnitID(placement.iosAdUnitId, requestOptions.toGADRequest()) { ad, error ->
                     if (continuation.isActive) {
                         if (error != null) {
@@ -183,7 +182,6 @@ internal class IosRewardedSlot(
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<GADRewardedAd> =
         withContext(Dispatchers.Main.immediate) {
             suspendCancellableCoroutine { continuation ->
-                continuation.invokeOnCancellation { }
                 GADRewardedAd.loadWithAdUnitID(placement.iosAdUnitId, requestOptions.toGADRequest()) { ad, error ->
                     if (continuation.isActive) {
                         if (error != null) {
@@ -252,8 +250,8 @@ internal class IosRewardedSlot(
                 loaded.presentFromRootViewController(rootVC) {
                     val adReward = weakLoaded.value?.adReward
                     if (adReward != null) {
-                        // amount is an NSDecimalNumber and may be fractional (P1-14 established
-                        // the exact-decimal pattern for paid values; reuse it here so a mediated
+                        // amount is an NSDecimalNumber and may be fractional (the exact-decimal
+                        // pattern used for paid values applies here too, so a mediated
                         // 0.5/2.5 reward is preserved exactly rather than rounded to 1/3).
                         val earned = AdReward(adReward.amount.toValueMicros(), adReward.type)
                         rewardDelivery?.deliver(earned)
@@ -298,7 +296,6 @@ internal class IosRewardedInterstitialSlot(
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<GADRewardedInterstitialAd> =
         withContext(Dispatchers.Main.immediate) {
             suspendCancellableCoroutine { continuation ->
-                continuation.invokeOnCancellation { }
                 GADRewardedInterstitialAd.loadWithAdUnitID(placement.iosAdUnitId, requestOptions.toGADRequest()) { ad, error ->
                     if (continuation.isActive) {
                         if (error != null) {
@@ -367,8 +364,8 @@ internal class IosRewardedInterstitialSlot(
                 loaded.presentFromRootViewController(rootVC) {
                     val adReward = weakLoaded.value?.adReward
                     if (adReward != null) {
-                        // amount is an NSDecimalNumber and may be fractional (P1-14 established
-                        // the exact-decimal pattern for paid values; reuse it here so a mediated
+                        // amount is an NSDecimalNumber and may be fractional (the exact-decimal
+                        // pattern used for paid values applies here too, so a mediated
                         // 0.5/2.5 reward is preserved exactly rather than rounded to 1/3).
                         val earned = AdReward(adReward.amount.toValueMicros(), adReward.type)
                         rewardDelivery?.deliver(earned)
@@ -408,7 +405,6 @@ internal class IosAppOpenSlot(
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<GADAppOpenAd> =
         withContext(Dispatchers.Main.immediate) {
             suspendCancellableCoroutine { continuation ->
-                continuation.invokeOnCancellation { }
                 GADAppOpenAd.loadWithAdUnitID(placement.iosAdUnitId, requestOptions.toGADRequest()) { ad, error ->
                     if (continuation.isActive) {
                         if (error != null) {
