@@ -264,6 +264,7 @@ export default defineConfig({
             { slug: 'advanced/revenue-events' },
             { slug: 'advanced/caching-retry-timeouts' },
             { slug: 'advanced/test-safety' },
+            { slug: 'advanced/compose-stability' },
           ],
         },
         {
