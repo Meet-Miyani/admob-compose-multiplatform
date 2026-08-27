@@ -142,12 +142,8 @@ internal class NativeAdSessionCore(
 
     fun recordDeferred(slotKey: String, generation: Long): Boolean = settle(slotKey, generation, null)
 
-    fun recordFailed(slotKey: String, error: AdError, generation: Long): Boolean {
-        if (closed) return false
-        val entry = slots[slotKey] ?: return false
-        if (entry.inFlight != generation) return false
-        entry.inFlight = null; entry.lastError = error; publish(); return true
-    }
+    fun recordFailed(slotKey: String, error: AdError, generation: Long): Boolean =
+        settle(slotKey, generation, error)
 
     private fun settle(slotKey: String, generation: Long, error: AdError?): Boolean {
         if (closed) return false
@@ -228,12 +224,37 @@ internal class NativeAdSessionCore(
     /** Current slot generation for coordinator identity validation. */
     fun slotGenerationFor(slotKey: String): Long? = slots[slotKey]?.generation
 
+    /**
+     * Issues load demand for every desired slot that has neither a record nor a load in flight,
+     * up to [NativeAdSessionPolicy.maxRetainedAds].
+     *
+     * A slot whose last attempt **failed** is deliberately skipped. Window updates arrive once per
+     * viewport change — during a scroll, once per frame — and a failed slot otherwise satisfies
+     * every condition here on the very next one, so it would be re-requested at frame rate for as
+     * long as it stayed on screen. Offline, or against a placement that simply is not filling,
+     * that is a request loop rather than a retry.
+     *
+     * Skipping does not strand the slot, because the states that deserve another attempt do not
+     * set [SlotEntry.lastError] in the first place:
+     *
+     * - a **deferred** slot (the governor had no capacity) settles with a null error, so it is
+     *   retried on the next reconciliation, which is exactly what should happen;
+     * - an **evicted** record (memory pressure) clears the error and reloads;
+     * - and a genuinely failed slot recovers as soon as it leaves the window and comes back, at
+     *   which point it is pruned and re-created fresh.
+     *
+     * Transient failures are already handled a layer down: the coordinator retries retryable load
+     * errors under the placement's own [dev.avinya.ads.AdRetryPolicy] before ever reporting one
+     * here, so by the time an error reaches this entry those attempts are spent.
+     */
     private fun reconcileDemands(): List<SlotDemandEntry> {
         if (!active) return emptyList()
         var occupied = slots.values.count { it.recordId != null || it.inFlight != null }
         val demands = mutableListOf<SlotDemandEntry>()
         for ((slotKey, entry) in slots.entries.sortedBy { it.value.viewportRank }) {
-            if (!entry.desired || entry.recordId != null || entry.inFlight != null || occupied >= policy.maxRetainedAds) continue
+            if (!entry.desired || entry.lastError != null || entry.recordId != null ||
+                entry.inFlight != null || occupied >= policy.maxRetainedAds
+            ) continue
             val generation = nextGeneration++
             entry.generation = generation; entry.inFlight = generation; entry.lastError = null; occupied++
             demands += SlotDemandEntry(slotKey, entry.placement, generation, entry.band, demandFor(entry.band), priorityFor(entry.band))
