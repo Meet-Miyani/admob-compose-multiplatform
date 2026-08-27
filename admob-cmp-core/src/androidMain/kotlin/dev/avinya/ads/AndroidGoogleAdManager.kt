@@ -145,12 +145,16 @@ internal class AndroidGoogleAdManager(
     // narrower SDK mutex protects the native-applied identity and terminal state.
     private val initializationStateMutex = Mutex()
     private val mobileAdsInitializationMutex = Mutex()
-    // Main.immediate, matching iOS (IosGoogleAdManager.kt:129). Everything this scope
-    // runs — MobileAds.initialize and the global request-configuration writes that
-    // follow it — is a GMA call, and GMA calls belong on the main thread (CLAUDE.md
-    // invariant #5). The scope stays a detached SupervisorJob so cancelling one
-    // initialize() caller still cannot interrupt initialization; only the dispatcher
-    // changes here.
+    // Main.immediate. Everything this scope runs — MobileAds.initialize and the global
+    // request-configuration writes that follow it — is a GMA call, and GMA calls belong
+    // on the main thread (CLAUDE.md invariant #5). The scope stays a detached
+    // SupervisorJob so cancelling one initialize() caller still cannot interrupt
+    // initialization; only the dispatcher changes here.
+    //
+    // iOS's equivalent scope (IosGoogleAdManager.nativeInitializationScope) uses plain
+    // Dispatchers.Main, not .immediate — an unexplained platform difference, not a
+    // deliberate one; nothing in this repo's history documents why. Do not read the
+    // asymmetry as intentional if you touch either scope.
     private val nativeInitializationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var pendingInitialization: InitializationAttempt? = null
     private var nativeInitialization: NativeInitialization? = null
@@ -160,9 +164,10 @@ internal class AndroidGoogleAdManager(
     // Replaces the previous sticky consentGateSatisfied latch.
     private val _admission = MutableStateFlow(AdRequestAdmission.NotGathered)
 
-    // Own scope, deliberately NOT nativeInitializationScope (which now uses
-    // Dispatchers.Main.immediate, matching iOS). Main.immediate matches the dispatcher every
-    // GMA/UMP call already uses.
+    // Own scope, deliberately NOT nativeInitializationScope, so the collector's lifetime
+    // is independent of initialization. Main.immediate matches the dispatcher every
+    // GMA/UMP call already uses, and matches iOS's own admissionScope
+    // (IosGoogleAdManager.admissionScope is Main.immediate too).
     private val admissionScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     init {

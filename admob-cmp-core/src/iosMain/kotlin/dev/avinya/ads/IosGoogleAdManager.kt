@@ -404,10 +404,9 @@ internal class IosGoogleAdManager : AdManager, FullScreenPresenceAware {
         // Runs on nativeInitializationScope (a detached SupervisorJob scope), not on any
         // individual caller's coroutine, so cancelling one initialize() caller can never
         // interrupt this operation — every caller (leader and followers) only awaits its
-        // result. AfterMobileAdsInitialize dispatches here, before Applied/Ready is
-        // THAT detachment is what makes AfterMobileAdsInitialize fire exactly once whenever
-        // native init succeeds; an earlier comment credited the hook's position *before*
-        // publication, which was wrong and cost correctness elsewhere.
+        // result. THAT detachment is what makes AfterMobileAdsInitialize fire exactly once
+        // whenever native init succeeds; an earlier comment here credited the hook's position
+        // *before* publication, which was wrong and cost correctness elsewhere.
         //
         // Native acceptance is now committed BEFORE the hook runs. A throwing publisher hook
         // used to leave appliedConfigIdentity null while GMA was already initialized, so a

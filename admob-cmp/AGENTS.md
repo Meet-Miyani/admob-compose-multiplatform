@@ -305,3 +305,10 @@ Android has no ATT; `adManager.tracking` is a no-op there, always reporting
   `dev.avinya.ads.admob-cmp` Gradle plugin (`build/admob-cmp-ios-frameworks/`,
   version-stamped). Bindings-only distribution — NEVER add `staticLibraries`
   to the `.def` files.
+- **Never cite a line number in a cross-file comment.** A comment pointing at
+  `OtherFile.kt:123` goes stale the moment either file is edited, and nothing
+  catches it — one already had (`AndroidGoogleAdManager.kt` cited a line in
+  `IosGoogleAdManager.kt` that had drifted by 46 lines and, worse, no longer
+  supported the claim being made). Name the symbol instead
+  (`IosGoogleAdManager.admissionScope`), which survives reformatting and
+  reordering.
