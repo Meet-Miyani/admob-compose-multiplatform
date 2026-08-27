@@ -10,7 +10,6 @@ import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationDidEnterBackgroundNotification
 import platform.UIKit.UIApplicationState
 import platform.UIKit.UIApplicationWillEnterForegroundNotification
-import platform.darwin.NSObjectProtocol
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 
@@ -39,12 +38,8 @@ internal actual fun appForegroundState(): Flow<Boolean> = callbackFlow {
         // awaitClose is not a suspend context, so hop via GCD — the iOS analogue of
         // the Handler(mainLooper).post in the Android actual.
         dispatch_async(dispatch_get_main_queue()) {
-            (foregroundObserver as? NSObjectProtocol)?.let {
-                NSNotificationCenter.defaultCenter.removeObserver(it)
-            }
-            (backgroundObserver as? NSObjectProtocol)?.let {
-                NSNotificationCenter.defaultCenter.removeObserver(it)
-            }
+            NSNotificationCenter.defaultCenter.removeObserver(foregroundObserver)
+            NSNotificationCenter.defaultCenter.removeObserver(backgroundObserver)
         }
     }
 }

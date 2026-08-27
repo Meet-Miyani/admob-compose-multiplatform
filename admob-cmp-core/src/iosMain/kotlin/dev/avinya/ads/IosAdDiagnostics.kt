@@ -43,8 +43,8 @@ internal class IosAdDiagnostics : AdDiagnostics {
                     AdapterInitializationStatus(
                         adapterName = name as String,
                         initialized = s?.state == GADAdapterInitializationStateReady,
-                        latencyMillis = ((s?.latency as? Double)?.times(1000.0))?.toLong() ?: 0L,
-                        description = s?.description as? String
+                        latencyMillis = (s?.latency?.times(1000.0))?.toLong() ?: 0L,
+                        description = s?.description
                     )
                 }
             }.getOrDefault(emptyList())

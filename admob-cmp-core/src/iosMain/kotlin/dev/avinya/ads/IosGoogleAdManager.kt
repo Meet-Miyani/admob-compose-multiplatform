@@ -43,6 +43,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.readValue
 import platform.CoreGraphics.CGSizeMake
 import platform.Foundation.NSRecursiveLock
 import dev.avinya.ads.internal.AppliedConfigurationDecision
@@ -623,12 +624,14 @@ internal class IosGoogleAdManager : AdManager, FullScreenPresenceAware {
     }
 }
 
-@Suppress("UNCHECKED_CAST")
 internal fun AdSizePolicy.toIOSAdSize(widthDp: Int): CValue<GADAdSize> = when (this) {
-    is AdSizePolicy.LargeAnchoredAdaptive -> GADLargeAnchoredAdaptiveBannerAdSizeWithWidth(widthDp.toDouble()) as CValue<GADAdSize>
+    is AdSizePolicy.LargeAnchoredAdaptive -> GADLargeAnchoredAdaptiveBannerAdSizeWithWidth(widthDp.toDouble())
     is AdSizePolicy.InlineAdaptive -> maxHeightDp?.let {
-        GADInlineAdaptiveBannerAdSizeWithWidthAndMaxHeight(widthDp.toDouble(), it.toDouble()) as CValue<GADAdSize>
-    } ?: GADCurrentOrientationInlineAdaptiveBannerAdSizeWithWidth(widthDp.toDouble()) as CValue<GADAdSize>
-    is AdSizePolicy.Fixed -> GADAdSizeFromCGSize(CGSizeMake(widthDp.toDouble(), heightDp.toDouble())) as CValue<GADAdSize>
-    is AdSizePolicy.Fluid -> GADAdSizeFluid as CValue<GADAdSize>
+        GADInlineAdaptiveBannerAdSizeWithWidthAndMaxHeight(widthDp.toDouble(), it.toDouble())
+    } ?: GADCurrentOrientationInlineAdaptiveBannerAdSizeWithWidth(widthDp.toDouble())
+    is AdSizePolicy.Fixed -> GADAdSizeFromCGSize(CGSizeMake(widthDp.toDouble(), heightDp.toDouble()))
+    // GADAdSizeFluid is a C global (a CStructVar lvalue), unlike the functions above which
+    // already return CValue<GADAdSize> by value — readValue() is the correct conversion,
+    // not a cast (the struct is not a CValue, so `as CValue<GADAdSize>` throws at runtime).
+    is AdSizePolicy.Fluid -> GADAdSizeFluid.readValue()
 }

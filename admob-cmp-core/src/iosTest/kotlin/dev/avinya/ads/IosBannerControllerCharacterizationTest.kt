@@ -2,6 +2,7 @@
 
 package dev.avinya.ads
 
+import GoogleMobileAds.GADAdSizeIsFluid
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -126,5 +127,15 @@ class IosBannerControllerCharacterizationTest {
         large.useContents {
             assertTrue(size.height in 50.0..150.0, "large anchored height was ${size.height}")
         }
+    }
+
+    @Test
+    fun `Fluid maps to the GADAdSizeFluid sentinel without throwing`() {
+        // Regression test: GADAdSizeFluid is a C global (a CStructVar), not a CValue like the
+        // functions the other branches call, so a naive `as CValue<GADAdSize>` cast on it threw
+        // ClassCastException at runtime. Calling toIOSAdSize itself is the real assertion here.
+        val fluid = AdSizePolicy.Fluid.toIOSAdSize(320)
+
+        assertTrue(GADAdSizeIsFluid(fluid), "expected the Fluid policy to map to GADAdSizeFluid")
     }
 }
