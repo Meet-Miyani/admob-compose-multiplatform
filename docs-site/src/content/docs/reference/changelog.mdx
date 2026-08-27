@@ -93,6 +93,21 @@ validate them before construction or wrap it — most affected code will not hav
 used to be a plain object construction.
 </Aside>
 
+### `AdLogger` is now configurable
+
+`AdLogger` previously logged every message, at every level, unconditionally to the platform log
+(`android.util.Log` / `NSLog`), with no way to quiet it in a release build or route it elsewhere.
+Two new members, both additive and source-compatible:
+
+- `AdLogger.minLevel: AdLogLevel` (default `Verbose`) — set to `Warn` or `Error` during app startup
+  to drop routine diagnostic noise while keeping warnings and errors visible.
+- `AdLogger.sink: AdLogSink?` — set to forward matching messages to Timber, `OSLog`, a crash
+  reporter's breadcrumb trail, or any other destination. A sink **replaces** the platform log for
+  messages at or above `minLevel`; it does not tee to both.
+
+`AdLogLevel` is now `public` (previously `internal`), since a caller needs it to compare against
+`minLevel` or implement `AdLogSink`.
+
 ## What changed in 2.1.0?
 
 A native-ad rendering release. The layout DSL had three hand-written renderers — Android views, iOS
