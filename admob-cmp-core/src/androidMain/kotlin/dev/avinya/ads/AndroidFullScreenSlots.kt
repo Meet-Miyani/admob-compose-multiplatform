@@ -135,38 +135,25 @@ internal class AndroidInterstitialSlot(
         options: FullScreenAdOptions,
         presentation: FullScreenPresentationHandle,
         rewardDelivery: RewardDelivery?
-    ): AdShowResult = withContext(Dispatchers.Main.immediate) {
-        val activity = activityProvider()
-            ?: return@withContext AdShowResult.Failed(AdError.message("No current Android Activity."))
-        suspendCancellableCoroutine<AdShowResult> { continuation ->
-            continuation.invokeOnCancellation { presentation.closeIfCoreOwned() }
-            if (!continuation.isActive) return@suspendCancellableCoroutine
-            loaded.setImmersiveMode(options.immersiveMode)
+    ): AdShowResult {
+        val activity = withContext(Dispatchers.Main.immediate) { activityProvider() }
+            ?: return AdShowResult.Failed(AdError.message("No current Android Activity."))
+        return presentSimpleFullScreenAd(
+            loaded,
+            presentation,
+            beforeHandOff = { loaded.setImmersiveMode(options.immersiveMode) }
+        ) { callback ->
             loaded.adEventCallback = object : InterstitialAdEventCallback {
-                override fun onAdShowedFullScreenContent() = emit(AdEvent.OpenedFullScreen(placement.id))
-                override fun onAdImpression() = emit(AdEvent.Impression(placement.id))
-                override fun onAdClicked() = emit(AdEvent.Clicked(placement.id))
-                override fun onAdPaid(value: com.google.android.libraries.ads.mobile.sdk.common.AdValue) {
-                    emit(AdEvent.Paid(placement.id, PaidEvent(placement.id, value.toCommon(), loaded.getResponseInfo().toCommon())))
-                }
-                override fun onAdDismissedFullScreenContent() {
-                    if (presentation.close(wasShown = true)) {
-                        emit(AdEvent.ClosedFullScreen(placement.id))
-                        if (continuation.isActive) continuation.resume(AdShowResult.Shown)
-                    }
-                }
-                override fun onAdFailedToShowFullScreenContent(error: FullScreenContentError) {
-                    val adError = error.toAdError()
-                    if (presentation.close(wasShown = false)) {
-                        emit(AdEvent.ShowFailed(placement.id, adError))
-                        if (continuation.isActive) continuation.resume(AdShowResult.Failed(adError))
-                    }
-                }
+                override fun onAdShowedFullScreenContent() = callback.onShowed()
+                override fun onAdImpression() = callback.onImpression()
+                override fun onAdClicked() = callback.onClicked()
+                override fun onAdPaid(value: com.google.android.libraries.ads.mobile.sdk.common.AdValue) = callback.onPaid(value)
+                override fun onAdDismissedFullScreenContent() = callback.onDismissed()
+                override fun onAdFailedToShowFullScreenContent(error: FullScreenContentError) = callback.onFailedToShow(error)
             }
-            if (presentation.tryHandOffToCallbacks()) loaded.show(activity)
+            loaded.show(activity)
         }
     }
-
 
     override fun onAdLoaded(ad: InterstitialAd, requestOptions: AdRequestOptions) {
         (requestOptions.placementId ?: placement.requestOptions.placementId)?.let { ad.placementId = it }
@@ -338,37 +325,21 @@ internal class AndroidAppOpenSlot(
         options: FullScreenAdOptions,
         presentation: FullScreenPresentationHandle,
         rewardDelivery: RewardDelivery?
-    ): AdShowResult = withContext(Dispatchers.Main.immediate) {
-        val activity = activityProvider()
-            ?: return@withContext AdShowResult.Failed(AdError.message("No current Android Activity."))
-        suspendCancellableCoroutine<AdShowResult> { continuation ->
-            continuation.invokeOnCancellation { presentation.closeIfCoreOwned() }
-            if (!continuation.isActive) return@suspendCancellableCoroutine
+    ): AdShowResult {
+        val activity = withContext(Dispatchers.Main.immediate) { activityProvider() }
+            ?: return AdShowResult.Failed(AdError.message("No current Android Activity."))
+        return presentSimpleFullScreenAd(loaded, presentation) { callback ->
             loaded.adEventCallback = object : AppOpenAdEventCallback {
-                override fun onAdShowedFullScreenContent() = emit(AdEvent.OpenedFullScreen(placement.id))
-                override fun onAdImpression() = emit(AdEvent.Impression(placement.id))
-                override fun onAdClicked() = emit(AdEvent.Clicked(placement.id))
-                override fun onAdPaid(value: com.google.android.libraries.ads.mobile.sdk.common.AdValue) {
-                    emit(AdEvent.Paid(placement.id, PaidEvent(placement.id, value.toCommon(), loaded.getResponseInfo().toCommon())))
-                }
-                override fun onAdDismissedFullScreenContent() {
-                    if (presentation.close(wasShown = true)) {
-                        emit(AdEvent.ClosedFullScreen(placement.id))
-                        if (continuation.isActive) continuation.resume(AdShowResult.Shown)
-                    }
-                }
-                override fun onAdFailedToShowFullScreenContent(error: FullScreenContentError) {
-                    val adError = error.toAdError()
-                    if (presentation.close(wasShown = false)) {
-                        emit(AdEvent.ShowFailed(placement.id, adError))
-                        if (continuation.isActive) continuation.resume(AdShowResult.Failed(adError))
-                    }
-                }
+                override fun onAdShowedFullScreenContent() = callback.onShowed()
+                override fun onAdImpression() = callback.onImpression()
+                override fun onAdClicked() = callback.onClicked()
+                override fun onAdPaid(value: com.google.android.libraries.ads.mobile.sdk.common.AdValue) = callback.onPaid(value)
+                override fun onAdDismissedFullScreenContent() = callback.onDismissed()
+                override fun onAdFailedToShowFullScreenContent(error: FullScreenContentError) = callback.onFailedToShow(error)
             }
-            if (presentation.tryHandOffToCallbacks()) loaded.show(activity)
+            loaded.show(activity)
         }
     }
-
 
     override fun onAdLoaded(ad: AppOpenAd, requestOptions: AdRequestOptions) {
         (requestOptions.placementId ?: placement.requestOptions.placementId)?.let { ad.placementId = it }
@@ -379,6 +350,72 @@ internal class AndroidAppOpenSlot(
     override fun getResponseInfo(ad: AppOpenAd): AdResponseInfo? = ad.getResponseInfo().toCommon()
 
     override fun canPresent(): AdError? = if (activityProvider() != null) null else AdError.message("No current Android Activity.")
+}
+
+/**
+ * Callback bodies shared by every non-rewarded full-screen format (Interstitial, AppOpen).
+ * `InterstitialAdEventCallback`/`AppOpenAdEventCallback` are separate SAM interfaces with no
+ * common supertype, so each slot still builds its own — by forwarding every method to the
+ * matching lambda here — the same way [showRewarded] below already forwards
+ * `RewardedInterstitialAdEventCallback` to a `RewardedAdEventCallback`-shaped object.
+ */
+private class SimpleFullScreenCallback(
+    val onShowed: () -> Unit,
+    val onImpression: () -> Unit,
+    val onClicked: () -> Unit,
+    val onPaid: (com.google.android.libraries.ads.mobile.sdk.common.AdValue) -> Unit,
+    val onDismissed: () -> Unit,
+    val onFailedToShow: (FullScreenContentError) -> Unit,
+)
+
+/**
+ * Shared continuation ceremony for presenting a loaded non-rewarded full-screen ad. Every
+ * `presentAd` override for Interstitial/AppOpen is this function plus exactly the platform call
+ * that's genuinely different per format: build the SAM callback (forwarding to
+ * [SimpleFullScreenCallback]) and call `loaded.show(activity)`.
+ *
+ * The hand-off invariant lives here now, in one place: [installCallbackAndShow] — which sets the
+ * SDK callback and calls `show` — runs only AFTER
+ * [FullScreenPresentationHandle.tryHandOffToCallbacks] succeeds. If it returns false
+ * (cancellation raced in first), the SDK show must never happen.
+ */
+private suspend fun <T : Ad> FullScreenSlotCore<T>.presentSimpleFullScreenAd(
+    loaded: T,
+    presentation: FullScreenPresentationHandle,
+    beforeHandOff: () -> Unit = {},
+    installCallbackAndShow: (SimpleFullScreenCallback) -> Unit,
+): AdShowResult = withContext(Dispatchers.Main.immediate) {
+    suspendCancellableCoroutine<AdShowResult> { continuation ->
+        continuation.invokeOnCancellation { presentation.closeIfCoreOwned() }
+        if (!continuation.isActive) return@suspendCancellableCoroutine
+        beforeHandOff()
+        val callback = SimpleFullScreenCallback(
+            onShowed = { emit(AdEvent.OpenedFullScreen(placement.id)) },
+            onImpression = { emit(AdEvent.Impression(placement.id)) },
+            onClicked = { emit(AdEvent.Clicked(placement.id)) },
+            onPaid = { value ->
+                emit(AdEvent.Paid(placement.id, PaidEvent(placement.id, value.toCommon(), loaded.getResponseInfo().toCommon())))
+            },
+            onDismissed = {
+                if (presentation.close(wasShown = true)) {
+                    emit(AdEvent.ClosedFullScreen(placement.id))
+                    if (continuation.isActive) continuation.resume(AdShowResult.Shown)
+                }
+            },
+            onFailedToShow = { error ->
+                val adError = error.toAdError()
+                if (presentation.close(wasShown = false)) {
+                    emit(AdEvent.ShowFailed(placement.id, adError))
+                    if (continuation.isActive) continuation.resume(AdShowResult.Failed(adError))
+                }
+            }
+        )
+        // Hand off before installing the callback: if cancellation already closed the handle
+        // (raced in via invokeOnCancellation between the isActive check above and here), there
+        // will be no terminal SDK callback to release this ad — installing regardless would show
+        // an ad nobody is tracking anymore.
+        if (presentation.tryHandOffToCallbacks()) installCallbackAndShow(callback)
+    }
 }
 
 private suspend fun <T : Ad> FullScreenSlotCore<T>.showRewarded(
