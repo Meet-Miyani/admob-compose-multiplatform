@@ -983,6 +983,13 @@ final class dev.avinya.ads.nativead/NativeAdMemoryPolicy { // dev.avinya.ads.nat
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.nativead/NativeAdMemoryPolicy.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.avinya.ads.nativead/NativeAdMemoryPolicy.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.avinya.ads.nativead/NativeAdMemoryPolicy.toString|toString(){}[0]
+
+    final object Companion { // dev.avinya.ads.nativead/NativeAdMemoryPolicy.Companion|null[0]
+        final const val DEFAULT_HARD_LIMIT // dev.avinya.ads.nativead/NativeAdMemoryPolicy.Companion.DEFAULT_HARD_LIMIT|{}DEFAULT_HARD_LIMIT[0]
+            final fun <get-DEFAULT_HARD_LIMIT>(): kotlin/Int // dev.avinya.ads.nativead/NativeAdMemoryPolicy.Companion.DEFAULT_HARD_LIMIT.<get-DEFAULT_HARD_LIMIT>|<get-DEFAULT_HARD_LIMIT>(){}[0]
+        final const val DEFAULT_MAX_SESSION_RECORDS // dev.avinya.ads.nativead/NativeAdMemoryPolicy.Companion.DEFAULT_MAX_SESSION_RECORDS|{}DEFAULT_MAX_SESSION_RECORDS[0]
+            final fun <get-DEFAULT_MAX_SESSION_RECORDS>(): kotlin/Int // dev.avinya.ads.nativead/NativeAdMemoryPolicy.Companion.DEFAULT_MAX_SESSION_RECORDS.<get-DEFAULT_MAX_SESSION_RECORDS>|<get-DEFAULT_MAX_SESSION_RECORDS>(){}[0]
+    }
 }
 
 final class dev.avinya.ads.nativead/NativeAdOptions { // dev.avinya.ads.nativead/NativeAdOptions|null[0]

@@ -27,6 +27,22 @@ import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Instant
 
+/**
+ * Shared with [NativeAdManagerImpl.dormantHandleLocked], which enforces the same two rules
+ * before a coordinator exists yet (see the KDoc there for why). Neither message names a
+ * throwing class: whichever of the two call sites throws it, the message must stay correct
+ * for both, so it names the session key and the policy fields instead.
+ */
+internal fun sessionPolicyMismatchMessage(key: String, existingPolicy: NativeAdSessionPolicy): String =
+    "Native ad session '$key' already exists with a different policy " +
+        "(maxRetainedAds=${existingPolicy.maxRetainedAds}, retainBehind=${existingPolicy.retainBehind}, " +
+        "prefetchAhead=${existingPolicy.prefetchAhead}); close the existing session before reusing the " +
+        "key with a new policy."
+
+internal fun sessionRegistryFullMessage(maxSessionRecords: Int, key: String): String =
+    "Native ad session registry full: maxSessionRecords ($maxSessionRecords) reached; cannot create " +
+        "session '$key'."
+
 
 /**
  * Process-wide coordinator that drives native-ad loads across every active
@@ -162,15 +178,10 @@ internal class NativeAdCoordinatorCore<A : Any>(
             require(key.isNotBlank()) { "session key must not be blank" }
             tickLocked(effects)
             sessions[key]?.let { holder ->
-                // Policy mismatch is rejected (the original plan contract).
+                // A session key MUST keep one policy for its lifetime; reusing it with a
+                // different policy is a programming error, not a reconfiguration.
                 if (holder.core.policy != policy) {
-                    throw IllegalStateException(
-                        "NativeAdCoordinatorCore: session '$key' already exists with " +
-                            "a different policy (maxRetainedAds=${holder.core.policy.maxRetainedAds}, " +
-                            "retainBehind=${holder.core.policy.retainBehind}, " +
-                            "prefetchAhead=${holder.core.policy.prefetchAhead}); " +
-                            "close the existing session before reusing the key with a new policy."
-                    )
+                    throw IllegalStateException(sessionPolicyMismatchMessage(key, holder.core.policy))
                 }
                 holder.lastActive = nowLocked()
                 if (!holder.active) {
@@ -180,10 +191,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 return@withLock holder.core to effects
             }
             if (sessions.size >= memoryPolicy.maxSessionRecords) {
-                throw IllegalStateException(
-                    "NativeAdCoordinatorCore: maxSessionRecords (${memoryPolicy.maxSessionRecords}) " +
-                        "reached; cannot create session '$key'."
-                )
+                throw IllegalStateException(sessionRegistryFullMessage(memoryPolicy.maxSessionRecords, key))
             }
             val holder = SessionHolder(
                 core = if (published != null) {
