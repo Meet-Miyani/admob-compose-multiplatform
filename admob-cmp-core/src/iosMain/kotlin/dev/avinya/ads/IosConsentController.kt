@@ -51,8 +51,9 @@ internal class IosConsentController(
         lastConfig = config
         config.dispatchInitializationHooks(AdInitializationPhase.BeforeConsentRequest)
         val consentInformation = UMPConsentInformation.sharedInstance
-        // Bounded: this is a non-interactive network round trip, so UMP accepting the call and never
-        // calling back used to hang consent admission -- and therefore ad serving -- indefinitely.
+        // MUST stay bounded: this is a non-interactive network round trip, and UMP can accept the
+        // call and never call back, which hangs consent admission -- and therefore ad serving --
+        // indefinitely.
         //
         // On timeout the status becomes Failed, but [canRequestAds] is deliberately NOT reset: it
         // keeps whatever the last COMPLETED refresh established. On a first run that is false, so a

@@ -60,13 +60,13 @@ import kotlinx.coroutines.withTimeoutOrNull
  * synchronous failure and a late SDK callback race without double-destroying the ad or decrementing
  * the process-wide presentation count twice.
  *
- * The handle also owns the **lifetime of the per-presentation audio override**. It used to live
- * beside the handle, applied before the `try` in [FullScreenSlotCore.showInternal] and restored in
- * that function's `finally`, which produced three separate defects: an override that threw stranded
- * the arbiter token and presence counter for the process lifetime; caller cancellation after SDK
- * hand-off restored audio while the ad was still on screen; and a throwing restore replaced the
- * primary result. Ownership by the handle fixes all three, because [close]/[closeIfCoreOwned] are
- * already the exactly-once terminal path.
+ * The handle also owns the **lifetime of the per-presentation audio override**, and must keep
+ * owning it. Do not move the override beside the handle — applied before the `try` in
+ * [FullScreenSlotCore.showInternal] and restored in that function's `finally` — which reopens
+ * three separate defects: an override that throws strands the arbiter token and presence counter
+ * for the process lifetime; caller cancellation after SDK hand-off restores audio while the ad is
+ * still on screen; and a throwing restore replaces the primary result. Handle ownership avoids all
+ * three, because [close]/[closeIfCoreOwned] are already the exactly-once terminal path.
  */
 @OptIn(ExperimentalAtomicApi::class)
 internal class FullScreenPresentationHandle(
@@ -367,7 +367,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         // keyWindow / rootViewController). prepareShow() is non-suspend and runs inside
         // two locks, so the evaluation is hoisted here where it can be main-confined.
         // Pre-computing it does not change which branch prepareShow selects — the value
-        // is only consumed in the branch that previously called canPresent() inline.
+        // is consumed in exactly one branch, which is where the inline call would sit.
         val presentabilityError = withContext(Dispatchers.Main.immediate) { canPresent() }
         beforeShowCommit()
         val preparation = operationMutex.withLock {

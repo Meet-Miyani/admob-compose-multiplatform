@@ -78,11 +78,10 @@ class PostInitializationHooksTest {
     fun `a throwing after-initialize hook does not surface as an initialization failure`() = runTest {
         val hook = RecordingHook(failWith = IllegalStateException("publisher hook exploded"))
 
-        // Must not throw. This is the whole point: by the time these hooks run, the native ad SDK
-        // singleton is initialized and its identity committed. Letting a host hook's failure
-        // propagate is what used to leave appliedConfigIdentity null while GMA was already
-        // running -- after which a retry with a different app ID would try to reconfigure an
-        // immutable singleton.
+        // Pins: a throwing host hook must not propagate. By the time these hooks run the native
+        // ad SDK singleton is initialized and its identity committed; letting the failure escape
+        // leaves appliedConfigIdentity null while GMA is already running, after which a retry
+        // with a different app ID tries to reconfigure an immutable singleton.
         dispatchAfterInitializeHooks(configWith(hook))
 
         assertContentEquals(listOf(AdInitializationPhase.AfterMobileAdsInitialize), hook.phases)

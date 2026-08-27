@@ -71,9 +71,9 @@ internal class AndroidConsentController(
     /**
      * The UMP info-update sequence, given a host that has already been acquired.
      *
-     * Split out so each PUBLIC consent entry point acquires the host exactly once.
-     * [gatherConsent] used to call [requestConsentInfoUpdate], which re-acquired it — two waits
-     * for one logical operation. Callers are responsible for being on Main.
+     * Split out so each PUBLIC consent entry point acquires the host exactly once. Do not
+     * route [gatherConsent] back through [requestConsentInfoUpdate] — that re-acquires the
+     * host, two waits for one logical operation. Callers are responsible for being on Main.
      */
     private suspend fun updateWithActivity(
         activity: Activity,
@@ -81,9 +81,9 @@ internal class AndroidConsentController(
         consentInformation: ConsentInformation,
     ): ConsentStatus {
         val params = buildConsentParams(activity, config)
-        // Bounded: this is a non-interactive network round trip, so UMP accepting the call and
-        // never calling back used to hang consent admission — and therefore ad serving —
-        // indefinitely.
+        // MUST stay bounded: this is a non-interactive network round trip, and UMP can accept
+        // the call and never call back, which hangs consent admission — and therefore ad
+        // serving — indefinitely.
         //
         // On timeout the status becomes Failed, but [canRequestAds] is deliberately NOT reset: it
         // keeps whatever the last COMPLETED refresh established. On a first run that is false, so a

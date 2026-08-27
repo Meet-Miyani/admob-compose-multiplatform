@@ -325,9 +325,9 @@ class AppOpenAdCoordinatorTest {
         }
 
     // ---------------------------------------------------------------------------------
-    // stop() ownership. It used to cancel only the foreground collector and the
-    // cold-start preload; the show/reload coroutines launched from a foreground
-    // transition went onto the CALLER's scope and outlived stop() entirely.
+    // stop() ownership. stop() must cancel EVERY coroutine it owns — including show/reload
+    // launched from a foreground transition. Those must not go onto the CALLER's scope, or
+    // they outlive stop() entirely.
     // ---------------------------------------------------------------------------------
 
     @Test

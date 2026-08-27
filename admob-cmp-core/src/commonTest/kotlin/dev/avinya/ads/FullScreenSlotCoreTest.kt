@@ -804,10 +804,10 @@ class FullScreenSlotCoreTest {
     }
 
     // ---------------------------------------------------------------------------------
-    // Audio override ownership. The override used to be applied outside showInternal's
-    // try and restored in its finally, which leaked the process-wide presentation gate,
-    // restored audio mid-ad on caller cancellation, and let a failing restore replace the
-    // primary result. FullScreenPresentationHandle now owns the whole lifetime.
+    // Audio override ownership. FullScreenPresentationHandle must own the whole lifetime.
+    // Applying the override outside showInternal's try and restoring it in the finally leaks
+    // the process-wide presentation gate, restores audio mid-ad on caller cancellation, and
+    // lets a failing restore replace the primary result.
     // ---------------------------------------------------------------------------------
 
     @Test

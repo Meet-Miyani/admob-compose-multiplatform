@@ -75,8 +75,8 @@ internal interface BannerPlatform<V : Any, S : Any> {
  * keep-the-old-banner-until-the-new-one-lands swap.
  *
  * Restores CLAUDE.md invariant #6: geometry is a host-supplied *input*, never something
- * the controller reaches for. Both controllers previously violated this — Android through
- * `Activity`, iOS through `UIScreen.mainScreen.bounds`.
+ * the controller reaches for. A controller must never reach for `Activity` (Android) or
+ * `UIScreen.mainScreen.bounds` (iOS) to resolve a width.
  */
 internal class BannerCore<V : Any, S : Any>(
     val placement: AdPlacement,
@@ -106,10 +106,10 @@ internal class BannerCore<V : Any, S : Any>(
     //     options that call resolved, never rebuild them from placement.requestOptions.
     //   - size/sizePolicy are owned by the host's container measurement and change on every
     //     resize (rotation, split-screen, fold).
-    // This was previously two records (lastRequest / registeredRequest) picked between in
-    // refresh(). That cannot work: choosing either whole record discards the other owner's
-    // half — preferring the load record replayed a stale width after a resize, preferring
-    // the geometry record dropped custom request options. See registerGeometry.
+    // Keep this ONE merged record. Two records (a load record and a geometry record) picked
+    // between in refresh() cannot work: choosing either whole record discards the other owner's
+    // half — preferring the load record replays a stale width after a resize, preferring the
+    // geometry record drops custom request options. See registerGeometry.
     private var replayRequest: ResolvedBannerRequest<S>? = null
 
     // Count of live UI attachments (BannerAdView composables) bound to this controller.

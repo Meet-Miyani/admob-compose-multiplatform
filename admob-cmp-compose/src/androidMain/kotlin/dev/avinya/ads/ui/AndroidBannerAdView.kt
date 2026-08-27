@@ -146,9 +146,9 @@ public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, width
                 // banner to come back rather than burning the cycle.
                 snapshotFlow { lifecycleState.isAtLeast(Lifecycle.State.STARTED) && isVisible }
                     .first { it }
-                // A refresh landing mid-load used to be dropped, costing a full
+                // A refresh landing mid-load must NOT be dropped — that costs a full
                 // interval of blank/stale inventory on slow networks. Wait for the
-                // in-flight load to settle and refresh promptly instead.
+                // in-flight load to settle, then refresh promptly.
                 snapshotFlow { controller.loadState.value !is AdLoadState.Loading }
                     .first { it }
                 controller.load(

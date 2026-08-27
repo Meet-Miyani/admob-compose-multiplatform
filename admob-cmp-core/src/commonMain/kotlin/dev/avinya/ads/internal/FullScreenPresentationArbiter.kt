@@ -7,11 +7,11 @@ import dev.avinya.ads.AdFormat
 /**
  * Grants at most one full-screen presentation token **process-wide**.
  *
- * Full-screen presence used to be observational: [FullScreenSlotCore] removed an ad from its
- * cache and *then* told the manager to increment a counter. Those are per-slot fields, and
- * there are four full-screen slots per platform, so nothing serialized the decision across
- * them — two slots could each conclude "I may present" and both commit. This type makes the
- * decision an admission gate instead of a record.
+ * Presence must be decided by an **admission gate**, never recorded observationally. Counting
+ * after the fact — a slot removing an ad from its cache and *then* telling the manager to
+ * increment a counter — cannot serialize the decision: those are per-slot fields, and there are
+ * four full-screen slots per platform, so two slots can each conclude "I may present" and both
+ * commit. Acquire a token here first; do not reintroduce a counter as the source of truth.
  *
  * ### Scope
  * The token is **process-wide**, which today coincides with manager-wide because

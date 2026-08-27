@@ -411,12 +411,12 @@ internal class AndroidGoogleAdManager(
         // whenever native init succeeds; an earlier comment here credited the hook's position
         // *before* publication, which was wrong and cost correctness elsewhere.
         //
-        // Native acceptance is now committed BEFORE the hook runs. A throwing publisher hook
-        // used to leave appliedConfigIdentity null while GMA was already initialized, so a
-        // retry with a different app ID sailed past appliedOutcome() and tried to reconfigure
-        // an immutable process singleton. The tradeoff is that a concurrent same-identity
-        // initialize() may observe Ready while the hook is still running — strictly better
-        // than desynchronizing the wrapper from native reality.
+        // Native acceptance MUST be committed BEFORE the hook runs. Commit it after, and a
+        // throwing publisher hook leaves appliedConfigIdentity null while GMA is already
+        // initialized, so a retry with a different app ID sails past appliedOutcome() and
+        // tries to reconfigure an immutable process singleton. The tradeoff is that a
+        // concurrent same-identity initialize() may observe Ready while the hook is still
+        // running — strictly better than desynchronizing the wrapper from native reality.
         val completion = nativeInitializationScope.async(start = CoroutineStart.LAZY) {
             val result = try {
                 AdLogger.d("Android initializing MobileAds with global request configuration.")

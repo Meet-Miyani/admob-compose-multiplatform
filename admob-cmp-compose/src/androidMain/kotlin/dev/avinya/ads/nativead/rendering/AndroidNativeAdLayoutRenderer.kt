@@ -249,10 +249,10 @@ internal class AndroidNativeAdLayoutRenderer(
             }
             // A real `AdChoicesView`, registered with the ad view.
             //
-            // This used to be a bare `FrameLayout` that was never assigned to
-            // `NativeAdView.adChoicesView`, so the slot the layout reserved stayed empty and the
-            // SDK drew its overlay at the request's `adChoicesPlacement` corner instead — over
-            // whatever content happened to be there. iOS registered a `GADAdChoicesView` all along.
+            // Must be a real `AdChoicesView` assigned to `NativeAdView.adChoicesView` — not a
+            // bare `FrameLayout`. Without the assignment the slot the layout reserved stays empty
+            // and the SDK draws its overlay at the request's `adChoicesPlacement` corner instead,
+            // over whatever content happens to be there. (iOS registers a `GADAdChoicesView`.)
             // Assignment has to happen before `registerNativeAd`, which it does: the tree is built
             // first and registration is deferred to the containment listener.
             is AdAssetNode.AdChoices -> AdChoicesView(context).apply {
