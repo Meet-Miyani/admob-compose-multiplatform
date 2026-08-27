@@ -604,7 +604,16 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 activeReservations.removeAll { it.reservation === owner.reservation }
                 governor.releaseReservation(owner.reservation)
             }
-            if (owners.isNotEmpty()) currentJob?.let(effects.cancel::add)
+            // Cancel the in-flight job only when nothing it was loading is wanted any more.
+            // A batch covers every slot one window update demanded, so cancelling it because ONE
+            // of them left the viewport threw away the siblings' loads as well — they were then
+            // deferred and resubmitted, spending a second network request each for slots that had
+            // done nothing wrong. The dropped slot has already been removed from
+            // `activeReservations` above, so its ad is destroyed on arrival (isPairLiveLocked)
+            // whether or not the job keeps running; letting the batch finish costs nothing and
+            // saves every sibling still in it. This matters more the deeper a consumer prefetches,
+            // because deeper prefetch means larger batches.
+            if (owners.isNotEmpty() && activeReservations.isEmpty()) currentJob?.let(effects.cancel::add)
             processNextOrCleanupLocked(effects)
         }
 

@@ -103,12 +103,23 @@ the last commit of a release-worthy change.
 
 On merge to `master`, `release.yml`:
 
-1. Publishes two staging deployments to Maven Central via
+0. **Waits for approval.** The `publish` job is bound to the protected
+   `maven-central` environment, so it does not start until a required
+   reviewer approves it in the Actions run. A version bump therefore does
+   *not* publish on its own — if nobody approves, the release sits pending
+   and nothing is uploaded or tagged. The environment name is the half that
+   lives in code; the required reviewers are configured in repository
+   settings.
+1. Generates the provenance assets (checksum manifest + SPDX SBOM) and
+   attests both, **before** anything is uploaded. Nothing there reads the
+   deployment, and the upload is the only irreversible step, so a provenance
+   failure must not be able to leave a published-but-untagged version behind.
+2. Publishes two staging deployments to Maven Central via
    `./admob-cmp/scripts/publish-maven-central.sh` (library + Gradle
    plugin — they are two separate Gradle builds, so two deployments).
    **It runs no tests first.**
-2. Creates an annotated tag named exactly `<version>` (no `v` prefix).
-3. Cuts a GitHub release with auto-generated notes and a header line
+3. Creates an annotated tag named exactly `<version>` (no `v` prefix).
+4. Cuts a GitHub release with auto-generated notes and a header line
    pointing at the manual Central Portal step.
 
 In parallel, and independently of the release path, it regenerates the Dokka

@@ -738,14 +738,13 @@ class NativeAdCoordinatorCoreTest {
         )
     }
 
-    @Test fun `a sibling of an invalidated slot reloads without another window update`() = runTest(dispatcher) {
+    @Test fun `a sibling of an invalidated slot keeps its in-flight load`() = runTest(dispatcher) {
         val gate = CompletableDeferred<Unit>()
         var call = 0
         val platform = fakePlatform { _, count, _ ->
             call += 1
-            // The first load must still be IN FLIGHT when the invalidation arrives, otherwise there
-            // is no job to cancel, handleCancelled never runs, and the sibling was already filled --
-            // which is how an earlier version of this test passed while the defect was present.
+            // The first load must still be IN FLIGHT when the invalidation arrives, or there is no
+            // job whose cancellation could take the sibling down with it.
             if (call == 1) gate.await()
             AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map { FakeAd(call * 100 + it) }, null))
         }
@@ -755,19 +754,23 @@ class NativeAdCoordinatorCoreTest {
         runCurrent()
         assertEquals(1, platform.loadCalls.size, "one batch covering both slots must be in flight")
 
-        // Dropping `a` cancels the whole in-flight job, so `b` loses its load through no fault of
-        // its own. It used to be marked Deferred and left there: the batch had already left the
-        // queue and nothing re-added it, processNextOrCleanupLocked can only start the NEXT queued
-        // batch, and a deferred slot holds no record so the TTL sweep never revisits it. Recovery
-        // needed an external re-drive -- so an unchanged viewport left the slot empty indefinitely.
+        // Dropping `a` used to cancel the whole in-flight job, so `b` lost its load through no
+        // fault of its own: it was deferred, then resubmitted, spending a second network request
+        // for a slot that never left the viewport. The batch now runs to completion instead --
+        // `a`'s ad is discarded on arrival because its reservation is no longer live, and `b` is
+        // filled from the load that had already been paid for.
         // NOTE there is deliberately no second updateWindow for `b` below.
+        // runCurrent, not advanceUntilIdle: the batch is still gated, and advancing virtual time
+        // here would run it past the placement's 30s load timeout before the ad could arrive.
         coord.updateWindow("s", windowWith("b"))
+        runCurrent()
+        gate.complete(Unit)
         advanceUntilIdle()
 
-        assertTrue(call >= 2, "the surviving sibling should have triggered a fresh platform load")
+        assertEquals(1, call, "the surviving sibling must not trigger a second platform load")
         assertTrue(
             session.state.value.slots["b"] is NativeAdSlotState.Ready,
-            "the surviving sibling must be resubmitted automatically; was ${session.state.value.slots["b"]}"
+            "the surviving sibling must be filled from the original load; was ${session.state.value.slots["b"]}"
         )
         assertEquals(0, coord.managerState().reservedLoads, "no reservation may be left dangling")
     }

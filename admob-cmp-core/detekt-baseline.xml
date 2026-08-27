@@ -6,7 +6,7 @@
     <ID>ComplexCondition:FullScreenSlotCore.kt$FullScreenSlotCore$blockedError == null &amp;&amp; activePresentation.load() == null &amp;&amp; fresh.isNotEmpty() &amp;&amp; presentError == null</ID>
     <ID>ComplexCondition:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore$entry.sessionKey != sessionKey || entry.slotKey != slotKey || entry.generation != holder.core.slotGenerationFor(slotKey) || entry.placement != placement</ID>
     <ID>ComplexCondition:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore$entry.sessionKey != sessionKey || entry.slotKey != slotKey || entry.placement != placement || entry.rendererId != rendererId</ID>
-    <ID>ComplexCondition:NativeAdSessionCore.kt$NativeAdSessionCore$!entry.desired || entry.recordId != null || entry.inFlight != null || occupied >= policy.maxRetainedAds</ID>
+    <ID>ComplexCondition:NativeAdSessionCore.kt$NativeAdSessionCore$!entry.desired || entry.lastError != null || entry.recordId != null || entry.inFlight != null || occupied >= policy.maxRetainedAds</ID>
     <ID>CyclomaticComplexMethod:FullScreenSlotCore.kt$FullScreenSlotCore$private fun prepareShow( options: FullScreenAdOptions, now: Instant, ttl: Duration, presentabilityError: AdError? ): ShowPreparation&lt;AdT></ID>
     <ID>CyclomaticComplexMethod:NativeAdCoordinatorCore.kt$NativeAdCoordinatorCore.PlacementScheduler$private fun startNextLocked(effects: Effects)</ID>
     <ID>CyclomaticComplexMethod:NativeAdGovernor.kt$NativeAdGovernor$private fun trimModerate(): NativeAdTrimResult</ID>

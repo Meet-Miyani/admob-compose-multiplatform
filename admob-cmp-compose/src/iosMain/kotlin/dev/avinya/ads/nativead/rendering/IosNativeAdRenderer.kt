@@ -218,6 +218,7 @@ internal class IosNativeAdRenderer(
      */
     private fun applyDecoration(view: UIView, modifier: AdModifier, backgroundArgb: Long? = modifier.backgroundArgb) {
         view.setTranslatesAutoresizingMaskIntoConstraints(false)
+        view.insetsLayoutMarginsFromSafeArea = false
         view.hidden = modifier.display == AdDisplay.Gone
         view.alpha = if (modifier.display == AdDisplay.Invisible) 0.0 else modifier.alpha.toDouble()
         view.transform = CGAffineTransformMakeTranslation(modifier.offsetXDp.toDouble(), modifier.offsetYDp.toDouble())
@@ -341,6 +342,19 @@ internal class IosNativeAdRenderer(
         }
         stack.distribution = platform.UIKit.UIStackViewDistributionFill
         stack.setTranslatesAutoresizingMaskIntoConstraints(false)
+        // Padding is expressed as `layoutMargins`, and UIKit grows a view's *effective* layout
+        // margins by its `safeAreaInsets` unless told otherwise — the default for this property is
+        // `true`. An ad card scrolled under the status bar therefore had 24dp of declared top
+        // padding turn into 77.67pt of real margin, and since Compose had already fixed the card's
+        // height, that stolen space came straight out of the arranged subviews: the media lost
+        // 20pt, the headline collapsed from 19pt to 0 and the body from two lines to one, summing
+        // to exactly the safe-area inset. Nothing warned, because a `UILabel` yields at its
+        // compression-resistance priority (750) rather than making the layout unsatisfiable.
+        //
+        // A native ad is a card in a feed. Where it sits relative to the notch is the host app's
+        // business, decided before the card is ever measured; the card's own padding must mean the
+        // same thing at every scroll offset.
+        stack.insetsLayoutMarginsFromSafeArea = false
         if (padNonZero(modifier.padding)) {
             val p = modifier.padding
             stack.layoutMargins = cValue<UIEdgeInsets> {

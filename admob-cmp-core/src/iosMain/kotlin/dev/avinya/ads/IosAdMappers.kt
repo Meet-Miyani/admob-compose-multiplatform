@@ -155,7 +155,7 @@ internal fun NSDecimalNumber.toValueMicros(): Long =
         .longLongValue
 
 internal fun GADAdValue.toCommon(): AdValue = AdValue(
-    valueMicros = (value as NSDecimalNumber).toValueMicros(),
+    valueMicros = value.toValueMicros(),
     currencyCode = currencyCode,
     precision = precision.toCommon()
 )

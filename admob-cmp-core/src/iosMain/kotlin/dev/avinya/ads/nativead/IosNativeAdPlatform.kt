@@ -365,4 +365,4 @@ private class SessionVideoDelegate(
     override fun videoControllerDidUnmuteVideo(videoController: GoogleMobileAds.GADVideoController) = emit(AdEvent.VideoMuted(placementId, false, adInstanceId))
 }
 
-private fun GADMediaContent.snapshot() = NativeMediaInfo(aspectRatio.takeIf { it > 0.0 }?.toFloat(), hasVideoContent, if (duration > 0f) duration.toDouble() else null)
+private fun GADMediaContent.snapshot() = NativeMediaInfo(aspectRatio.takeIf { it > 0.0 }?.toFloat(), hasVideoContent, duration.takeIf { it > 0f })

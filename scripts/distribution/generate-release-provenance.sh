@@ -23,7 +23,17 @@ trap 'rm -rf "$STAGING"' EXIT
 echo "==> Publishing $VERSION into a throwaway repository to enumerate artifacts"
 # Unsigned, and into a redirected Maven local so this describes the publication rather than
 # performing one. maven.repo.local keeps it out of the developer's real ~/.m2.
+#
+# Two invocations, mirroring `admob-cmp/scripts/publish-maven-central.sh`: the Gradle plugin is a
+# separate included build, so a single root publish enumerates the library alone. Describing half a
+# release in a manifest that claims to describe all of it is worse than not shipping one, because a
+# consumer verifying the plugin's artifacts would find them simply absent.
 ./gradlew publishToMavenLocal \
+  -PsignAllPublications=false \
+  -Dmaven.repo.local="$STAGING" \
+  --no-configuration-cache >/dev/null
+
+./gradlew -p admob-cmp-gradle-plugin publishToMavenLocal \
   -PsignAllPublications=false \
   -Dmaven.repo.local="$STAGING" \
   --no-configuration-cache >/dev/null
@@ -34,8 +44,14 @@ if [ -z "$(find "$STAGING" -name '*.pom' -o -name '*.module' 2>/dev/null | head 
   exit 1
 fi
 
+# `maven-metadata-local.xml` is bookkeeping the local repository writes for itself; it carries a
+# build timestamp and is never uploaded to Central. Including it made the manifest describe files
+# that do not exist in the release, and made it non-deterministic: two runs of the same commit
+# produced different checksums for those entries alone. Every real artifact -- jar, klib, pom,
+# module -- is byte-identical between runs, so excluding this makes the whole manifest reproducible.
 artifacts=$(find "$STAGING" -type f \
   ! -name '*.sha1' ! -name '*.sha256' ! -name '*.sha512' ! -name '*.md5' ! -name '*.asc' \
+  ! -name 'maven-metadata-local.xml' \
   | sort)
 
 [ -n "$artifacts" ] || { echo "No artifacts were produced — cannot generate provenance." >&2; exit 1; }

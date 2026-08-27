@@ -97,7 +97,13 @@ public data class NativeAdWindow(
  * - [Retained] — the slot has a live ad but it is currently outside the
  *   viewport. The session may evict it under memory pressure.
  * - [Failed] — the last load attempt for this slot failed. The session
- *   will not retry until the consumer updates the window.
+ *   will **not** retry while the slot stays in the window, however many
+ *   window updates arrive: a viewport reports once per scroll frame, so
+ *   retrying on window update alone is a request loop rather than a
+ *   retry. The slot is requested again once it leaves the window and
+ *   comes back. Retryable transport failures have already been retried,
+ *   under the placement's [dev.avinya.ads.AdRetryPolicy], before the
+ *   failure ever reaches this state.
  *
  * [Ready], [Mounted], and [Retained] carry the snapshot of [NativeMediaInfo]
  * for the current ad, which Compose uses to lay out the asset region. It

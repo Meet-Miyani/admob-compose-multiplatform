@@ -260,14 +260,12 @@ jobs:
       - name: Assert Xcode 26 (iOS Simulator SDK 26)
         run: xcodebuild -showsdks | grep -q "iphonesimulator26" || { echo "SDK 26 not found"; xcodebuild -showsdks; exit 1; }
 
-      - name: Publish to Maven Central
-        run: ./admob-cmp/scripts/publish-maven-central.sh
-        env:
-          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
-
+      # Provenance is generated and attested BEFORE the upload, and deliberately so. Nothing here
+      # reads the deployment -- the script publishes into a throwaway repository of its own -- while
+      # the upload is the one step that cannot be undone. Run afterwards, a transient failure in
+      # either step failed the job *after* a signed deployment had already landed, which skipped
+      # tagging and left the release gate armed, so the next push re-published the same version as a
+      # second staging deployment that a human then had to find and drop by hand.
       - name: Generate release provenance assets
         run: ./scripts/distribution/generate-release-provenance.sh "$RUNNER_TEMP/provenance" "$GITHUB_SHA"
 
@@ -277,7 +275,19 @@ jobs:
         # signatures prove the publisher's key, not the build's origin.
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
-          subject-path: ${{ runner.temp }}/provenance/checksums.txt
+          # Both assets, not just the manifest: an SBOM nobody can verify the integrity of is a
+          # claim rather than evidence.
+          subject-path: |
+            ${{ runner.temp }}/provenance/checksums.txt
+            ${{ runner.temp }}/provenance/sbom.spdx.json
+
+      - name: Publish to Maven Central
+        run: ./admob-cmp/scripts/publish-maven-central.sh
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

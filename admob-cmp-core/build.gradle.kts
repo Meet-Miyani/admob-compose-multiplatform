@@ -14,6 +14,13 @@ kotlin {
     @OptIn(org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation::class)
     abiValidation { enabled.set(true) }
 
+    // Silences the recurring "'expect'/'actual' classes ... are in Beta" warning
+    // (KT-61573) across every target — this project's expect/actual usage (AdPlatformLogger,
+    // FullScreenStateLock) is the ordinary kind the flag is meant to unblock.
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     android {
         namespace = "dev.avinya.ads.core"
         compileSdk = libs.versions.android.compileSdk.get().toInt()

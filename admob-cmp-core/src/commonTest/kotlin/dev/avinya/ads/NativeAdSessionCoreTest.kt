@@ -220,6 +220,42 @@ class NativeAdSessionCoreTest {
         assertTrue(core.state.value.slots.size <= 3, "found ${core.state.value.slots.size} retained entries")
     }
 
+    @Test fun `failed slot is not re-requested while it stays in the window`() {
+        val core = session()
+        val first = core.updateWindow(window("a"))
+        core.recordFailed("a", AdError("no-fill", "no fill", null), first.demands.single().generation)
+
+        // A real viewport republishes its window on every scroll frame. None of them may spend a
+        // request on a slot that has already failed.
+        repeat(20) { assertTrue(core.updateWindow(window("a")).demands.isEmpty()) }
+        assertIs<NativeAdSlotState.Failed>(core.state.value.slots["a"])
+    }
+
+    @Test fun `failed slot is requested again after leaving and re-entering the window`() {
+        val core = session()
+        val first = core.updateWindow(window("a"))
+        core.recordFailed("a", AdError("no-fill", "no fill", null), first.demands.single().generation)
+
+        core.updateWindow(window("b"))
+        assertNull(core.state.value.slots["a"])
+        val reentry = core.updateWindow(window("a"))
+        assertEquals(listOf("a"), reentry.demands.map { it.key })
+    }
+
+    @Test fun `deferred slot is retried on the next window update`() {
+        val core = session()
+        val first = core.updateWindow(window("a"))
+        // The governor had no capacity — nothing failed, so this must not be treated as a failure.
+        core.recordDeferred("a", first.demands.single().generation)
+
+        val retry = core.updateWindow(window("a"))
+        assertEquals(listOf("a"), retry.demands.map { it.key })
+    }
+
+
+
+
+
     @Test fun `session core publishes into a supplied flow`() {
         val externalFlow = kotlinx.coroutines.flow.MutableStateFlow(
             dev.avinya.ads.nativead.NativeAdSessionState(active = true, slots = mapOf("stale" to NativeAdSlotState.Loading)),
