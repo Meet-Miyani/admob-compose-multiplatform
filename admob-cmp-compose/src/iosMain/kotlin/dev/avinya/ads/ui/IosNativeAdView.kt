@@ -1,20 +1,27 @@
-@file:OptIn(dev.avinya.ads.InternalAdMobCmpApi::class, kotlinx.cinterop.ExperimentalForeignApi::class)
+@file:OptIn(
+    dev.avinya.ads.InternalAdMobCmpApi::class,
+    kotlinx.cinterop.ExperimentalForeignApi::class,
+    androidx.compose.ui.ExperimentalComposeUiApi::class,
+)
 
 package dev.avinya.ads.ui
 
 import GoogleMobileAds.GADNativeAdView
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.RememberObserver
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -38,12 +45,15 @@ import dev.avinya.ads.nativead.rendering.rememberResolvedComposeFonts
 import dev.avinya.ads.nativead.rendering.resolveNativeAdSurfaceArgb
 import dev.avinya.ads.nativead.rendering.uiColorFromArgb
 import kotlinx.cinterop.useContents
+import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGSizeMake
+import platform.Foundation.NSNotificationCenter
+import platform.Foundation.NSOperationQueue
 import platform.UIKit.NSLayoutConstraint
+import platform.UIKit.UIContentSizeCategoryDidChangeNotification
 import platform.UIKit.UILayoutPriorityFittingSizeLevel
 import platform.UIKit.UILayoutPriorityRequired
 import platform.UIKit.UIView
-import kotlin.math.roundToInt
 
 @Composable
 public actual fun NativeAdView(
@@ -96,66 +106,56 @@ public actual fun NativeAdView(
                 NativeAdPlaceholder(modifier, loading)
             } else {
                 BoxWithConstraints(modifier = modifier, propagateMinConstraints = true) {
+                    val widthPoints = maxWidth.value.toDouble()
                     val minHeightPoints = minHeight.value.toDouble().takeIf { it.isFinite() && it > 0.0 } ?: 0.0
                     val maxHeightPoints = maxHeight.value.toDouble().takeIf { it.isFinite() && it > 0.0 }
-                    val widthBucket = maxWidth.value.takeIf { it.isFinite() && it > 0f }?.roundToInt()
-                    val heightCacheKey = remember(session.key, slotKey, placement.id, layout.identity, widthBucket) {
-                        IosNativeAdHeightCacheKey(session.key, slotKey, placement.id, layout.identity, widthBucket)
-                    }
                     // A root that asks to fill takes the host's height rather than measuring its
                     // own: see `IosNativeAdHostView.fillsHost`.
                     val rootFillsHost = layout.root.modifier.height == AdLayoutSize.Match && minHeightPoints > 0.0
-                    val initialHeight = remember(heightCacheKey, minHeightPoints, maxHeightPoints) {
-                        resolveIosNativeAdInitialHeight(
-                            cachedHeight = iosNativeAdHeightCache.get(heightCacheKey),
-                            minHeight = minHeightPoints,
-                            maxHeight = maxHeightPoints,
-                        )
-                    }
-                    var preferredHeight by remember(
+                    val prepared = remember(
                         mountedLease.adInstanceId,
                         layout.identity,
                         resolvedComposeFonts,
-                        heightCacheKey,
+                        widthPoints,
+                        rootFillsHost,
                     ) {
-                        mutableDoubleStateOf(initialHeight)
+                        prepareNativeAd(
+                            placementId = placement.id,
+                            nativeAd = mountedLease.ad,
+                            layout = layout,
+                            density = density,
+                            width = widthPoints,
+                            fillsHost = rootFillsHost,
+                        )
                     }
-                    key(mountedLease.adInstanceId, layout.identity, resolvedComposeFonts, heightCacheKey) {
+                    var height by remember(prepared, minHeightPoints, maxHeightPoints) {
+                        mutableDoubleStateOf(prepared.height.coerceIntoHostBounds(minHeightPoints, maxHeightPoints))
+                    }
+                    // The one thing that legitimately resizes a built tree: every label sets
+                    // `adjustsFontForContentSizeCategory`, so a Dynamic Type change re-measures.
+                    ObserveContentSizeCategory(prepared) {
+                        height = prepared.host.measureDetachedHeight(widthPoints)
+                            .coerceIntoHostBounds(minHeightPoints, maxHeightPoints)
+                    }
+                    key(prepared) {
                         UIKitView(
-                            factory = {
-                                val nativeView = GADNativeAdView()
-                                nativeView.translatesAutoresizingMaskIntoConstraints = false
-                                val content = IosNativeAdRenderer(
-                                    nativeAd = mountedLease.ad,
-                                    nativeView = nativeView,
-                                    density = density,
-                                ).render(layout.root)
-                                nativeView.addSubview(content)
-                                content.leadingAnchor.constraintEqualToAnchor(nativeView.leadingAnchor).active = true
-                                content.trailingAnchor.constraintEqualToAnchor(nativeView.trailingAnchor).active = true
-                                content.topAnchor.constraintEqualToAnchor(nativeView.topAnchor).active = true
-                                IosNativeAdHostView(
-                                    placementId = placement.id,
-                                    nativeView = nativeView,
-                                    content = content,
-                                    nativeAd = mountedLease.ad,
-                                    surfaceArgb = resolveNativeAdSurfaceArgb(layout.root),
-                                    minHeight = minHeightPoints,
-                                    maxHeight = maxHeightPoints,
-                                    fillsHost = rootFillsHost,
-                                ) { effectiveHeight ->
-                                    iosNativeAdHeightCache.put(heightCacheKey, effectiveHeight)
-                                    preferredHeight = effectiveHeight
-                                }
-                            },
+                            factory = { prepared.host },
                             onRelease = { it.releaseHost() },
+                            // A fixed height on purpose. `UIKitView` would otherwise measure the
+                            // interop view's fitting size during Compose's measure pass, and that
+                            // measurement reads a live Auto Layout tree — which any caller can
+                            // catch mid-update, getting back the real height plus whatever its
+                            // unsettled subviews are short by. The height handed down here was
+                            // measured detached instead, where nothing else was laying the tree
+                            // out, so it is exact and never has to be revised.
+                            //
                             // The clip sits OUTSIDE Compose's interop `drawBehind { Clear }`
                             // (`layoutNode.modifier = modifier then platformModifier`), so it
                             // shapes the cut-out itself: the corners are never cleared, and the
                             // app's own pixels survive there instead of the platform backdrop.
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(preferredHeight.dp)
+                                .then(if (rootFillsHost) Modifier.fillMaxHeight() else Modifier.height(height.dp))
                                 .adRootSurface(layout.root),
                             properties = UIKitInteropProperties(isInteractive = true, isNativeAccessibilityEnabled = true),
                         )
@@ -178,35 +178,37 @@ public actual fun NativeAdView(
  * appearance, so an app rendering its own dark theme under a light system shows white behind the
  * ad. The layout's opaque root background, resolved into [surfaceArgb], is what closes that hole.
  */
-private class IosNativeAdHostView(
+internal class IosNativeAdHostView(
     /** Diagnostics only — identifies the host in a containment failure report. */
     private val placementId: String,
     private val nativeView: GADNativeAdView,
     private val content: UIView,
     private val nativeAd: GoogleMobileAds.GADNativeAd,
     surfaceArgb: Long?,
-    private val minHeight: Double,
-    private val maxHeight: Double?,
     /**
-     * The layout root asked for [dev.avinya.ads.nativead.layout.AdLayoutSize.Match] height and the
-     * host has a bounded one to give it.
+     * The layout root asked for [dev.avinya.ads.nativead.layout.AdLayoutSize.Match] height.
      *
-     * Nothing else propagates the host's height into the rendered tree: [content] is pinned to
-     * three edges and merely *contained* by the fourth, so a `fillMaxSize()` root had no parent
-     * height to match and collapsed onto its tallest child. A full-screen layout therefore drew its
-     * bottom-aligned content against the bottom of the media rather than the bottom of the page,
-     * while Compose still reserved the full height — which is exactly what `AndroidView` gets for
-     * free by handing the Compose modifier straight to the host.
-     *
-     * When this is set the containment constraint becomes an equality and is active from the start,
-     * and the measure/report loop below is skipped entirely: the height is already decided by the
-     * constraints Compose passed down, so measuring the content would only fight them.
+     * Compose then fixes this view's height — `fillMaxHeight` against bounded constraints — and the
+     * content has to stretch into it rather than size itself, so the constraint tying the two must
+     * be unbreakable. Otherwise the content keeps its own height and a full-screen layout draws its
+     * bottom-aligned content against the bottom of the media rather than the bottom of the page.
      */
     private val fillsHost: Boolean,
-    private val onPreferredHeightChanged: (Double) -> Unit,
 ) : UIView(frame = kotlinx.cinterop.cValue { }) {
     private var nativeAdRegistered = false
     private var containmentFailureReported = false
+    /**
+     * Keeps the rendered tree inside the ad view — and, as a consequence, gives the ad view a
+     * height for Compose to measure.
+     *
+     * Paired with the top edge pinned by equality, the inequality reads "the ad view is at least as
+     * tall as its content", which is the lower bound Compose's fitting-size measurement needs. It
+     * is therefore active from construction rather than from registration: Compose measures this
+     * view long before the ad is bound, and an unconstrained bottom edge would measure to nothing.
+     *
+     * A [fillsHost] root is the other direction — Compose has already fixed the height and the
+     * content must stretch into it — so there the constraint is an equality.
+     */
     private val containmentConstraint: NSLayoutConstraint =
         if (fillsHost) content.bottomAnchor.constraintEqualToAnchor(nativeView.bottomAnchor)
         else content.bottomAnchor.constraintLessThanOrEqualToAnchor(nativeView.bottomAnchor)
@@ -232,6 +234,12 @@ private class IosNativeAdHostView(
         // The GADNativeAdView and the rendered content stay transparent so the layout's own
         // per-node backgrounds show through unchanged; only this host paints the surface, once.
         val surface = surfaceArgb?.let(::uiColorFromArgb) ?: platform.UIKit.UIColor.clearColor
+        // See `IosNativeAdRenderer.renderStack`: the height handed down by Compose was measured
+        // detached, where the tree has no safe area, so no view under this host may quietly grow
+        // its layout margins once the card scrolls under the status bar or the home indicator.
+        insetsLayoutMarginsFromSafeArea = false
+        nativeView.insetsLayoutMarginsFromSafeArea = false
+        content.insetsLayoutMarginsFromSafeArea = false
         backgroundColor = surface
         opaque = surfaceArgb != null
         // Held explicitly rather than relying on GADNativeAdView's default: this host's surface is
@@ -244,50 +252,66 @@ private class IosNativeAdHostView(
         nativeView.trailingAnchor.constraintEqualToAnchor(trailingAnchor).active = true
         nativeView.topAnchor.constraintEqualToAnchor(topAnchor).active = true
         nativeView.bottomAnchor.constraintEqualToAnchor(bottomAnchor).active = true
-        // A filling root has to be stretched before the first draw, not at registration time, or
-        // the first frame shows the collapsed tree.
-        if (fillsHost) containmentConstraint.active = true
+        // Active from the start, not from registration: Compose measures this view before the ad
+        // is ever bound, and until this constraint exists the content puts no floor under the
+        // view's height for that measurement to find.
+        containmentConstraint.active = true
     }
 
     /**
-     * Measures on every pass, not just until the ad registers.
+     * Registration only. Sizing belongs to Compose.
      *
-     * Registration is one-shot, but the *height* is not: the content can grow after the ad is
-     * bound — a Dynamic Type change resizes every label (`adjustsFontForContentSizeCategory`), and
-     * an asset can settle at a different intrinsic size than it was measured at. Latching the
-     * height at registration left that growth with nowhere to go, so `clipsToBounds` ate it.
+     * This used to measure the content with `systemLayoutSizeFittingSize` and push the result back
+     * as the interop view's height. That could not be made correct. `layoutSubviews` runs top-down,
+     * so at this point the view already carries its new size while every descendant still holds the
+     * frames solved for the previous one; measuring there returns the content's real height plus
+     * that stale deficit. On device an ad ratcheted 567.7 -> 586.3 -> 606.3 -> 629.7 and latched
+     * ~62pt too tall, with the headline, body and call to action visibly reshuffling under the
+     * media on every step — the media itself never moving, since its height is pinned to the width
+     * by an aspect ratio and cannot absorb the error.
      *
-     * Convergence rests on the deadband in [resolveNativeAdLayoutSizing], not on the state write
-     * being idempotent. Relying on the latter was wrong: Auto Layout rounds a laid-out frame to
-     * whole device pixels, so a settled ad measures a fraction of a point taller than it currently
-     * is and the "unchanged" write never actually happened. Only a change the deadband admits is
-     * reported back.
+     * Compose now measures this view's fitting size inside its own measure pass, which is the same
+     * contract `AndroidView` has always had on Android, and is why Android never showed the defect.
      */
     override fun layoutSubviews() {
         super.layoutSubviews()
-        val (width, currentHeight) = bounds.useContents { size.width to size.height }
+        val (width, height) = bounds.useContents { size.width to size.height }
         if (!width.isFinite() || width <= 0.0) return
-        if (fillsHost) {
-            if (currentHeight > 0.0) registerNativeAdOnce()
-            return
-        }
-        val measuredHeight = content.systemLayoutSizeFittingSize(
+        if (!height.isFinite() || height <= 0.0) return
+        registerNativeAdOnce()
+    }
+
+    /**
+     * The height this ad needs at [width], measured where nothing else can perturb the answer.
+     *
+     * The view is laid out inside a throwaway container first, at the width it will really have, so
+     * every multi-line label has resolved its own wrap width before the fitting size is taken. That
+     * is the whole difference between this and measuring in place: an attached tree can be caught
+     * part-way through an update and answers with the real height plus whatever its unsettled
+     * subviews are short by, and there is no reliable way to ask whether it has finished.
+     */
+    fun measureDetachedHeight(width: Double): Double {
+        val previousSuperview = superview
+        val container = UIView(frame = CGRectMake(0.0, 0.0, width, 0.0))
+        container.addSubview(this)
+        setTranslatesAutoresizingMaskIntoConstraints(false)
+        val pins = listOf(
+            leadingAnchor.constraintEqualToAnchor(container.leadingAnchor),
+            trailingAnchor.constraintEqualToAnchor(container.trailingAnchor),
+            topAnchor.constraintEqualToAnchor(container.topAnchor),
+            container.widthAnchor.constraintEqualToConstant(width),
+        )
+        NSLayoutConstraint.activateConstraints(pins)
+        container.layoutIfNeeded()
+        val measured = systemLayoutSizeFittingSize(
             targetSize = CGSizeMake(width, 0.0),
             withHorizontalFittingPriority = UILayoutPriorityRequired,
             verticalFittingPriority = UILayoutPriorityFittingSizeLevel,
         ).useContents { height }
-        val sizing = resolveNativeAdLayoutSizing(currentHeight, measuredHeight, minHeight, maxHeight)
-        // Reported only when [resolveNativeAdLayoutSizing] says the height actually moved. Writing
-        // it unconditionally made the deadband that function applies unobservable: Auto Layout
-        // rounds a laid-out frame to whole device pixels, so a converged ad measures a third of a
-        // point taller than it currently is, that value was written back, Compose resized the
-        // interop view, and the next pass measured a third of a point taller again — an unbounded
-        // ratchet that ran on every layout pass for as long as the ad stayed on screen.
-        if (sizing.shouldUpdateHeight) sizing.effectiveMeasuredHeight?.let(onPreferredHeightChanged)
-        if (sizing.shouldRegisterNativeAd) {
-            containmentConstraint.active = true
-            registerNativeAdOnce()
-        }
+        NSLayoutConstraint.deactivateConstraints(pins)
+        removeFromSuperview()
+        previousSuperview?.addSubview(this)
+        return measured
     }
 
     /** Binds the ad to its view exactly once, and only while every asset is inside the root. */
@@ -377,91 +401,84 @@ internal class IosNativeHostRelease(
     }
 }
 
-internal data class IosNativeAdLayoutSizing(
-    val shouldUpdateHeight: Boolean,
-    val shouldRegisterNativeAd: Boolean,
-    val effectiveMeasuredHeight: Double?,
-)
-
-internal fun resolveNativeAdLayoutSizing(
-    currentHeight: Double,
-    measuredHeight: Double,
-    minHeight: Double = 0.0,
-    maxHeight: Double? = null,
-): IosNativeAdLayoutSizing {
-    if (!measuredHeight.isFinite() || measuredHeight <= 0.0 || !currentHeight.isFinite() || currentHeight <= 0.0) {
-        return IosNativeAdLayoutSizing(false, false, null)
-    }
-    val effectiveMeasuredHeight = constrainIosNativeAdHeight(measuredHeight, minHeight, maxHeight)
-    return if (kotlin.math.abs(currentHeight - effectiveMeasuredHeight) > 0.5) {
-        IosNativeAdLayoutSizing(true, false, effectiveMeasuredHeight)
-    } else {
-        IosNativeAdLayoutSizing(false, true, effectiveMeasuredHeight)
+/**
+ * Asks Compose to remeasure the ad when the text size category changes.
+ *
+ * Every label in the rendered tree sets `adjustsFontForContentSizeCategory`, so a Dynamic Type
+ * change resizes them — and UIKit has no way to tell Compose that the fitting size moved.
+ */
+@Composable
+private fun ObserveContentSizeCategory(key: Any, onChanged: () -> Unit) {
+    val currentOnChanged by rememberUpdatedState(onChanged)
+    DisposableEffect(key) {
+        val observer = NSNotificationCenter.defaultCenter.addObserverForName(
+            name = UIContentSizeCategoryDidChangeNotification,
+            `object` = null,
+            queue = NSOperationQueue.mainQueue,
+        ) { _ -> currentOnChanged() }
+        onDispose { NSNotificationCenter.defaultCenter.removeObserver(observer) }
     }
 }
 
-internal fun resolveIosNativeAdInitialHeight(
-    cachedHeight: Double?,
-    minHeight: Double,
-    maxHeight: Double?,
-): Double {
-    val candidate = cachedHeight?.takeIf { it.isFinite() && it > 0.0 }
-        ?: minHeight.takeIf { it.isFinite() && it > 0.0 }
-        ?: IOS_NATIVE_AD_BOOTSTRAP_HEIGHT
-    return constrainIosNativeAdHeight(candidate, minHeight, maxHeight)
+/**
+ * A built, measured ad, ready to hand to `UIKitView`.
+ *
+ * Building the tree here rather than in the `UIKitView` factory is what makes the height available
+ * to the modifier in the same composition: the factory only runs once Compose is already laying the
+ * node out, by which point the height has to be known.
+ */
+private class PreparedNativeAd(
+    val host: IosNativeAdHostView,
+    val height: Double,
+) : RememberObserver {
+    override fun onRemembered() = Unit
+    // Releasing twice is harmless — `IosNativeHostRelease` is idempotent — and one of these two
+    // always has to happen: a prepared ad that Compose abandons before the factory runs would
+    // otherwise keep its `GADNativeAdView` and the ad bound to it alive.
+    override fun onForgotten() = host.releaseHost()
+    override fun onAbandoned() = host.releaseHost()
 }
 
-private fun constrainIosNativeAdHeight(
-    height: Double,
-    minHeight: Double,
-    maxHeight: Double?,
-): Double {
-    val validMaximum = maxHeight?.takeIf { it.isFinite() && it > 0.0 }
-    val validMinimum = minHeight.takeIf { it.isFinite() && it > 0.0 }
-        ?.let { minimum -> validMaximum?.let { minimum.coerceAtMost(it) } ?: minimum }
+/** Builds the ad's view tree and measures it, detached, at the width Compose is offering. */
+private fun prepareNativeAd(
+    placementId: String,
+    nativeAd: GoogleMobileAds.GADNativeAd,
+    layout: AdLayout,
+    density: androidx.compose.ui.unit.Density,
+    width: Double,
+    fillsHost: Boolean,
+): PreparedNativeAd {
+    val nativeView = GADNativeAdView()
+    nativeView.translatesAutoresizingMaskIntoConstraints = false
+    val content = IosNativeAdRenderer(
+        nativeAd = nativeAd,
+        nativeView = nativeView,
+        density = density,
+    ).render(layout.root)
+    nativeView.addSubview(content)
+    content.leadingAnchor.constraintEqualToAnchor(nativeView.leadingAnchor).active = true
+    content.trailingAnchor.constraintEqualToAnchor(nativeView.trailingAnchor).active = true
+    content.topAnchor.constraintEqualToAnchor(nativeView.topAnchor).active = true
+    val host = IosNativeAdHostView(
+        placementId = placementId,
+        nativeView = nativeView,
+        content = content,
+        nativeAd = nativeAd,
+        surfaceArgb = resolveNativeAdSurfaceArgb(layout.root),
+        fillsHost = fillsHost,
+    )
+    return PreparedNativeAd(host = host, height = host.measureDetachedHeight(width))
+}
+
+/** Clamps a measured height into the bounds the caller's constraints allow. */
+private fun Double.coerceIntoHostBounds(minHeight: Double, maxHeight: Double?): Double {
+    if (!isFinite() || this <= 0.0) return minHeight
+    val ceiling = maxHeight?.takeIf { it.isFinite() && it > 0.0 }
+    val floor = minHeight.takeIf { it.isFinite() && it > 0.0 }
+        ?.let { low -> ceiling?.let { low.coerceAtMost(it) } ?: low }
         ?: 0.0
-    return if (validMaximum == null) {
-        height.coerceAtLeast(validMinimum)
-    } else {
-        height.coerceIn(validMinimum, validMaximum)
-    }
+    return if (ceiling == null) coerceAtLeast(floor) else coerceIn(floor, ceiling)
 }
-
-internal class IosNativeAdHeightCache<K : Any>(private val maxEntries: Int) {
-    private val entries = LinkedHashMap<K, Double>()
-
-    init {
-        require(maxEntries > 0) { "maxEntries must be positive" }
-    }
-
-    fun get(key: K): Double? {
-        val height = entries.remove(key) ?: return null
-        entries[key] = height
-        return height
-    }
-
-    fun put(key: K, height: Double) {
-        if (!height.isFinite() || height <= 0.0) return
-        entries.remove(key)
-        entries[key] = height
-        while (entries.size > maxEntries) {
-            entries.remove(entries.entries.first().key)
-        }
-    }
-}
-
-internal data class IosNativeAdHeightCacheKey(
-    val sessionKey: String,
-    val slotKey: String,
-    val placementId: String,
-    val layoutIdentity: String,
-    val widthDp: Int?,
-)
-
-/** Accessed only from Compose and UIKit callbacks, both on the iOS main thread. */
-private val iosNativeAdHeightCache = IosNativeAdHeightCache<IosNativeAdHeightCacheKey>(maxEntries = 32)
-
-private const val IOS_NATIVE_AD_BOOTSTRAP_HEIGHT: Double = 1.0
 
 internal fun isNativeEventForLease(
     placementId: String,
