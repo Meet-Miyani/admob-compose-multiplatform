@@ -312,3 +312,33 @@ Android has no ATT; `adManager.tracking` is a no-op there, always reporting
   supported the claim being made). Name the symbol instead
   (`IosGoogleAdManager.admissionScope`), which survives reformatting and
   reordering.
+- **Comments state invariants, not history.** Write what must remain true and
+  what breaks if it is violated, in the present tense. Git history is where
+  "what changed and when" belongs.
+
+  ```kotlin
+  // NO  — changelog voice; the reader gets a story, not a rule
+  // P1-11: this used to filter expired entries WITHOUT mutating, so the
+  // expired SDK objects stayed retained until some later call.
+
+  // YES — invariant voice; the reader gets a rule they can follow
+  // Expiry MUST prune, not merely filter. A non-mutating filter leaves the
+  // expired SDK objects retained and loadState at Loaded until some later
+  // show/load/clear happens to touch the slot.
+  ```
+
+  Specifically, do not write: **ticket/plan IDs** (`P1-11`, `sub-project O`) —
+  they die with the tracker and this repo has already had to strip a whole
+  round of them; **dates or authors** — `git blame` owns those; **status
+  labels** (`Regression:`, `Fixed:`, `Bugfix:`) — they classify without
+  instructing, and every such comment could carry one.
+
+  The one case where naming the *old, broken* version earns its place is
+  Chesterton's Fence: the correct code looks over-complicated and someone will
+  "clean it up" straight back into the defect. Then say so outright —
+  `IosAdMappers.toValueMicros` tells the reader not to reduce it to
+  `doubleValue * 1_000_000`, because that is precisely the edit they would make.
+  That is a guardrail, not history.
+
+  In tests, prefer `// Pins: <contract>` — a regression test documents the
+  behaviour it locks down, not the incident that prompted it.
