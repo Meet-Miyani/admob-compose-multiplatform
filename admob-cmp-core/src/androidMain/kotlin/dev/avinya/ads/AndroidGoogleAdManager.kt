@@ -2,6 +2,8 @@ package dev.avinya.ads
 
 import android.app.Activity
 import android.content.Context
+import android.content.pm.PackageManager
+import dev.avinya.ads.internal.DeclaredAppId
 import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeAdManagerImpl
 import dev.avinya.ads.internal.awaitNativeCallback
@@ -72,6 +74,32 @@ internal class AndroidGoogleAdManager(
     }
 
     override fun appId(config: AdConfig): String = config.androidAppId
+
+    internal override val declaredAppIdSource: String =
+        "AndroidManifest.xml meta-data \"com.google.android.gms.ads.APPLICATION_ID\""
+
+    // NOT what GMA Next-Gen itself uses -- see initializeMobileAdsNative below, which passes
+    // config.androidAppId straight into InitializationConfig.Builder. This manifest value is
+    // read by the User Messaging Platform SDK for its own consent-app resolution, so a mismatch
+    // here means GMA and UMP could resolve two different apps' identities, not that "GMA will
+    // use the wrong one".
+    internal override val declaredAppIdConsumerDescription: String =
+        "The User Messaging Platform (UMP) SDK resolves its own application identity from this " +
+            "manifest value when gathering consent; GMA Next-Gen itself always initializes with " +
+            "AdConfig.androidAppId directly and never reads this key."
+
+    // A failure reading package manager state (a permission issue, a test environment without
+    // one) is Unknown, not Missing: it is not evidence the manifest lacks the key, so it must
+    // never be reported as a configuration gap -- see DeclaredAppId's KDoc.
+    internal override fun declaredAppId(): DeclaredAppId = try {
+        val value = appContext.packageManager
+            .getApplicationInfo(appContext.packageName, PackageManager.GET_META_DATA)
+            .metaData
+            ?.getString("com.google.android.gms.ads.APPLICATION_ID")
+        if (value != null) DeclaredAppId.Present(value) else DeclaredAppId.Missing
+    } catch (t: Throwable) {
+        DeclaredAppId.Unknown
+    }
 
     override fun captureDiagnosticsSnapshotOnMain() {
         androidDiagnostics.captureSnapshotOnMain()

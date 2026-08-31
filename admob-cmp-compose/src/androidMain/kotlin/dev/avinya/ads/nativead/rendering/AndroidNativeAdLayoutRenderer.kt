@@ -43,7 +43,9 @@ internal class AndroidNativeAdLayoutRenderer(
         (existingRoot ?: NativeAdView(context)).also { renderInto(it, layout) }
 
     fun renderInto(nativeAdView: NativeAdView, layout: AdLayout): NativeAdView {
-        AdLogger.d("Android native renderer renderInto. layout=${layout.identity}")
+        // AdLayout.identity can contain AdStaticText.text. Keep render diagnostics free of
+        // consumer- or user-derived layout content.
+        AdLogger.d("Android native renderer renderInto.")
         nativeAdView.removeAllViews()
         nativeAdView.clipChildren = true
         nativeAdView.clipToPadding = true
@@ -205,48 +207,7 @@ internal class AndroidNativeAdLayoutRenderer(
                 applyViewStyle(this, node.modifier, backgroundArgb)
                 renderedMediaView = this
             }
-            // A `TextView`, deliberately not a `Button`.
-            //
-            // `Button(context)` resolves the *device theme's* `buttonStyle`, which carries an
-            // `android:minHeight`/`minWidth`. Those are `TextView`-level minimums, so
-            // `applyViewStyle`'s `view.minimumHeight = 0` does not clear them — the call-to-action's
-            // height was therefore decided by the OEM's button style, differing from iOS and from
-            // one Android vendor to the next. A bare `TextView` with an explicit style attribute of
-            // zero inherits nothing, so the size is exactly text plus the resolved insets, which is
-            // the same arithmetic the iOS renderer performs.
-            is AdAssetNode.CallToAction -> TextView(context, null, 0, 0).apply {
-                text = resolveCallToActionText(nativeAd.callToAction.orEmpty(), node.style.textCase)
-                isAllCaps = false
-                maxLines = 1
-                ellipsize = TextUtils.TruncateAt.END
-                disableDirectInteractionForNativeAdAsset()
-                setTextColor(node.style.textStyle.colorArgb.toAndroidColor())
-                textSize = node.style.textStyle.fontSizeSp
-                typeface = node.style.textStyle.fontFamily.toTypeface(
-                    node.style.textStyle.fontWeight,
-                    resolvedComposeFonts,
-                )
-                gravity = Gravity.CENTER
-                // Handing the resolved radius back through the modifier keeps one code path
-                // painting the surface, so a node that sets its own background, border or corner
-                // radius overrides the style instead of fighting it.
-                val backgroundArgb = resolveNativeAdDrawableBackgroundArgb(node.modifier, node.style.backgroundArgb)
-                applyViewStyle(
-                    view = this,
-                    modifier = node.modifier.withoutPadding()
-                        .copy(cornerRadiusDp = resolveCallToActionCornerRadiusDp(node.modifier, node.style)),
-                    backgroundArgb = backgroundArgb,
-                )
-                val insets = resolveCallToActionContentInsets(node.modifier, node.style)
-                setPadding(
-                    dp(insets.startDp),
-                    dp(insets.topDp),
-                    dp(insets.endDp),
-                    dp(insets.bottomDp),
-                )
-                applyMissingVisibility(nativeAd.callToAction?.takeIf { it.isNotBlank() }, node.visibilityPolicy)
-                nativeAdView.callToActionView = this
-            }
+            is AdAssetNode.CallToAction -> buildCallToAction(node, nativeAdView)
             // A real `AdChoicesView`, registered with the ad view.
             //
             // Must be a real `AdChoicesView` assigned to `NativeAdView.adChoicesView` — not a
@@ -267,6 +228,72 @@ internal class AndroidNativeAdLayoutRenderer(
                 gravity = Gravity.CENTER
                 applyViewStyle(this, node.modifier)
             }
+        }
+    }
+
+    /**
+     * Builds a centred, wrap-content label inside a painted full-width container — the shape the
+     * iOS renderer builds in `renderCallToAction` (a `UILabel` inside an inset container).
+     *
+     * The label is a bare `TextView` with a zero style attribute, not a `Button`:
+     * `Button(context)` resolves the device theme's `buttonStyle`, whose
+     * `android:minHeight`/`minWidth` are `TextView`-level minimums that `applyViewStyle`'s
+     * `view.minimumHeight = 0` cannot clear, so the height would be decided by the OEM rather than
+     * by the resolved insets.
+     *
+     * The label is sized to its text, not stretched to the container. A full-width `TextView` that
+     * centres its own text registers a pre-draw listener that can scroll the text horizontally
+     * during Compose `AndroidView`'s transient zero-width pass, leaving it drawn flush left. A
+     * wrap-content label's viewport always equals its line width, so that scroll is always zero;
+     * the container's gravity does the centring instead.
+     */
+    private fun buildCallToAction(
+        node: AdAssetNode.CallToAction,
+        nativeAdView: NativeAdView,
+    ): FrameLayout {
+        val label = TextView(context, null, 0, 0).apply {
+            text = resolveCallToActionText(nativeAd.callToAction.orEmpty(), node.style.textCase)
+            isAllCaps = false
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            setTextColor(node.style.textStyle.colorArgb.toAndroidColor())
+            textSize = node.style.textStyle.fontSizeSp
+            typeface = node.style.textStyle.fontFamily.toTypeface(
+                node.style.textStyle.fontWeight,
+                resolvedComposeFonts,
+            )
+        }
+        return FrameLayout(context).apply {
+            clipChildren = true
+            clipToPadding = true
+            disableDirectInteractionForNativeAdAsset()
+            // Handing the resolved radius back through the modifier keeps one code path painting
+            // the surface, so a node that sets its own background, border or corner radius
+            // overrides the style instead of fighting it.
+            val backgroundArgb = resolveNativeAdDrawableBackgroundArgb(node.modifier, node.style.backgroundArgb)
+            applyViewStyle(
+                view = this,
+                modifier = node.modifier.withoutPadding()
+                    .copy(cornerRadiusDp = resolveCallToActionCornerRadiusDp(node.modifier, node.style)),
+                backgroundArgb = backgroundArgb,
+            )
+            val insets = resolveCallToActionContentInsets(node.modifier, node.style)
+            setPadding(
+                dp(insets.startDp),
+                dp(insets.topDp),
+                dp(insets.endDp),
+                dp(insets.bottomDp),
+            )
+            addView(
+                label,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER,
+                ),
+            )
+            applyMissingVisibility(nativeAd.callToAction?.takeIf { it.isNotBlank() }, node.visibilityPolicy)
+            nativeAdView.callToActionView = this
         }
     }
 
@@ -411,7 +438,7 @@ internal class AndroidNativeAdLayoutRenderer(
         }
     }
 
-    private fun TextView.disableDirectInteractionForNativeAdAsset() {
+    private fun View.disableDirectInteractionForNativeAdAsset() {
         isClickable = false
         isFocusable = false
     }

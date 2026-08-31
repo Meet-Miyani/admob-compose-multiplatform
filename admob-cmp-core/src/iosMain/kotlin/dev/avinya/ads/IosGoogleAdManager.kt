@@ -9,6 +9,7 @@ import GoogleMobileAds.GADCurrentOrientationInlineAdaptiveBannerAdSizeWithWidth
 import GoogleMobileAds.GADInlineAdaptiveBannerAdSizeWithWidthAndMaxHeight
 import GoogleMobileAds.GADLargeAnchoredAdaptiveBannerAdSizeWithWidth
 import GoogleMobileAds.GADMobileAds
+import dev.avinya.ads.internal.DeclaredAppId
 import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeAdManagerImpl
 import dev.avinya.ads.internal.awaitNativeCallback
@@ -24,6 +25,7 @@ import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readValue
 import platform.CoreGraphics.CGSizeMake
+import platform.Foundation.NSBundle
 
 private object IosAdManagerHolder {
     val instance: IosGoogleAdManager = IosGoogleAdManager()
@@ -78,6 +80,24 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
     }
 
     override fun appId(config: AdConfig): String = config.iosAppId
+
+    internal override val declaredAppIdSource: String = "Info.plist key \"GADApplicationIdentifier\""
+
+    // GADMobileAds really does resolve its own app ID from this Info.plist key at startup,
+    // independent of AdConfig -- unlike Android, where the manifest equivalent is read by UMP,
+    // not by GMA itself. See GoogleAdManagerBase's declaredAppId KDoc.
+    internal override val declaredAppIdConsumerDescription: String =
+        "The native Google Mobile Ads SDK resolves its application identity from this " +
+            "Info.plist value at startup, independent of AdConfig."
+
+    // infoDictionary itself is null only if the bundle could not be read at all (Unknown, never
+    // a warning); a present dictionary with no String value for this key is a genuine
+    // configuration gap (Missing) -- see DeclaredAppId's KDoc.
+    internal override fun declaredAppId(): DeclaredAppId {
+        val infoDictionary = NSBundle.mainBundle.infoDictionary ?: return DeclaredAppId.Unknown
+        val value = infoDictionary["GADApplicationIdentifier"] as? String
+        return if (value != null) DeclaredAppId.Present(value) else DeclaredAppId.Missing
+    }
 
     override fun captureDiagnosticsSnapshotOnMain() {
         iosDiagnostics.captureSnapshotOnMain()

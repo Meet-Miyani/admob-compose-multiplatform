@@ -43,6 +43,11 @@ public fun interface AdLogSink {
  * **Routing to your own logger:** set [sink] to forward matching messages to Timber, OSLog,
  * a crash-reporter's breadcrumb trail, or any other destination — see [AdLogSink] for
  * whether this replaces or supplements the platform log.
+ *
+ * **[sink] is treated as untrusted, best-effort host code.** If it throws, the SDK never lets
+ * that exception propagate into its own state machines, native callbacks, or cleanup paths —
+ * it is caught, the failure is logged once through the platform log, and the original message
+ * is still delivered there so it is not lost.
  */
 public object AdLogger {
     private const val TAG = "AdMobCMP"
@@ -64,9 +69,26 @@ public object AdLogger {
     private fun dispatch(level: AdLogLevel, message: String, throwable: Throwable?) {
         if (level.ordinal < minLevel.ordinal) return
         val activeSink = sink
-        if (activeSink != null) {
+        if (activeSink == null) {
+            AdPlatformLogger.log(level, TAG, message, throwable)
+            return
+        }
+        // sink is host code and must be treated as untrusted: a throwing sink must never
+        // become a host-app crash or corrupt SDK control flow (a state machine transition, a
+        // native callback, a cleanup path). Falls through to the platform log on failure —
+        // both to report the sink's own failure and so the original message is not lost.
+        // Deliberately calls AdPlatformLogger directly rather than dispatch()/sink again: a
+        // sink that throws on every call must not be able to recurse.
+        try {
             activeSink.log(level, TAG, message, throwable)
-        } else {
+        } catch (t: Throwable) {
+            AdPlatformLogger.log(
+                AdLogLevel.Error,
+                TAG,
+                "AdLogger.sink threw while handling a log message; falling back to the " +
+                    "platform log for this message.",
+                t,
+            )
             AdPlatformLogger.log(level, TAG, message, throwable)
         }
     }
