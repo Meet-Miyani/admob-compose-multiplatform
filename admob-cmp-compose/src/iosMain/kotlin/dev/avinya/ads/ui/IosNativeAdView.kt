@@ -39,6 +39,7 @@ import dev.avinya.ads.nativead.NativeAdSlotState
 import dev.avinya.ads.nativead.acquireIosNativeAdRenderLease
 import dev.avinya.ads.nativead.layout.AdLayout
 import dev.avinya.ads.nativead.layout.AdLayoutSize
+import dev.avinya.ads.nativead.layout.logValidationWarningsOnce
 import dev.avinya.ads.nativead.rendering.IosNativeAdRenderer
 import dev.avinya.ads.nativead.rendering.adRootSurface
 import dev.avinya.ads.nativead.rendering.rememberResolvedComposeFonts
@@ -70,6 +71,7 @@ public actual fun NativeAdView(
         NativeAdPlaceholder(modifier, loading)
         return
     }
+    LaunchedEffect(layout.identity) { layout.logValidationWarningsOnce() }
 
     val slotState = session.state.collectAsState().value.slots[slotKey]
     val rendererId = remember(session, slotKey) { "ios-native-renderer-${nextIosRendererId++}" }

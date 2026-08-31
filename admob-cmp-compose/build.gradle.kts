@@ -75,6 +75,9 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
+        getByName("androidHostTest").dependencies {
+            implementation(libs.mockito.core)
+        }
     }
 }
 
