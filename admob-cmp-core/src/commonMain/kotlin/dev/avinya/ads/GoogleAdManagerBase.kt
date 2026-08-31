@@ -7,6 +7,8 @@ import dev.avinya.ads.internal.AppliedConfigurationDecision
 import dev.avinya.ads.internal.ConsentSessionState
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
 import dev.avinya.ads.internal.FullScreenStateLock
+import dev.avinya.ads.internal.DeclaredAppId
+import dev.avinya.ads.internal.appIdConfigurationWarningOrNull
 import dev.avinya.ads.internal.appliedConfigurationDecision
 import dev.avinya.ads.internal.dispatchAfterInitializeHooks
 import dev.avinya.ads.internal.ownedSnapshot
@@ -157,6 +159,29 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
 
     /** `config.androidAppId` or `config.iosAppId` — the one field difference in identity resolution. */
     protected abstract fun appId(config: AdConfig): String
+
+    /**
+     * Reads the app ID declared in the platform's own configuration source, independent of
+     * [AdConfig] — `AndroidManifest.xml` meta-data on Android, `Info.plist` on iOS. See
+     * [DeclaredAppId] for what each outcome means and [appIdConfigurationWarningOrNull] for how
+     * it is turned into a warning.
+     *
+     * `internal`, not `protected`: this class is itself `internal`, so widening this from
+     * `protected` costs nothing on the public ABI, and it lets platform host tests exercise the
+     * per-platform reader directly instead of only indirectly through a full `initialize()`.
+     */
+    internal open fun declaredAppId(): DeclaredAppId = DeclaredAppId.Unknown
+
+    /** Human-readable description of where [declaredAppId] reads from, for the configuration warning. */
+    internal open val declaredAppIdSource: String = "the platform manifest"
+
+    /**
+     * Human-readable description of what actually consumes [declaredAppId] and how that relates
+     * to [appId], for the configuration warning. Deliberately per-platform: on Android the
+     * consumer is UMP, not GMA itself — see [appIdConfigurationWarningOrNull]'s KDoc for why
+     * that distinction matters.
+     */
+    internal open val declaredAppIdConsumerDescription: String = ""
 
     /**
      * Reads GMA's/GAD's version and adapter statuses onto the platform's diagnostics object.
@@ -332,6 +357,18 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
     ): AdManagerStatus {
         AdLogger.i("$platformTag initialize requested. consentMode=$consentMode")
         config.testModeWarningOrNull()?.let(AdLogger::w)
+        // Checked before consent, not inside initializeMobileAds: on Android the value this
+        // reads is what UMP (not GMA) resolves its identity from, so a mismatch is actionable
+        // context for the consent gathering call right below, not just for GMA's own
+        // initialization later. Best-effort and non-fatal by design -- see
+        // appIdConfigurationWarningOrNull's KDoc. Checked on every initialize() attempt, not
+        // cached, matching testModeWarningOrNull's own cadence just above.
+        appIdConfigurationWarningOrNull(
+            appId(config),
+            declaredAppId(),
+            declaredAppIdSource,
+            declaredAppIdConsumerDescription,
+        )?.let(AdLogger::w)
 
         val previousStatus = _status.value
         _status.value = AdManagerStatus.Initializing
