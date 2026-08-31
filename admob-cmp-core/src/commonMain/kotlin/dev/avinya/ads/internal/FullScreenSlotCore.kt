@@ -111,9 +111,9 @@ internal class FullScreenPresentationHandle(
         try {
             restore.restore()
         } catch (t: Throwable) {
-            try {
-                AdLogger.e("Failed to restore full-screen audio state after presentation.", t)
-            } catch (_: Throwable) { /* logger failure must not break the terminal close */ }
+            // AdLogger.dispatch() itself contains a throwing host sink, so no nested guard is
+            // needed here any more.
+            AdLogger.e("Failed to restore full-screen audio state after presentation.", t)
         }
     }
 
@@ -711,9 +711,9 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             try {
                 onPresentationChanged(-1)
             } catch (t: Throwable) {
-                try {
-                    AdLogger.e("Failed to close full-screen presentation presence for ${placement.id}.", t)
-                } catch (_: Throwable) { /* logger failure must not break presentation */ }
+                // AdLogger.dispatch() itself contains a throwing host sink, so no nested guard
+                // is needed here any more.
+                AdLogger.e("Failed to close full-screen presentation presence for ${placement.id}.", t)
             }
             // Released last, and unconditionally: FullScreenPresentationHandle's CAS loop already
             // guarantees this lambda runs exactly once, so this is the single release path. No
@@ -737,9 +737,9 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         try {
             onPresentationChanged(1)
         } catch (t: Throwable) {
-            try {
-                AdLogger.e("Failed to open full-screen presentation presence for ${placement.id}.", t)
-            } catch (_: Throwable) { /* logger failure must not break presentation */ }
+            // AdLogger.dispatch() itself contains a throwing host sink, so no nested guard is
+            // needed here any more.
+            AdLogger.e("Failed to open full-screen presentation presence for ${placement.id}.", t)
         }
         return handle
     }
