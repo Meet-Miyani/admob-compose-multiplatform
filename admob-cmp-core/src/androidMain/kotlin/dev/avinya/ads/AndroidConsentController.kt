@@ -7,14 +7,18 @@ import dev.avinya.ads.internal.NativeCallbackTimeoutException
 import dev.avinya.ads.internal.awaitHost
 import dev.avinya.ads.internal.awaitNativeCallback
 import dev.avinya.ads.internal.ownedSnapshot
+import dev.avinya.ads.internal.reconcileThenResumeIfActive
 import com.google.android.ump.ConsentDebugSettings
 import com.google.android.ump.ConsentInformation
 import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
 import kotlin.coroutines.resume
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
@@ -29,6 +33,11 @@ internal class AndroidConsentController(
     // Retained so showPrivacyOptions() can resume initialization if the user grants
     // consent from the privacy form after an earlier denial.
     private var lastConfig: AdConfig? = null
+    // Owns the initialize() resume triggered by showPrivacyOptions() below, so a granted
+    // consent decision still reaches initialize() even if the caller that awaited
+    // showPrivacyOptions() was itself cancelled (navigation, rotation) before this runs.
+    // Same shape as GoogleAdManagerBase.admissionScope: process-wide, never cancelled.
+    private val consentScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override val status: StateFlow<ConsentStatus> = _status
     override val privacyOptionsRequirementStatus: StateFlow<PrivacyOptionsRequirementStatus> = _privacy
@@ -143,33 +152,51 @@ internal class AndroidConsentController(
                     if (formError != null) {
                         AdLogger.w("UMP consent form load/show failed: code=${formError.errorCode} message=${formError.message}")
                     }
-                    if (continuation.isActive) continuation.resume(Unit)
+                    // Reconciliation must not be conditional on the caller still being around —
+                    // see reconcileThenResumeIfActive's KDoc. The form was shown and the user's
+                    // decision (if any) is already persisted by UMP regardless of whether
+                    // gatherConsent()'s caller is still listening.
+                    reconcileThenResumeIfActive(continuation, Unit) {
+                        updatePrivacyState(consentInformation)
+                        _canRequestAds.value = consentInformation.canRequestAds()
+                        _status.value = consentInformationStatus(consentInformation)
+                    }
                 }
             }
-            updatePrivacyState(consentInformation)
-            _canRequestAds.value = consentInformation.canRequestAds()
-            val status = consentInformationStatus(consentInformation).also { _status.value = it }
-            status
+            _status.value
         }
 
-    override suspend fun showPrivacyOptions(): Boolean {
-        val activity = activityProvider() ?: return false
-        return withContext(Dispatchers.Main.immediate) {
-            val success = suspendCancellableCoroutine { continuation ->
-                UserMessagingPlatform.showPrivacyOptionsForm(activity) { if (continuation.isActive) continuation.resume(it == null) }
-            }
-            // The user may have changed their choices in the form; refresh exposed state
-            // so consumers don't read stale consent / canRequestAds values.
+    override suspend fun showPrivacyOptions(): Boolean =
+        withContext(Dispatchers.Main.immediate) {
+            // Acquired inside the main hop, not before it -- matching requestConsentInfoUpdate
+            // and gatherConsent: this reads Activity lifecycle state, which is main-thread-owned
+            // (invariant 5).
+            val activity = activityProvider() ?: return@withContext false
             val consentInformation = UserMessagingPlatform.getConsentInformation(appContext)
-            updatePrivacyState(consentInformation)
-            _canRequestAds.value = consentInformation.canRequestAds()
-            _status.value = consentInformationStatus(consentInformation)
-            // If the user granted consent from the privacy form after an earlier denial,
-            // resume initialization — otherwise the SDK would stay uninitialized forever.
-            if (_canRequestAds.value) lastConfig?.let { onCanRequestAds(it) }
-            success
+            suspendCancellableCoroutine { continuation ->
+                UserMessagingPlatform.showPrivacyOptionsForm(activity) { formError ->
+                    // The user may have changed their choices in the form; refresh exposed
+                    // state so consumers don't read stale consent / canRequestAds values.
+                    // Must run even if the caller awaiting showPrivacyOptions() was
+                    // cancelled — the form already closed and UMP already persisted
+                    // whatever the user chose. See reconcileThenResumeIfActive's KDoc.
+                    reconcileThenResumeIfActive(continuation, formError == null) {
+                        updatePrivacyState(consentInformation)
+                        _canRequestAds.value = consentInformation.canRequestAds()
+                        _status.value = consentInformationStatus(consentInformation)
+                        // If the user granted consent from the privacy form after an
+                        // earlier denial, resume initialization — otherwise the SDK would
+                        // stay uninitialized forever. Launched on consentScope, not
+                        // awaited here: this callback (and the reconciliation above) must
+                        // complete regardless of whether the original caller is still
+                        // around to observe it.
+                        if (_canRequestAds.value) {
+                            lastConfig?.let { config -> consentScope.launch { onCanRequestAds(config) } }
+                        }
+                    }
+                }
+            }
         }
-    }
 
     override suspend fun resetConsentForDebug(): Boolean {
         val activity = activityProvider() ?: return false
