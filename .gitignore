@@ -31,3 +31,26 @@ docs-site/.astro/
 docs-site/public/api/
 docs-site/src/assets/fonts/
 
+# Local agent/tool state
+/.superpowers/
+/.codex/
+/handoff*.md
+/.claude/settings.local.json
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+.dev.vars
+.wrangler/
+
+# Test and browser reports
+coverage/
+playwright-report/
+test-results/
+
+# Package-manager logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
