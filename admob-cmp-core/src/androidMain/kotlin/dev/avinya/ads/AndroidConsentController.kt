@@ -6,8 +6,11 @@ import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeCallbackTimeoutException
 import dev.avinya.ads.internal.awaitHost
 import dev.avinya.ads.internal.awaitNativeCallback
+import dev.avinya.ads.internal.consentInfoUpdateTimeoutStatus
 import dev.avinya.ads.internal.ownedSnapshot
 import dev.avinya.ads.internal.reconcileThenResumeIfActive
+import dev.avinya.ads.internal.resolveConsentInfoUpdateStatus
+import dev.avinya.ads.internal.shouldResumeInitializationAfterPrivacyOptions
 import com.google.android.ump.ConsentDebugSettings
 import com.google.android.ump.ConsentInformation
 import com.google.android.ump.ConsentRequestParameters
@@ -123,17 +126,18 @@ internal class AndroidConsentController(
             }
         } catch (timeout: NativeCallbackTimeoutException) {
             AdLogger.e("Android UMP consent info update timed out.", timeout)
-            return fail(timeout.message ?: "UMP consent info update timed out.")
+            // canRequestAds is deliberately NOT reset here. See
+            // consentInfoUpdateTimeoutStatus's KDoc.
+            return consentInfoUpdateTimeoutStatus(timeout.message).also { _status.value = it }
         }
         updatePrivacyState(consentInformation)
         _canRequestAds.value = consentInformation.canRequestAds()
-        val status = if (error == null) {
-            consentInformationStatus(consentInformation).also { _status.value = it }
-        } else if (consentInformation.canRequestAds()) {
-            consentInformationStatus(consentInformation).also { _status.value = it }
-        } else {
-            ConsentStatus.Failed(error).also { _status.value = it }
-        }
+        val status = resolveConsentInfoUpdateStatus(
+            error = error,
+            canRequestAds = consentInformation.canRequestAds(),
+            nativeStatus = consentInformationStatus(consentInformation),
+        )
+        _status.value = status
         return status
     }
 
@@ -190,7 +194,7 @@ internal class AndroidConsentController(
                         // awaited here: this callback (and the reconciliation above) must
                         // complete regardless of whether the original caller is still
                         // around to observe it.
-                        if (_canRequestAds.value) {
+                        if (shouldResumeInitializationAfterPrivacyOptions(_canRequestAds.value, lastConfig)) {
                             lastConfig?.let { config -> consentScope.launch { onCanRequestAds(config) } }
                         }
                     }
