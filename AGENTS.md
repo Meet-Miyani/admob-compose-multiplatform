@@ -145,6 +145,53 @@ A push that changes neither the version nor any docs input
 itself) exits in seconds on the `gate` job. **That is expected, not a
 failure** — it is the steady state.
 
+### Before bumping VERSION_NAME
+
+If the release changes native integration, consent, presentation, the renderer,
+or Gradle/XCFramework behaviour, run and sign
+[docs/release/device-certification.md](docs/release/device-certification.md).
+The local suite cannot prove any of it — every row depends on real GMA/UMP
+behaviour, real OS lifecycle, or real network conditions.
+
+### When a release goes wrong
+
+Maven Central is immutable; there is no rollback. Follow
+[docs/release/hotfix-playbook.md](docs/release/hotfix-playbook.md).
+
+### Dependency upgrades
+
+No dependency version is bumped on a successful compile alone. For any GMA or
+UMP bump: read the upstream release notes for API, threading, linker, and
+consent changes; re-run the mapper characterization tests
+(`AndroidAdMappersTest`, `IosAdMappersTest`); re-run
+`scripts/release-readiness.sh` in full; recompute the iOS archive checksums
+deliberately; and run device certification for every affected format. For a
+Kotlin, KGP, Gradle, AGP, or Compose bump, additionally run
+`./scripts/distribution/verify-published-release.sh <version> --local` before
+changing anything in
+`docs-site/src/content/docs/reference/compatibility.mdx`.
+
+### After Maven Central publishes
+
+Maven Central artifacts are immutable. Once the `publish` job completes, run
+the canary from a clean room:
+
+```bash
+./scripts/distribution/verify-published-release.sh <version>
+```
+
+This generates a throwaway KMP consumer in a temp directory that resolves
+`dev.avinya.ads:admob-cmp` and the Gradle plugin from Maven Central only — no
+`mavenLocal()`, no project substitution, no access to this source tree. It is
+the only check that exercises the path a real consumer uses.
+
+A failure is not recoverable by rollback. Follow
+[docs/release/hotfix-playbook.md](docs/release/hotfix-playbook.md).
+
+The same script with `--local` is the pre-release clean-room check, and is
+worth running after `publishToMavenLocal` whenever publication metadata,
+coordinates, or the Gradle plugin change.
+
 ---
 
 ## Docs site
