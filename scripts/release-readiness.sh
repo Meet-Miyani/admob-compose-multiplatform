@@ -165,6 +165,10 @@ section "6. iOS + klib ABI"
   :admob-cmp-core:checkKotlinAbi \
   :admob-cmp-compose:checkKotlinAbi \
   --no-configuration-cache
+# checkKotlinAbi above proves the dump matches HEAD's source. This proves the
+# dump did not LOSE anything relative to the last published release — the case
+# `updateKotlinAbi` would otherwise bless silently.
+./scripts/distribution/verify-public-api-compatibility.sh
 
 # Section 7 mutates ~/.m2 — it runs publishToMavenLocal for both builds, then
 # the shared module round-trips against the published facade. The two halves

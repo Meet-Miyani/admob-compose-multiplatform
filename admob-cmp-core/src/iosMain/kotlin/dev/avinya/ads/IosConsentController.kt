@@ -30,8 +30,11 @@ import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeCallbackTimeoutException
 import dev.avinya.ads.internal.awaitHost
 import dev.avinya.ads.internal.awaitNativeCallback
+import dev.avinya.ads.internal.consentInfoUpdateTimeoutStatus
 import dev.avinya.ads.internal.ownedSnapshot
 import dev.avinya.ads.internal.reconcileThenResumeIfActive
+import dev.avinya.ads.internal.resolveConsentInfoUpdateStatus
+import dev.avinya.ads.internal.shouldResumeInitializationAfterPrivacyOptions
 
 internal class IosConsentController(
     val onCanRequestAds: suspend (AdConfig) -> Unit
@@ -95,14 +98,16 @@ internal class IosConsentController(
                         if (continuation.isActive) {
                             updatePrivacyState(consentInformation)
                             _canRequestAds.value = consentInformation.canRequestAds
-                            val result = if (error == null) {
-                                consentInformationStatus(consentInformation)
-                            } else if (consentInformation.canRequestAds) {
-                                consentInformationStatus(consentInformation)
-                            } else {
-                                ConsentStatus.Failed(AdError(code = (error.code ?: 0).toString(), message = error.localizedDescription ?: "Consent info update failed."))
-                            }
-                            _status.value = result
+                            _status.value = resolveConsentInfoUpdateStatus(
+                                error = error?.let {
+                                    AdError(
+                                        code = (it.code ?: 0).toString(),
+                                        message = it.localizedDescription ?: "Consent info update failed.",
+                                    )
+                                },
+                                canRequestAds = consentInformation.canRequestAds,
+                                nativeStatus = consentInformationStatus(consentInformation),
+                            )
                             continuation.resume(Unit)
                         }
                     }
@@ -110,9 +115,9 @@ internal class IosConsentController(
             }
         } catch (timeout: NativeCallbackTimeoutException) {
             AdLogger.e("iOS UMP consent info update timed out.", timeout)
-            _status.value = ConsentStatus.Failed(
-                AdError.message(timeout.message ?: "UMP consent info update timed out.")
-            )
+            // canRequestAds is deliberately NOT reset here. See
+            // consentInfoUpdateTimeoutStatus's KDoc.
+            _status.value = consentInfoUpdateTimeoutStatus(timeout.message)
         }
         _status.value
     }
@@ -180,7 +185,7 @@ internal class IosConsentController(
                     // this callback (and the reconciliation above) must complete
                     // regardless of whether the original caller is still around to
                     // observe it.
-                    if (_canRequestAds.value) {
+                    if (shouldResumeInitializationAfterPrivacyOptions(_canRequestAds.value, lastConfig)) {
                         lastConfig?.let { config -> consentScope.launch { onCanRequestAds(config) } }
                     }
                 }
