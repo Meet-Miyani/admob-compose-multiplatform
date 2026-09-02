@@ -139,10 +139,27 @@ public interface ConsentController {
     public suspend fun requestConsentInfoUpdate(config: AdConfig): ConsentStatus
     /** Requests an update and shows the consent form if required. */
     public suspend fun gatherConsent(config: AdConfig): ConsentStatus
-    /** Shows the privacy options form. Should only be called when [privacyOptionsRequirementStatus] is [PrivacyOptionsRequirementStatus.Required]. */
+    /**
+     * Shows the privacy options form. Should only be called when [privacyOptionsRequirementStatus]
+     * is [PrivacyOptionsRequirementStatus.Required].
+     *
+     * Returns `false` when the form could not be shown, or when another UMP form is already
+     * presenting — two forms cannot stack. A bounded [requestConsentInfoUpdate] holding the SDK's
+     * consent slot is **not** a decline: this call waits for it. Only a live form, including the
+     * one an `initialize(…, GatherBeforeInitialize)` sequence may present, returns `false` here;
+     * retry once that form is dismissed rather than treating `false` as a permanent failure.
+     */
     public suspend fun showPrivacyOptions(): Boolean
-    /** Resets consent state for debug/testing purposes only. */
+
+    /**
+     * Resets consent state for debug/testing purposes only.
+     *
+     * Returns `false` when a UMP form is presenting — resetting consent out from under a form the
+     * user is reading is incoherent. A bounded [requestConsentInfoUpdate] is not a decline: this
+     * call waits for it. Retry once the form is dismissed.
+     */
     public suspend fun resetConsentForDebug(): Boolean
+
 }
 
 /**

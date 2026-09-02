@@ -110,6 +110,8 @@ The Google Mobile Ads SDK requires an AdMob application identifier declared in `
 
 Ensure the value is an AdMob **application ID** (containing a tilde `~`), not an ad unit identifier (which uses a forward slash `/`).
 
+AdMob CMP runs a preflight check during `initialize()` comparing `AdConfig` against the platform's declared ID (`AndroidManifest.xml` on Android, `Info.plist` on iOS). Configure verification strictness via `AdAppIdVerification.policy` (`FailWhenUnusable` default, `Strict`, `WarnOnly`).
+
 ## Banner rendering issues
 
 If a banner composable or view renders no content, check the following conditions:

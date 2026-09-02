@@ -30,20 +30,21 @@ Release details and release assets for all versions are published on the
 
 ## Unreleased
 
-A reliability release covering exception and cancellation behaviour on paths where several
-resources had already been committed. Four changes are observable from host code.
+A reliability release covering exception, timeout, and cancellation behaviour across consent,
+configuration, and ad presentation.
 
 ### `initialize()` now reports a refused configuration
 
-Calling `initialize()` a second time with a **different** effective configuration — a different app
-ID, `globalRequestConfiguration`, or `nativeAdMemoryPolicy` — previously logged a warning and
-returned the previously applied status, usually `Ready`. The caller received a success-shaped result
-while its configuration had been silently rejected, so ads continued serving under the *first* app
-ID.
+Once a configuration has been handed to the process-global ad SDK, a later `initialize()` with a
+*different* `AdConfig` (a different app ID, `globalRequestConfiguration`, or `nativeAdMemoryPolicy`)
+is refused deterministically rather than being reported as applied. Previously, a mismatched second
+call logged a warning and returned the previously applied status (usually `Ready`), masking the fact
+that its configuration was ignored and ads continued serving under the first app ID.
 
 Such a call now returns `AdManagerStatus.Failed` with `retryable = false` and the new
 `AdErrorCode.INITIALIZATION_CONFLICT`. Calling `initialize()` repeatedly with the *same* effective
-configuration is unaffected and remains idempotent.
+configuration — including retrying after a native initialization timeout — is unaffected and
+remains idempotent.
 
 <Aside type="caution" title="Behaviour change">
 If you branch on the result of a repeated `initialize()`, a configuration mismatch that used to look
@@ -51,6 +52,26 @@ like `Ready` now surfaces as a non-retryable failure. `AdManager.status` still r
 configuration that *was* accepted, so a rejected call never interrupts ad serving for the rest of
 the app.
 </Aside>
+
+### Consent operations are serialized
+
+Concurrent consent operations no longer interleave or corrupt in-flight UMP state:
+
+- `requestConsentInfoUpdate()` queues behind any active consent operation; `gatherConsent()` queues
+  behind a bounded update but returns a failed `ConsentStatus` if another form is already presenting.
+- `showPrivacyOptions()` and `resetConsentForDebug()` return `false` only when a UMP form is already
+  presenting — two forms cannot stack, and resetting under a live form is incoherent. They **wait** for
+  a bounded `requestConsentInfoUpdate()`, so a user opening privacy settings during the launch-time
+  consent refresh still gets the form rather than a spurious failure. Callers should retry once the
+  in-flight form is dismissed.
+
+### Late UMP consent callbacks reconcile privacy state
+
+A UMP consent-information callback arriving after the SDK's bounded timeout still reconciles
+`canRequestAds` and `privacyOptionsRequirementStatus` with the latest native truth. If a user's
+consent was revoked while a slow update was in flight, the late callback ensures the ad-request gate
+closes and cached inventory is purged, rather than leaving obsolete permission active until the next
+cold start.
 
 ### Per-presentation ad audio is restored more correctly
 
@@ -107,6 +128,19 @@ Two new members, both additive and source-compatible:
 
 `AdLogLevel` is now `public` (previously `internal`), since a caller needs it to compare against
 `minLevel` or implement `AdLogSink`.
+
+### App ID verification is now configurable
+
+A preflight check validates that the app ID configured in `AdConfig` agrees with the platform's declared ID (`Info.plist` on iOS, `AndroidManifest.xml` on Android) before touching UMP or GMA.
+
+`AdAppIdVerification.policy` controls how the check behaves:
+
+- `AppIdVerificationPolicy.FailWhenUnusable` (default) — fails initialization with `AdErrorCode.APP_ID_INVALID` only when the platform's native SDK cannot function with the declaration as found (a missing `GADApplicationIdentifier` on iOS, which crashes native GMA). Android manifest mismatches and omissions log a warning and continue, because GMA Next-Gen initializes from `AdConfig.androidAppId` directly while UMP reads the manifest.
+- `AppIdVerificationPolicy.Strict` — fails initialization immediately with `AdErrorCode.APP_ID_INVALID` on any missing or mismatched declaration. Recommended for new integrations, and the intended default starting in 3.0.0.
+- `AppIdVerificationPolicy.WarnOnly` — logs a warning and proceeds for every finding, serving as an escape hatch if the platform declaration is resolved dynamically or via custom bundle packaging.
+
+`AdAppIdVerification.policy` is a process-wide setting (like `AdLogger.sink`) and must be configured during app startup before the first `initialize()` call.
+
 
 ## What changed in 2.1.0?
 

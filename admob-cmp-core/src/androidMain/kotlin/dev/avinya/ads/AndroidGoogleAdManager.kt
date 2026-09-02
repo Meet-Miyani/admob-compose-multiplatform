@@ -78,6 +78,9 @@ internal class AndroidGoogleAdManager(
     internal override val declaredAppIdSource: String =
         "AndroidManifest.xml meta-data \"com.google.android.gms.ads.APPLICATION_ID\""
 
+    // declaredAppIdRequiredByPlatformSdk defaults to false, which is correct on Android: GMA Next-Gen
+    // initializes from AdConfig.androidAppId directly; only UMP reads this manifest meta-data.
+
     // NOT what GMA Next-Gen itself uses -- see initializeMobileAdsNative below, which passes
     // config.androidAppId straight into InitializationConfig.Builder. This manifest value is
     // read by the User Messaging Platform SDK for its own consent-app resolution, so a mismatch
@@ -108,17 +111,23 @@ internal class AndroidGoogleAdManager(
     override suspend fun initializeMobileAdsNative(
         config: AdConfig,
         requestedIdentity: AdInitializationConfigIdentity,
+        markHandoff: suspend () -> Unit,
     ) {
         AdLogger.d("Android initializing MobileAds with global request configuration.")
         val initializationConfig = InitializationConfig.Builder(config.androidAppId)
             .setRequestConfiguration(requestedIdentity.globalRequestConfiguration.toAndroidRequestConfiguration())
             .build()
+        // The builder and request-configuration mapping can reject a malformed app ID;
+        // nothing is owned by GMA until MobileAds.initialize is actually called.
+        markHandoff()
         withContext(Dispatchers.IO) {
             // MUST stay bounded: GMA can accept the call and never invoke the callback, which
             // would leave initialize() suspended forever otherwise. A timeout is NOT a
-            // CancellationException (see awaitNativeCallback), so it reaches the catch below as
-            // a real failure and leaves the identity uncommitted — making a retry the correct
-            // next step.
+            // CancellationException (see awaitNativeCallback), so it reaches the catch below as a
+            // real failure. The requested identity is pinned as handed-off before this call
+            // regardless, so retrying the SAME configuration is still the correct next step, while
+            // a retry with a DIFFERENT one is refused deterministically instead of being
+            // reported as applied. See GoogleAdManagerBase.handedOffConfigIdentity.
             awaitNativeCallback(
                 operation = "MobileAds.initialize",
                 timeout = InitializationTimeouts.nativeInitialize

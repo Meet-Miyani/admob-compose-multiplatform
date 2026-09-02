@@ -7,10 +7,14 @@ import dev.avinya.ads.internal.AppliedConfigurationDecision
 import dev.avinya.ads.internal.ConsentSessionState
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
 import dev.avinya.ads.internal.FullScreenStateLock
+import dev.avinya.ads.internal.AppIdVerdict
 import dev.avinya.ads.internal.DeclaredAppId
-import dev.avinya.ads.internal.appIdConfigurationWarningOrNull
+import dev.avinya.ads.internal.NativeHandoffDecision
+import dev.avinya.ads.internal.appIdPreflightError
+import dev.avinya.ads.internal.appIdVerdict
 import dev.avinya.ads.internal.appliedConfigurationDecision
 import dev.avinya.ads.internal.dispatchAfterInitializeHooks
+import dev.avinya.ads.internal.nativeHandoffDecision
 import dev.avinya.ads.internal.ownedSnapshot
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
 import kotlin.concurrent.Volatile
@@ -184,6 +188,16 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
     internal open val declaredAppIdConsumerDescription: String = ""
 
     /**
+     * Whether the platform's own ad SDK resolves its identity from [declaredAppId].
+     *
+     * True on iOS, where `GADMobileAds` reads `GADApplicationIdentifier` at startup and cannot
+     * initialize without it. False on Android, where GMA Next-Gen initializes from
+     * `AdConfig.androidAppId` and the manifest value belongs to UMP. This is the difference
+     * that makes a missing declaration fatal on one platform and a warning on the other.
+     */
+    internal open val declaredAppIdRequiredByPlatformSdk: Boolean = false
+
+    /**
      * Reads GMA's/GAD's version and adapter statuses onto the platform's diagnostics object.
      * MUST run on Main, immediately after [initializeMobileAdsNative] returns and before
      * [dev.avinya.ads.internal.dispatchAfterInitializeHooks] runs, so a publisher hook can read
@@ -198,10 +212,18 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
      * SDK reports completion or [dev.avinya.ads.internal.InitializationTimeouts.nativeInitialize]
      * elapses; a timeout must surface as a thrown failure, not a `CancellationException` (see
      * `awaitNativeCallback`), so a retry after a timeout is possible.
+     *
+     * [markHandoff] MUST be invoked exactly once, immediately before the FIRST irreversible touch of
+     * the process-global native SDK, and MUST NOT be invoked on any path that fails before that point.
+     * Everything an implementation does before that call is still undoable — building a config object,
+     * mapping a request configuration — and pinning ownership there would turn a fixable
+     * misconfiguration into a permanent, non-retryable conflict. Everything after it is owned by the
+     * process whether or not the callback ever arrives.
      */
     protected abstract suspend fun initializeMobileAdsNative(
         config: AdConfig,
         requestedIdentity: AdInitializationConfigIdentity,
+        markHandoff: suspend () -> Unit,
     )
 
     private data class InitializationAttempt(
@@ -280,6 +302,22 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
 
     @Volatile
     private var appliedConfigIdentity: AdInitializationConfigIdentity? = null
+    /**
+     * The identity handed to the process-global native SDK, pinned BEFORE the call and never
+     * cleared.
+     *
+     * Distinct from [appliedConfigIdentity], which is committed only once native initialization
+     * actually succeeds. The gap between the two is the whole point: `initializeMobileAdsNative`
+     * bounds how long the wrapper waits for GMA's callback, and a
+     * `NativeCallbackTimeoutException` means "the SDK accepted the call and never answered" — the
+     * handoff happened, only the confirmation is missing. Committing ownership only on success
+     * would let a retry with a DIFFERENT AdConfig sail past [appliedOutcome] and eventually
+     * publish Ready while the native singleton still owns the first configuration.
+     *
+     * A timeout stops one waiter. It cannot undo an irreversible native handoff.
+     */
+    @Volatile
+    private var handedOffConfigIdentity: AdInitializationConfigIdentity? = null
     @Volatile
     private var appliedTerminalStatus: AdManagerStatus? = null
 
@@ -310,6 +348,7 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
                 }
                 if (nativeCompletion != null) return@withLock null
                 appliedOutcome(requestedIdentity, ownedConfig.nativeAdMemoryPolicy)?.let { return it }
+                refusedByNativeHandoff(requestedIdentity)?.let { return it }
                 InitializationAttempt(
                     identity = requestedIdentity,
                     consentMode = consentMode,
@@ -360,15 +399,36 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
         // Checked before consent, not inside initializeMobileAds: on Android the value this
         // reads is what UMP (not GMA) resolves its identity from, so a mismatch is actionable
         // context for the consent gathering call right below, not just for GMA's own
-        // initialization later. Best-effort and non-fatal by design -- see
-        // appIdConfigurationWarningOrNull's KDoc. Checked on every initialize() attempt, not
-        // cached, matching testModeWarningOrNull's own cadence just above.
-        appIdConfigurationWarningOrNull(
-            appId(config),
-            declaredAppId(),
-            declaredAppIdSource,
-            declaredAppIdConsumerDescription,
-        )?.let(AdLogger::w)
+        // initialization later. The check is now enforcement, not just context -- fatal
+        // misconfigurations are rejected before consent or native SDK calls. Checked on every
+        // initialize() attempt, not cached, matching testModeWarningOrNull's own cadence just above.
+        when (
+            val verdict = appIdVerdict(
+                configuredAppId = appId(config),
+                declared = declaredAppId(),
+                declaredAppIdSource = declaredAppIdSource,
+                declaredAppIdConsumerDescription = declaredAppIdConsumerDescription,
+                requiredByPlatformSdk = declaredAppIdRequiredByPlatformSdk,
+                policy = AdAppIdVerification.policy,
+            )
+        ) {
+            AppIdVerdict.Ok -> Unit
+            is AppIdVerdict.Warn -> AdLogger.w(verdict.message)
+            is AppIdVerdict.Fail -> {
+                AdLogger.e(verdict.message)
+                // Stopped BEFORE consent and BEFORE any native call: a deterministic
+                // configuration invalidity must not become an opaque native failure, and
+                // gathering consent against the wrong application identity is worse than
+                // gathering none.
+                val result = AdManagerStatus.Failed(
+                    error = appIdPreflightError(verdict.message),
+                    retryable = false,
+                )
+                _status.value = result
+                completeAttempt(attempt, result)
+                return result
+            }
+        }
 
         val previousStatus = _status.value
         _status.value = AdManagerStatus.Initializing
@@ -473,6 +533,19 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
         }
     }
 
+    private suspend fun refusedByNativeHandoff(
+        requestedIdentity: AdInitializationConfigIdentity,
+    ): AdManagerStatus? = mobileAdsInitializationMutex.withLock {
+        when (val decision = nativeHandoffDecision(handedOffConfigIdentity, requestedIdentity)) {
+            NativeHandoffDecision.Proceed -> null
+            is NativeHandoffDecision.Refuse -> {
+                AdLogger.w("$platformTag MobileAds handoff conflict. ${decision.reason}")
+                // The rejection is deliberately NOT published -- see NativeHandoffDecision.Refuse.
+                decision.rejection
+            }
+        }
+    }
+
     /** The platform's own `nativeManager.configuredPolicyOrNull()` — see [onNativeConsentRevoked]. */
     protected abstract fun configuredNativePolicyOrNull(): NativeAdMemoryPolicy?
 
@@ -487,6 +560,9 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
     private suspend fun initializeMobileAds(config: AdConfig): AdManagerStatus {
         val requestedIdentity = config.initializationIdentity(appId(config))
         appliedOutcome(requestedIdentity, config.nativeAdMemoryPolicy)?.let { return it }
+        // The primary check is before consent in initialize(); this backstop covers a follower
+        // that loops after a leader's attempt settled and re-enters with its own identity.
+        refusedByNativeHandoff(requestedIdentity)?.let { return it }
 
         var operation = mobileAdsInitializationMutex.withLock { nativeInitialization }
         if (operation == null) {
@@ -537,7 +613,13 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
         // running — strictly better than desynchronizing the wrapper from native reality.
         val completion = nativeInitializationScope.async(start = CoroutineStart.LAZY) {
             val result = try {
-                initializeMobileAdsNative(config, requestedIdentity)
+                // The platform implementation decides when the mark is taken (via markHandoff):
+                // iOS mutates GADMobileAds.sharedInstance.requestConfiguration before start(), while
+                // Android builds its InitializationConfig first and only marks immediately before
+                // MobileAds.initialize. From that mark on, this identity is what the process owns.
+                initializeMobileAdsNative(config, requestedIdentity) {
+                    mobileAdsInitializationMutex.withLock { handedOffConfigIdentity = requestedIdentity }
+                }
                 // Captured after the native call returns so adapter statuses are populated, and
                 // before the After hook so a publisher hook can read them.
                 captureDiagnosticsSnapshotOnMain()

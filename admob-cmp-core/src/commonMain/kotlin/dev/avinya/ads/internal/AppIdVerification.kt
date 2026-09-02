@@ -1,5 +1,9 @@
 package dev.avinya.ads.internal
 
+import dev.avinya.ads.AdError
+import dev.avinya.ads.AdErrorCode
+import dev.avinya.ads.AppIdVerificationPolicy
+
 /**
  * The app ID declared in the platform's own configuration source (`AndroidManifest.xml`
  * meta-data, `Info.plist`), independent of [AdConfig][dev.avinya.ads.AdConfig].
@@ -70,3 +74,55 @@ internal fun appIdConfigurationWarningOrNull(
         }
     }
 }
+
+/**
+ * What the app-ID preflight decided.
+ *
+ * Split from [appIdConfigurationWarningOrNull] so the MESSAGE and the SEVERITY are separate
+ * concerns: the same text is emitted whether the finding warns or blocks, and only the policy
+ * decides which. Logging is observability; this type is enforcement.
+ */
+internal sealed interface AppIdVerdict {
+    data object Ok : AppIdVerdict
+    data class Warn(val message: String) : AppIdVerdict
+    data class Fail(val message: String) : AppIdVerdict
+}
+
+/**
+ * Applies [policy] to the platform declaration.
+ *
+ * @param requiredByPlatformSdk whether the platform's OWN ad SDK resolves its identity from
+ *   [declared]. True on iOS (`GADApplicationIdentifier`), false on Android (where the manifest
+ *   value is UMP's and GMA Next-Gen reads `AdConfig` instead). This is what makes a missing
+ *   declaration fatal on one platform and merely wrong on the other.
+ */
+internal fun appIdVerdict(
+    configuredAppId: String,
+    declared: DeclaredAppId,
+    declaredAppIdSource: String,
+    declaredAppIdConsumerDescription: String,
+    requiredByPlatformSdk: Boolean,
+    policy: AppIdVerificationPolicy,
+): AppIdVerdict {
+    val message = appIdConfigurationWarningOrNull(
+        configuredAppId,
+        declared,
+        declaredAppIdSource,
+        declaredAppIdConsumerDescription,
+    ) ?: return AppIdVerdict.Ok
+
+    val unusable = requiredByPlatformSdk && declared is DeclaredAppId.Missing
+    val fails = when (policy) {
+        AppIdVerificationPolicy.WarnOnly -> false
+        AppIdVerificationPolicy.FailWhenUnusable -> unusable
+        AppIdVerificationPolicy.Strict -> true
+    }
+    return if (fails) AppIdVerdict.Fail(message) else AppIdVerdict.Warn(message)
+}
+
+/** The typed error a failed preflight publishes. Never retryable: the configuration must change. */
+internal fun appIdPreflightError(message: String): AdError = AdError(
+    code = AdErrorCode.APP_ID_INVALID,
+    message = message,
+)
+

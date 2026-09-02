@@ -16,6 +16,12 @@ import kotlinx.coroutines.CancellableContinuation
  * (navigation, rotation, process death). [reconcile] is exactly that state and must always
  * run. Only *resuming the waiter* is conditional: resuming an inactive continuation is a
  * no-op at best and an `IllegalStateException` at worst.
+ *
+ * The `isActive` check is an OPTIMIZATION, not a correctness mechanism.
+ * `CancellableContinuation` already resolves cancellation-versus-resume atomically, and
+ * resuming a cancelled continuation is a no-op. The check is kept because it makes the intent
+ * ("the waiter may be gone; the state must not be") obvious at the call site. Do not read it
+ * as the thing that makes this safe — [reconcile] running first is.
  */
 internal inline fun <T> reconcileThenResumeIfActive(
     continuation: CancellableContinuation<T>,

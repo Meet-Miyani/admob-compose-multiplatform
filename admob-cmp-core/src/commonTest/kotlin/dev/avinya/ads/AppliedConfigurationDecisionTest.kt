@@ -1,7 +1,9 @@
 package dev.avinya.ads
 
 import dev.avinya.ads.internal.AppliedConfigurationDecision
+import dev.avinya.ads.internal.NativeHandoffDecision
 import dev.avinya.ads.internal.appliedConfigurationDecision
+import dev.avinya.ads.internal.nativeHandoffDecision
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -141,5 +143,47 @@ class AppliedConfigurationDecisionTest {
             )
         )
         assertEquals(true, global.reason.contains("global request configuration"))
+    }
+
+    // --- native handoff ownership -----------------------------------------------------------
+
+    private fun identity(appId: String) = AdInitializationConfigIdentity(
+        platformAppId = appId,
+        globalRequestConfiguration = GlobalRequestConfiguration(),
+    )
+
+    @Test
+    fun `no handoff yet permits initialization`() {
+        assertEquals(
+            NativeHandoffDecision.Proceed,
+            nativeHandoffDecision(handedOffIdentity = null, requestedIdentity = identity("A")),
+        )
+    }
+
+    @Test
+    fun `a same-identity retry after a timed-out handoff is permitted`() {
+        // The load-bearing case for a real GMA hang: the wrapper timed out, nothing was
+        // committed, and retrying the SAME configuration is the documented next step.
+        assertEquals(
+            NativeHandoffDecision.Proceed,
+            nativeHandoffDecision(handedOffIdentity = identity("A"), requestedIdentity = identity("A")),
+        )
+    }
+
+    @Test
+    fun `a different-identity retry after a handoff is refused not silently accepted`() {
+        val decision = nativeHandoffDecision(
+            handedOffIdentity = identity("A"),
+            requestedIdentity = identity("B"),
+        )
+
+        // Pins the invariant: a timeout releases the WAITER; it cannot undo an irreversible
+        // native handoff, so the wrapper must never let a second configuration claim ownership.
+        val refuse = assertIs<NativeHandoffDecision.Refuse>(decision)
+        assertEquals(AdErrorCode.INITIALIZATION_CONFLICT, refuse.rejection.error.code)
+        assertFalse(
+            refuse.rejection.retryable,
+            "the native singleton cannot be reconfigured, so retrying cannot help",
+        )
     }
 }

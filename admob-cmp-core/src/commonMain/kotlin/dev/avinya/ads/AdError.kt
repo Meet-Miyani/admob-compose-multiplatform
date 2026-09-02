@@ -52,7 +52,20 @@ public object AdErrorCode {
      * [SDK_NOT_READY] matters — that one means "wait and retry", this one means "fix the call".
      */
     public const val INITIALIZATION_CONFLICT: String = "initialization_conflict"
+
+    /**
+     * The platform app-ID declaration (`AndroidManifest.xml` meta-data, `Info.plist`) is missing
+     * or inconsistent with [AdConfig][dev.avinya.ads.AdConfig], so the preflight refused initialization
+     * before UMP or GMA was touched.
+     *
+     * Never retryable: the platform declaration is part of the application binary or manifest, so
+     * the same call will fail identically until the app bundle is fixed and rebuilt. Distinguishing
+     * this from [INITIALIZATION_CONFLICT] matters — that one means "restart the process and call
+     * initialize() once", this one means "fix the app bundle and rebuild".
+     */
+    public const val APP_ID_INVALID: String = "app_id_invalid"
 }
+
 
 /**
  * Shared retry classification for all platform load paths. Platform mappers

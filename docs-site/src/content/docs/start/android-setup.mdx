@@ -29,6 +29,7 @@ Google Mobile Ads requires an Application Identifier declared in your Android ap
 - **Metadata Location**: Place `<meta-data>` inside the `<application>` tag of the runnable Android application module (`androidApp`), not inside a shared Kotlin library module.
 - **Identifier Format**: Application IDs use a tilde separator (`ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX`). Providing an Ad Unit ID (which uses a slash separator) will cause initialisation failure or runtime crashes.
 - **Runtime Enforcement**: Omitting `com.google.android.gms.ads.APPLICATION_ID` causes the Google Mobile Ads SDK to crash upon app launch.
+- **App ID Preflight**: During `initialize()`, the SDK checks `AdConfig.androidAppId` against the manifest value. Control strictness with `AdAppIdVerification.policy` (`FailWhenUnusable` default, `Strict`, `WarnOnly`).
 
 ## Managing the AD_ID permission
 

@@ -82,6 +82,7 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
     override fun appId(config: AdConfig): String = config.iosAppId
 
     internal override val declaredAppIdSource: String = "Info.plist key \"GADApplicationIdentifier\""
+    internal override val declaredAppIdRequiredByPlatformSdk: Boolean = true
 
     // GADMobileAds really does resolve its own app ID from this Info.plist key at startup,
     // independent of AdConfig -- unlike Android, where the manifest equivalent is read by UMP,
@@ -106,15 +107,21 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
     override suspend fun initializeMobileAdsNative(
         config: AdConfig,
         requestedIdentity: AdInitializationConfigIdentity,
+        markHandoff: suspend () -> Unit,
     ) {
+        // Writing the request configuration onto the shared instance is already a process-global
+        // mutation, so iOS's boundary is earlier than Android's.
+        markHandoff()
         GADMobileAds.sharedInstance.requestConfiguration.let { requestConfig ->
             requestedIdentity.globalRequestConfiguration.applyTo(requestConfig)
         }
         // MUST stay bounded: GMA can accept start() and never invoke the handler, which would
         // leave initialize() suspended forever otherwise. A timeout is NOT a
         // CancellationException (see awaitNativeCallback), so it reaches the catch below as a
-        // real failure and leaves the identity uncommitted -- making a retry the correct next
-        // step.
+        // real failure. The requested identity is pinned as handed-off before this call
+        // regardless, so retrying the SAME configuration is still the correct next step, while
+        // a retry with a DIFFERENT one is refused deterministically instead of being
+        // reported as applied. See GoogleAdManagerBase.handedOffConfigIdentity.
         awaitNativeCallback(
             operation = "GADMobileAds.start",
             timeout = InitializationTimeouts.nativeInitialize

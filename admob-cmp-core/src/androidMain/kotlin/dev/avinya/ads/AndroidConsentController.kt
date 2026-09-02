@@ -2,6 +2,7 @@ package dev.avinya.ads
 
 import android.app.Activity
 import android.content.Context
+import dev.avinya.ads.internal.ConsentStateHolder
 import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeCallbackTimeoutException
 import dev.avinya.ads.internal.awaitHost
@@ -15,11 +16,9 @@ import com.google.android.ump.ConsentDebugSettings
 import com.google.android.ump.ConsentInformation
 import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
-import kotlin.coroutines.resume
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -30,9 +29,14 @@ internal class AndroidConsentController(
     private val appContext: Context,
     private val onCanRequestAds: suspend (AdConfig) -> Unit
 ) : ConsentController {
-    private val _status = MutableStateFlow<ConsentStatus>(ConsentStatus.Unknown)
-    private val _privacy = MutableStateFlow(PrivacyOptionsRequirementStatus.Unknown)
-    private val _canRequestAds = MutableStateFlow(false)
+    // Regression Guard G2: state MUST be declared before the three overrides.
+    private val state = ConsentStateHolder()
+
+    override val status: StateFlow<ConsentStatus> = state.status
+    override val privacyOptionsRequirementStatus: StateFlow<PrivacyOptionsRequirementStatus> =
+        state.privacyOptionsRequirementStatus
+    override val canRequestAds: StateFlow<Boolean> = state.canRequestAds
+
     // Retained so showPrivacyOptions() can resume initialization if the user grants
     // consent from the privacy form after an earlier denial.
     private var lastConfig: AdConfig? = null
@@ -42,20 +46,20 @@ internal class AndroidConsentController(
     // Same shape as GoogleAdManagerBase.admissionScope: process-wide, never cancelled.
     private val consentScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    override val status: StateFlow<ConsentStatus> = _status
-    override val privacyOptionsRequirementStatus: StateFlow<PrivacyOptionsRequirementStatus> = _privacy
-    override val canRequestAds: StateFlow<Boolean> = _canRequestAds
-
     override suspend fun requestConsentInfoUpdate(config: AdConfig): ConsentStatus {
         val ownedConfig = prepareConsentConfig(config)
         return withContext(Dispatchers.Main.immediate) {
-            // Acquired inside the main hop, not before it: this reads Activity lifecycle state,
-            // which is main-thread-owned (invariant 5). It waits rather than failing on the first
-            // null because ForegroundStack legitimately empties for a few hundred milliseconds
-            // during any Activity handoff.
-            val activity = awaitHost(InitializationTimeouts.consentHost) { activityProvider() }
-                ?: return@withContext failNoActivity()
-            updateWithActivity(activity, ownedConfig, UserMessagingPlatform.getConsentInformation(appContext))
+            state.serialized {
+                val generation = state.beginOperation()
+                val activity = awaitHost(InitializationTimeouts.consentHost) { activityProvider() }
+                    ?: return@serialized failNoActivity(generation)
+                updateWithActivity(
+                    activity,
+                    ownedConfig,
+                    UserMessagingPlatform.getConsentInformation(appContext),
+                    generation,
+                )
+            }
         }
     }
 
@@ -91,6 +95,7 @@ internal class AndroidConsentController(
         activity: Activity,
         config: AdConfig,
         consentInformation: ConsentInformation,
+        generation: Long,
     ): ConsentStatus {
         val params = buildConsentParams(activity, config)
         // MUST stay bounded: this is a non-interactive network round trip, and UMP can accept
@@ -105,116 +110,175 @@ internal class AndroidConsentController(
         // successful refresh, for no gain in consent correctness. Consent itself has not changed;
         // only our ability to re-confirm it has, and UMP has already persisted the user's choice.
         //
-        // Kept identical to `IosConsentController` on purpose: a consent-admission divergence
-        // between the platforms is the kind of thing that is only discovered in production.
+        // State ordering and reconciliation parity is enforced structurally by ConsentStateHolder;
+        // platform controllers only map native UMP types.
         //
         // The consent FORM and privacy options form below stay unbounded on purpose; a person is
         // reading those.
-        val error = try {
+        //
+        // The callback below reconciles privacy state even when this waiter has already timed out,
+        // because a late callback can carry a revocation.
+        try {
             awaitNativeCallback(
                 operation = "UMP requestConsentInfoUpdate",
                 timeout = InitializationTimeouts.consentInfoUpdate
             ) {
-                suspendCancellableCoroutine<AdError?> { continuation ->
+                suspendCancellableCoroutine<Unit> { continuation ->
                     consentInformation.requestConsentInfoUpdate(
                         activity,
                         params,
-                        { if (continuation.isActive) continuation.resume(null) },
-                        { if (continuation.isActive) continuation.resume(AdError(code = it.errorCode.toString(), message = it.message)) }
+                        {
+                            reconcileThenResumeIfActive(continuation, Unit) {
+                                state.reconcileAndPublish(
+                                    generation,
+                                    privacyRequirement = privacyRequirementOf(consentInformation),
+                                    canRequestAds = consentInformation.canRequestAds(),
+                                    status = resolveConsentInfoUpdateStatus(
+                                        error = null,
+                                        canRequestAds = consentInformation.canRequestAds(),
+                                        nativeStatus = consentInformationStatus(consentInformation),
+                                    ),
+                                )
+                            }
+                        },
+                        { formError ->
+                            val mapped = AdError(
+                                code = formError.errorCode.toString(),
+                                message = formError.message,
+                            )
+                            reconcileThenResumeIfActive(continuation, Unit) {
+                                state.reconcileAndPublish(
+                                    generation,
+                                    privacyRequirement = privacyRequirementOf(consentInformation),
+                                    canRequestAds = consentInformation.canRequestAds(),
+                                    status = resolveConsentInfoUpdateStatus(
+                                        error = mapped,
+                                        canRequestAds = consentInformation.canRequestAds(),
+                                        nativeStatus = consentInformationStatus(consentInformation),
+                                    ),
+                                )
+                            }
+                        },
                     )
                 }
             }
         } catch (timeout: NativeCallbackTimeoutException) {
             AdLogger.e("Android UMP consent info update timed out.", timeout)
-            // canRequestAds is deliberately NOT reset here. See
-            // consentInfoUpdateTimeoutStatus's KDoc.
-            return consentInfoUpdateTimeoutStatus(timeout.message).also { _status.value = it }
+            // canRequestAds is deliberately NOT reset here. See consentInfoUpdateTimeoutStatus's
+            // KDoc. The late callback above will still reconcile it if UMP ever answers.
+            return state.publishOperationStatus(generation, consentInfoUpdateTimeoutStatus(timeout.message))
         }
-        updatePrivacyState(consentInformation)
-        _canRequestAds.value = consentInformation.canRequestAds()
-        val status = resolveConsentInfoUpdateStatus(
-            error = error,
-            canRequestAds = consentInformation.canRequestAds(),
-            nativeStatus = consentInformationStatus(consentInformation),
-        )
-        _status.value = status
-        return status
+        return state.status.value
     }
 
     override suspend fun gatherConsent(config: AdConfig): ConsentStatus =
         withContext(Dispatchers.Main.immediate) {
-            val activity = awaitHost(InitializationTimeouts.consentHost) { activityProvider() }
-                ?: return@withContext failNoActivity()
-            val consentInformation = UserMessagingPlatform.getConsentInformation(appContext)
-            // The acquired Activity is reused rather than calling the public
-            // requestConsentInfoUpdate, which would wait for a host a second time.
-            val ownedConfig = prepareConsentConfig(config)
-            val update = updateWithActivity(activity, ownedConfig, consentInformation)
-            if (update is ConsentStatus.Failed && !consentInformation.canRequestAds()) return@withContext update
-            suspendCancellableCoroutine<Unit> { continuation ->
-                UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
-                    if (formError != null) {
-                        AdLogger.w("UMP consent form load/show failed: code=${formError.errorCode} message=${formError.message}")
-                    }
-                    // Reconciliation must not be conditional on the caller still being around —
-                    // see reconcileThenResumeIfActive's KDoc. The form was shown and the user's
-                    // decision (if any) is already persisted by UMP regardless of whether
-                    // gatherConsent()'s caller is still listening.
-                    reconcileThenResumeIfActive(continuation, Unit) {
-                        updatePrivacyState(consentInformation)
-                        _canRequestAds.value = consentInformation.canRequestAds()
-                        _status.value = consentInformationStatus(consentInformation)
+            val owned = prepareConsentConfig(config)
+            state.exclusiveOfForms(
+                presentsForm = true,
+                onFormPresenting = {
+                    ConsentStatus.Failed(
+                        AdError.message("gatherConsent() ignored: a consent form is already presenting.")
+                    )
+                },
+            ) {
+                val generation = state.beginOperation()
+                val activity = awaitHost(InitializationTimeouts.consentHost) { activityProvider() }
+                    ?: return@exclusiveOfForms failNoActivity(generation)
+                val consentInformation = UserMessagingPlatform.getConsentInformation(appContext)
+                // The acquired Activity is reused rather than calling the public
+                // requestConsentInfoUpdate, which would wait for a host a second time.
+                val update = updateWithActivity(activity, owned, consentInformation, generation)
+                if (update is ConsentStatus.Failed && !consentInformation.canRequestAds()) return@exclusiveOfForms update
+                suspendCancellableCoroutine<Unit> { continuation ->
+                    UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
+                        if (formError != null) {
+                            AdLogger.w("UMP consent form load/show failed: code=${formError.errorCode} message=${formError.message}")
+                        }
+                        // Reconciliation must not be conditional on the caller still being around —
+                        // see reconcileThenResumeIfActive's KDoc. The form was shown and the user's
+                        // decision (if any) is already persisted by UMP regardless of whether
+                        // gatherConsent()'s caller is still listening.
+                        reconcileThenResumeIfActive(continuation, Unit) {
+                            state.reconcileAndPublish(
+                                generation,
+                                privacyRequirement = privacyRequirementOf(consentInformation),
+                                canRequestAds = consentInformation.canRequestAds(),
+                                status = consentInformationStatus(consentInformation),
+                            )
+                        }
                     }
                 }
+                state.status.value
             }
-            _status.value
         }
 
     override suspend fun showPrivacyOptions(): Boolean =
         withContext(Dispatchers.Main.immediate) {
-            // Acquired inside the main hop, not before it -- matching requestConsentInfoUpdate
-            // and gatherConsent: this reads Activity lifecycle state, which is main-thread-owned
-            // (invariant 5).
-            val activity = activityProvider() ?: return@withContext false
-            val consentInformation = UserMessagingPlatform.getConsentInformation(appContext)
-            suspendCancellableCoroutine { continuation ->
-                UserMessagingPlatform.showPrivacyOptionsForm(activity) { formError ->
-                    // The user may have changed their choices in the form; refresh exposed
-                    // state so consumers don't read stale consent / canRequestAds values.
-                    // Must run even if the caller awaiting showPrivacyOptions() was
-                    // cancelled — the form already closed and UMP already persisted
-                    // whatever the user chose. See reconcileThenResumeIfActive's KDoc.
-                    reconcileThenResumeIfActive(continuation, formError == null) {
-                        updatePrivacyState(consentInformation)
-                        _canRequestAds.value = consentInformation.canRequestAds()
-                        _status.value = consentInformationStatus(consentInformation)
-                        // If the user granted consent from the privacy form after an
-                        // earlier denial, resume initialization — otherwise the SDK would
-                        // stay uninitialized forever. Launched on consentScope, not
-                        // awaited here: this callback (and the reconciliation above) must
-                        // complete regardless of whether the original caller is still
-                        // around to observe it.
-                        if (shouldResumeInitializationAfterPrivacyOptions(_canRequestAds.value, lastConfig)) {
-                            lastConfig?.let { config -> consentScope.launch { onCanRequestAds(config) } }
+            state.exclusiveOfForms(
+                presentsForm = true,
+                onFormPresenting = {
+                    AdLogger.w(
+                        "showPrivacyOptions() ignored: another consent form is already " +
+                            "presenting. Wait for it to dismiss before presenting privacy options."
+                    )
+                    false
+                },
+            ) {
+                val generation = state.beginOperation()
+                // Acquired inside the main hop, not before it -- matching requestConsentInfoUpdate
+                // and gatherConsent: this reads Activity lifecycle state, which is main-thread-owned
+                // (invariant 5).
+                val activity = activityProvider() ?: return@exclusiveOfForms false
+                val consentInformation = UserMessagingPlatform.getConsentInformation(appContext)
+                suspendCancellableCoroutine { continuation ->
+                    UserMessagingPlatform.showPrivacyOptionsForm(activity) { formError ->
+                        // The user may have changed their choices in the form; refresh exposed
+                        // state so consumers don't read stale consent / canRequestAds values.
+                        // Must run even if the caller awaiting showPrivacyOptions() was
+                        // cancelled — the form already closed and UMP already persisted
+                        // whatever the user chose. See reconcileThenResumeIfActive's KDoc.
+                        reconcileThenResumeIfActive(continuation, formError == null) {
+                            state.reconcileAndPublish(
+                                generation,
+                                privacyRequirement = privacyRequirementOf(consentInformation),
+                                canRequestAds = consentInformation.canRequestAds(),
+                                status = consentInformationStatus(consentInformation),
+                            )
+                            // If the user granted consent from the privacy form after an
+                            // earlier denial, resume initialization — otherwise the SDK would
+                            // stay uninitialized forever. Launched on consentScope, not
+                            // awaited here: this callback (and the reconciliation above) must
+                            // complete regardless of whether the original caller is still
+                            // around to observe it.
+                            if (shouldResumeInitializationAfterPrivacyOptions(state.canRequestAds.value, lastConfig)) {
+                                lastConfig?.let { config -> consentScope.launch { onCanRequestAds(config) } }
+                            }
                         }
                     }
                 }
             }
         }
 
-    override suspend fun resetConsentForDebug(): Boolean {
-        val activity = activityProvider() ?: return false
-        withContext(Dispatchers.Main.immediate) {
+    override suspend fun resetConsentForDebug(): Boolean = withContext(Dispatchers.Main.immediate) {
+        state.exclusiveOfForms(
+            presentsForm = false,
+            onFormPresenting = {
+                AdLogger.w(
+                    "resetConsentForDebug() ignored: a consent form is already presenting. " +
+                        "Wait for it to dismiss before resetting consent."
+                )
+                false
+            },
+        ) {
+            // Acquired inside the main hop, not before it -- this reads Activity lifecycle state,
+            // which is main-thread-owned (invariant 5), matching every other entry point here.
+            activityProvider() ?: return@exclusiveOfForms false
+            state.reset()
             UserMessagingPlatform.getConsentInformation(appContext).reset()
+            true
         }
-        _status.value = ConsentStatus.Unknown
-        _privacy.value = PrivacyOptionsRequirementStatus.Unknown
-        _canRequestAds.value = false
-        return true
     }
-
-    private fun fail(message: String): ConsentStatus =
-        ConsentStatus.Failed(AdError.message(message)).also { _status.value = it }
 
     /**
      * The host was absent for the whole `InitializationTimeouts.consentHost` window.
@@ -223,22 +287,24 @@ internal class AndroidConsentController(
      * [ConsentStatus.Failed] message stays byte-identical to what it has always been —
      * only the warning above it is new.
      */
-    private fun failNoActivity(): ConsentStatus {
+    private fun failNoActivity(generation: Long): ConsentStatus {
         AdLogger.w(
             "No usable Android Activity for UMP consent after waiting " +
                 "${InitializationTimeouts.consentHost}. Consent was not gathered on this attempt; " +
                 "the host app should retry."
         )
-        return fail("No current Android Activity for UMP consent.")
+        return state.publishOperationStatus(
+            generation,
+            ConsentStatus.Failed(AdError.message("No current Android Activity for UMP consent.")),
+        )
     }
 
-    private fun updatePrivacyState(consentInformation: ConsentInformation) {
-        _privacy.value = when (consentInformation.privacyOptionsRequirementStatus) {
+    private fun privacyRequirementOf(consentInformation: ConsentInformation): PrivacyOptionsRequirementStatus =
+        when (consentInformation.privacyOptionsRequirementStatus) {
             ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED -> PrivacyOptionsRequirementStatus.Required
             ConsentInformation.PrivacyOptionsRequirementStatus.NOT_REQUIRED -> PrivacyOptionsRequirementStatus.NotRequired
             else -> PrivacyOptionsRequirementStatus.Unknown
         }
-    }
 
     // Maps UMP's consent status (distinct from canRequestAds) so the public model
     // can surface NotRequired instead of collapsing everything to Obtained/Required.
