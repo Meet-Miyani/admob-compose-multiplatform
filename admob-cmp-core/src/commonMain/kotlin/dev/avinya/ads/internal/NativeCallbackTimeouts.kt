@@ -2,6 +2,7 @@ package dev.avinya.ads.internal
 
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -15,7 +16,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Only *non-interactive* operations belong here. Anything that presents UI and waits for a person —
  * the UMP consent form, the privacy options form, the ad inspector — must stay unbounded, with
  * caller cancellation as its escape hatch. Timing out a form the user is still reading would be a
- * bug, not a safeguard.
+ * bug, not a safeguard. [formPresentationPin] is not an exception to that rule: it bounds how long
+ * the wrapper keeps BELIEVING a form is on screen, never the form itself.
  */
 internal object InitializationTimeouts {
     /** Native `MobileAds.initialize` / `GADMobileAds.start`. */
@@ -52,6 +54,19 @@ internal object InitializationTimeouts {
      * simply never fire in some states, and an unbounded wait here blocks initialize().
      */
     val attPrompt: Duration = 60.seconds
+
+    /**
+     * How long the consent-form slot stays pinned to a form UMP was handed but never reported
+     * back on.
+     *
+     * The form itself is not timed out — a person is reading it, and cancelling their caller does
+     * not dismiss it, which is exactly why the pin outlives the coroutine. What is bounded is the
+     * wrapper's belief. Five minutes because a user reading a consent notice and choosing vendors
+     * is comfortably inside it, while past it the app has almost certainly been backgrounded or
+     * the callback is never coming — and refusing every consent operation for the rest of the
+     * process is a worse outcome than the overlapping form the pin exists to prevent.
+     */
+    val formPresentationPin: Duration = 5.minutes
 }
 
 /**

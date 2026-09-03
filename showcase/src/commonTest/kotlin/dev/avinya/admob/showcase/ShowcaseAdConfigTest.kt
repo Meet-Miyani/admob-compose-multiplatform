@@ -36,6 +36,18 @@ class ShowcaseAdConfigTest {
     }
 
     @Test
+    fun testDeviceIdsAreCarriedIntoTheConfig() {
+        val ids = listOf("1BFD804287B2C3AE94087F1138DDA00E")
+
+        val config = showcaseAdConfig(
+            trackingHook = TrackingAuthorizationHook { },
+            testDeviceIds = ids,
+        )
+
+        assertEquals(ids, config.testDeviceIds)
+    }
+
+    @Test
     fun mapsInitialisingStatusesToStarting() {
         assertEquals(StartupState.Starting, AdManagerStatus.Idle.toStartupState())
         assertEquals(StartupState.Starting, AdManagerStatus.Initializing.toStartupState())

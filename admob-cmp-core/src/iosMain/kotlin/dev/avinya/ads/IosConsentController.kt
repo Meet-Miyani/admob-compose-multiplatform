@@ -38,7 +38,8 @@ import kotlinx.coroutines.withContext
 internal class IosConsentController(
     val onCanRequestAds: suspend (AdConfig) -> Unit
 ) : ConsentController {
-    // Regression Guard G2: state MUST be declared before the three overrides.
+    // Kotlin initializes properties in declaration order, so the holder must exist before the
+    // exposed flows delegate to it.
     private val state = ConsentStateHolder()
 
     override val status: StateFlow<ConsentStatus> = state.status
@@ -57,10 +58,8 @@ internal class IosConsentController(
 
     override suspend fun requestConsentInfoUpdate(config: AdConfig): ConsentStatus =
         withContext(Dispatchers.Main.immediate) {
-            val owned = config.ownedSnapshot()
-            lastConfig = owned
-            owned.dispatchInitializationHooks(AdInitializationPhase.BeforeConsentRequest)
             state.serialized {
+                val owned = prepareConsentConfig(config)
                 performConsentInfoUpdate(
                     owned,
                     UMPConsentInformation.sharedInstance,
@@ -68,6 +67,13 @@ internal class IosConsentController(
                 )
             }
         }
+
+    private suspend fun prepareConsentConfig(config: AdConfig): AdConfig {
+        val owned = config.ownedSnapshot()
+        lastConfig = owned
+        owned.dispatchInitializationHooks(AdInitializationPhase.BeforeConsentRequest)
+        return owned
+    }
 
     /**
      * The UMP info-update sequence, assuming the caller already holds the operation slot.
@@ -147,9 +153,6 @@ internal class IosConsentController(
 
     override suspend fun gatherConsent(config: AdConfig): ConsentStatus =
         withContext(Dispatchers.Main.immediate) {
-            val owned = config.ownedSnapshot()
-            lastConfig = owned
-            owned.dispatchInitializationHooks(AdInitializationPhase.BeforeConsentRequest)
             state.exclusiveOfForms(
                 presentsForm = true,
                 onFormPresenting = {
@@ -158,6 +161,7 @@ internal class IosConsentController(
                     )
                 },
             ) {
+                val owned = prepareConsentConfig(config)
                 val generation = state.beginOperation()
                 val consentInformation = UMPConsentInformation.sharedInstance
                 // Unlike Android, the iOS info update goes through UMPConsentInformation.sharedInstance
@@ -184,6 +188,10 @@ internal class IosConsentController(
                         ConsentStatus.Failed(AdError.message("No root view controller for consent form."))
                     )
                 }
+                // The irreversible boundary, mirroring GoogleAdManagerBase's markHandoff: past this
+                // line UMP owns the form, and cancelling this coroutine no longer means the screen
+                // is free. Released in the callback below, not by this coroutine's fate.
+                state.markFormPresented(generation)
                 suspendCancellableCoroutine<Unit> { continuation ->
                     continuation.invokeOnCancellation { }
                     UMPConsentForm.loadAndPresentIfRequiredFromViewController(rootVC) {
@@ -192,6 +200,7 @@ internal class IosConsentController(
                         // decision (if any) is already persisted by UMP regardless of whether
                         // gatherConsent()'s caller is still listening.
                         reconcileThenResumeIfActive(continuation, Unit) {
+                            state.releaseFormPresentation(generation)
                             state.reconcileAndPublish(
                                 generation,
                                 privacyRequirement = privacyRequirementOf(consentInformation),
@@ -220,6 +229,8 @@ internal class IosConsentController(
                 val generation = state.beginOperation()
                 val rootVC = topViewController() ?: return@exclusiveOfForms false
                 val consentInformation = UMPConsentInformation.sharedInstance
+                // See gatherConsent: the pin belongs to UMP from here, not to this coroutine.
+                state.markFormPresented(generation)
                 suspendCancellableCoroutine { continuation ->
                     continuation.invokeOnCancellation { }
                     UMPConsentForm.presentPrivacyOptionsFormFromViewController(rootVC) { error ->
@@ -229,6 +240,7 @@ internal class IosConsentController(
                         // already closed and UMP already persisted whatever the user chose. See
                         // reconcileThenResumeIfActive's KDoc.
                         reconcileThenResumeIfActive(continuation, error == null) {
+                            state.releaseFormPresentation(generation)
                             state.reconcileAndPublish(
                                 generation,
                                 privacyRequirement = privacyRequirementOf(consentInformation),

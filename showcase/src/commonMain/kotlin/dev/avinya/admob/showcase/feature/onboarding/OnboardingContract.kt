@@ -2,6 +2,7 @@ package dev.avinya.admob.showcase.feature.onboarding
 
 import dev.avinya.ads.AdTrackingAuthorization
 import dev.avinya.admob.showcase.StartupState
+import dev.avinya.admob.showcase.domain.ad.AdStartupPhase
 
 /**
  * The initialisation steps, in the only order that is correct.
@@ -16,12 +17,29 @@ enum class OnboardingStep {
     Initializing,
     Done,
     Failed,
+    ConsentRequired,
     ;
 
     companion object {
         /** The three steps the user actually progresses through. */
         fun orderedSteps(): List<OnboardingStep> = listOf(Consent, Tracking, Initializing)
     }
+}
+
+fun onboardingStepFor(phase: AdStartupPhase, startup: StartupState): OnboardingStep = when (phase) {
+    AdStartupPhase.Idle, AdStartupPhase.Consent -> OnboardingStep.Consent
+    AdStartupPhase.Tracking -> OnboardingStep.Tracking
+    AdStartupPhase.Initializing -> OnboardingStep.Initializing
+    AdStartupPhase.Complete -> when (startup) {
+        StartupState.ConsentRequired -> OnboardingStep.ConsentRequired
+        is StartupState.Failed -> OnboardingStep.Failed
+        else -> OnboardingStep.Done
+    }
+}
+
+fun shouldFinishOnboarding(startup: StartupState): Boolean = when (startup) {
+    StartupState.ConsentRequired, is StartupState.Failed -> false
+    else -> true
 }
 
 /**

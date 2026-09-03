@@ -59,11 +59,17 @@ Concurrent consent operations no longer interleave or corrupt in-flight UMP stat
 
 - `requestConsentInfoUpdate()` queues behind any active consent operation; `gatherConsent()` queues
   behind a bounded update but returns a failed `ConsentStatus` if another form is already presenting.
-- `showPrivacyOptions()` and `resetConsentForDebug()` return `false` only when a UMP form is already
-  presenting — two forms cannot stack, and resetting under a live form is incoherent. They **wait** for
-  a bounded `requestConsentInfoUpdate()`, so a user opening privacy settings during the launch-time
-  consent refresh still gets the form rather than a spurious failure. Callers should retry once the
-  in-flight form is dismissed.
+- `showPrivacyOptions()` and `resetConsentForDebug()` return `false` when a form-presenting
+  operation holds the consent slot — two forms cannot stack, and resetting under a live form is
+  incoherent. The slot is claimed when such an operation starts, so this also covers the window in
+  which a `gatherConsent()` is still awaiting a host and running its bounded info update, before any
+  form is visible. A `requestConsentInfoUpdate()` never claims the slot: these calls **wait** for it,
+  so a user opening privacy settings during a launch-time consent *refresh* still gets the form
+  rather than a spurious failure. Callers should retry once the in-flight operation finishes.
+- Cancelling the coroutine that called `gatherConsent()` or `showPrivacyOptions()` no longer frees
+  the form slot. Cancellation does not dismiss a form the user is looking at, so other consent
+  operations — including `resetConsentForDebug()` — keep declining until that form's own UMP
+  callback reports back.
 
 ### Late UMP consent callbacks reconcile privacy state
 
@@ -135,7 +141,7 @@ A preflight check validates that the app ID configured in `AdConfig` agrees with
 
 `AdAppIdVerification.policy` controls how the check behaves:
 
-- `AppIdVerificationPolicy.FailWhenUnusable` (default) — fails initialization with `AdErrorCode.APP_ID_INVALID` only when the platform's native SDK cannot function with the declaration as found (a missing `GADApplicationIdentifier` on iOS, which crashes native GMA). Android manifest mismatches and omissions log a warning and continue, because GMA Next-Gen initializes from `AdConfig.androidAppId` directly while UMP reads the manifest.
+- `AppIdVerificationPolicy.FailWhenUnusable` (default) — fails initialization with `AdErrorCode.APP_ID_INVALID` only when the platform's native SDK cannot function with the declaration as found (a missing or blank `GADApplicationIdentifier` on iOS, which crashes native GMA). Android manifest mismatches and omissions log a warning and continue, because GMA Next-Gen initializes from `AdConfig.androidAppId` directly while UMP reads the manifest.
 - `AppIdVerificationPolicy.Strict` — fails initialization immediately with `AdErrorCode.APP_ID_INVALID` on any missing or mismatched declaration. Recommended for new integrations, and the intended default starting in 3.0.0.
 - `AppIdVerificationPolicy.WarnOnly` — logs a warning and proceeds for every finding, serving as an escape hatch if the platform declaration is resolved dynamically or via custom bundle packaging.
 

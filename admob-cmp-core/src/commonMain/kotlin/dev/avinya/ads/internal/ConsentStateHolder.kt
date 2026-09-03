@@ -2,6 +2,7 @@ package dev.avinya.ads.internal
 
 import dev.avinya.ads.ConsentStatus
 import dev.avinya.ads.PrivacyOptionsRequirementStatus
+import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,20 +21,24 @@ import kotlinx.coroutines.flow.asStateFlow
  * UMP delivers its callbacks on the main thread on both platforms, so these writes are
  * main-confined.
  *
- * **Accepted limitation:** Cancelling `gatherConsent` while the UMP form is on screen releases the
- * coordinator slot even though UMP still owns the form; a newer operation can then suppress the
- * form's eventual status. This self-heals (`canRequestAds` still reconciles unconditionally, and the
- * newer operation republishes from the UMP singleton), and holding the slot across a cancelled,
- * unbounded form risks a permanent lock — a strictly worse failure.
+ * **Form ownership outlives the caller.** Cancelling `gatherConsent` or `showPrivacyOptions` does
+ * not dismiss the form the user is looking at, so the slot stays pinned to it — see
+ * [ConsentOperationCoordinator.markFormPresented]. Nothing else touches UMP until that form's own
+ * callback releases the pin, which it does whether or not the original waiter survived.
+ *
+ * **Accepted limitation:** a UMP form callback that never fires at all strands the pin, and every
+ * consent operation is refused until [InitializationTimeouts.formPresentationPin] expires. That
+ * window is the deliberate trade: an unbounded pin would refuse them for the life of the process,
+ * and no pin at all would let a reset run `UMPConsentInformation.reset()` under a live form.
  */
-internal class ConsentStateHolder {
+internal class ConsentStateHolder(timeSource: TimeSource = TimeSource.Monotonic) {
 
     private val _status = MutableStateFlow<ConsentStatus>(ConsentStatus.Unknown)
     private val _privacyOptionsRequirementStatus =
         MutableStateFlow(PrivacyOptionsRequirementStatus.Unknown)
     private val _canRequestAds = MutableStateFlow(false)
 
-    private val coordinator = ConsentOperationCoordinator()
+    private val coordinator = ConsentOperationCoordinator(timeSource)
 
     val status: StateFlow<ConsentStatus> = _status.asStateFlow()
     val privacyOptionsRequirementStatus: StateFlow<PrivacyOptionsRequirementStatus> =
@@ -49,6 +54,12 @@ internal class ConsentStateHolder {
         onFormPresenting: () -> T,
         block: suspend () -> T,
     ): T = coordinator.exclusiveOfForms(presentsForm, onFormPresenting, block)
+
+    /** See [ConsentOperationCoordinator.markFormPresented]. */
+    fun markFormPresented(generation: Long): Unit = coordinator.markFormPresented(generation)
+
+    /** See [ConsentOperationCoordinator.releaseFormPresentation]. */
+    fun releaseFormPresentation(generation: Long): Unit = coordinator.releaseFormPresentation(generation)
 
     /**
      * Reconciles authoritative privacy truth unconditionally and publishes [status] if [generation]

@@ -95,11 +95,14 @@ internal class AndroidGoogleAdManager(
     // one) is Unknown, not Missing: it is not evidence the manifest lacks the key, so it must
     // never be reported as a configuration gap -- see DeclaredAppId's KDoc.
     internal override fun declaredAppId(): DeclaredAppId = try {
-        val value = appContext.packageManager
-            .getApplicationInfo(appContext.packageName, PackageManager.GET_META_DATA)
-            .metaData
-            ?.getString("com.google.android.gms.ads.APPLICATION_ID")
-        if (value != null) DeclaredAppId.Present(value) else DeclaredAppId.Missing
+        // A meta-data entry declared with an empty android:value is the same gap as an absent
+        // key -- UMP cannot resolve an application from it either way.
+        DeclaredAppId.ofDeclaredValue(
+            appContext.packageManager
+                .getApplicationInfo(appContext.packageName, PackageManager.GET_META_DATA)
+                .metaData
+                ?.getString("com.google.android.gms.ads.APPLICATION_ID")
+        )
     } catch (t: Throwable) {
         DeclaredAppId.Unknown
     }

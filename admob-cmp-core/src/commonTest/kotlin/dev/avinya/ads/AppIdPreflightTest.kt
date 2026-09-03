@@ -74,6 +74,29 @@ class AppIdPreflightTest {
     }
 
     @Test
+    fun `a blank declaration is unusable rather than a mismatch`() {
+        // A build setting that resolved to empty leaves <string></string> in the plist. GADMobileAds
+        // can no more resolve an app from that than from an absent key, so the default policy must
+        // fail rather than warn its way into a native crash.
+        listOf("", "   ").forEach { blank ->
+            val fail = assertIs<AppIdVerdict.Fail>(
+                verdict(DeclaredAppId.Present(blank), requiredByPlatformSdk = true),
+                "a blank declaration must fail like a missing one",
+            )
+            assertTrue(
+                fail.message.contains("has no value set"),
+                "a blank value is a configuration gap, not a mismatch against an empty id",
+            )
+        }
+    }
+
+    @Test
+    fun `a blank declaration the platform SDK does not need only warns by default`() {
+        // Android keeps the missing-declaration severity: GMA Next-Gen initializes from AdConfig.
+        assertIs<AppIdVerdict.Warn>(verdict(DeclaredAppId.Present(""), requiredByPlatformSdk = false))
+    }
+
+    @Test
     fun `a mismatch only warns by default on both platforms`() {
         val declared = DeclaredAppId.Present("ca-app-pub-2222222222222222")
         assertIs<AppIdVerdict.Warn>(verdict(declared, requiredByPlatformSdk = true))
@@ -123,6 +146,26 @@ class AppIdPreflightTest {
     }
 
     @Test
+    fun `a blank declaration fails the preflight like a missing one`() = runSlotTest {
+        AdAppIdVerification.policy = AppIdVerificationPolicy.FailWhenUnusable
+        val manager = FakeGoogleAdManager(requiresDeclaredAppId = true).apply {
+            declared = DeclaredAppIdForTest.Blank
+        }
+
+        val status = manager.initialize(
+            AdConfig(androidAppId = "ca-app-pub-A", iosAppId = "ca-app-pub-A"),
+            ConsentMode.SkipConsent,
+        )
+
+        val failed = assertIs<AdManagerStatus.Failed>(status)
+        assertEquals(AdErrorCode.APP_ID_INVALID, failed.error.code)
+        assertTrue(
+            manager.nativeHandoffs.isEmpty(),
+            "a blank declaration must never reach the native SDK",
+        )
+    }
+
+    @Test
     fun `a warning-level finding still initializes`() = runSlotTest {
         AdAppIdVerification.policy = AppIdVerificationPolicy.FailWhenUnusable
         val manager = FakeGoogleAdManager(requiresDeclaredAppId = false).apply {
@@ -157,4 +200,3 @@ class AppIdPreflightTest {
         assertEquals(AdErrorCode.APP_ID_INVALID, failed.error.code)
     }
 }
-

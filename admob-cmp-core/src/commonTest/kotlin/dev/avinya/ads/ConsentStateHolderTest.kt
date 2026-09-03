@@ -242,7 +242,7 @@ class ConsentStateHolderTest {
     }
 
     @Test
-    fun `exclusiveOfForms restores the form flag after cancellation`() = runTest {
+    fun `cancellation before the native boundary restores the form flag`() = runTest {
         val holder = ConsentStateHolder()
         val formEntered = CompletableDeferred<Unit>()
         val neverRelease = CompletableDeferred<Unit>()
@@ -259,22 +259,58 @@ class ConsentStateHolderTest {
 
         assertTrue(
             holder.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) { true },
-            "cancellation must restore the form flag and unlock the mutex",
+            "cancellation short of the native boundary must restore the form flag and unlock the mutex",
         )
     }
 
     /**
-     * Accepted limitation (see plan): Cancelling gatherConsent while the UMP form is on screen
-     * releases the coordinator slot even though UMP still owns the form; a newer operation can then
-     * suppress the form's eventual status. This self-heals (canRequestAds still reconciles unconditionally,
-     * and the newer operation republishes from the UMP singleton), and holding the slot across a
-     * cancelled, unbounded form risks a permanent lock — a strictly worse failure.
-     *
-     * This test pins that after beginOperation() twice the older generation can still reconcile
-     * privacy truth, but cannot publish its status over the newer operation.
+     * Cancelling gatherConsent does not dismiss the form the user is looking at, so the holder must
+     * keep the slot pinned to it: nothing else may touch UMP -- least of all a reset -- until that
+     * form's own callback reports back. This is the delegation the controllers depend on.
      */
     @Test
-    fun `a slot released by cancellation lets a newer operation supersede an in-flight form`() {
+    fun `a cancelled in-flight form keeps the slot until its callback releases it`() = runTest {
+        val holder = ConsentStateHolder()
+        val formEntered = CompletableDeferred<Unit>()
+        val neverRelease = CompletableDeferred<Unit>()
+        var formGeneration = 0L
+        var resetRan = false
+
+        val job = launch {
+            holder.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) {
+                formGeneration = holder.beginOperation()
+                holder.markFormPresented(formGeneration)
+                formEntered.complete(Unit)
+                neverRelease.await()
+                true
+            }
+        }
+        formEntered.await()
+        job.cancelAndJoin()
+
+        val resetResult = holder.exclusiveOfForms(presentsForm = false, onFormPresenting = { false }) {
+            resetRan = true
+            holder.reset()
+            true
+        }
+        assertFalse(resetResult, "a reset must not run under a form UMP is still presenting")
+        assertFalse(resetRan, "reset block must not execute when declined")
+
+        holder.releaseFormPresentation(formGeneration)
+
+        assertTrue(
+            holder.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) { true },
+            "the form callback must free the slot",
+        )
+    }
+
+    /**
+     * Status ordering is independent of the form slot and is unchanged: an older generation still
+     * reconciles authoritative privacy truth unconditionally, but cannot publish its status over a
+     * newer operation's.
+     */
+    @Test
+    fun `a superseded form callback reconciles privacy truth without publishing its status`() {
         val holder = ConsentStateHolder()
         val inFlightFormGen = holder.beginOperation()
         val newerOperationGen = holder.beginOperation()

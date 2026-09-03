@@ -29,7 +29,8 @@ internal class AndroidConsentController(
     private val appContext: Context,
     private val onCanRequestAds: suspend (AdConfig) -> Unit
 ) : ConsentController {
-    // Regression Guard G2: state MUST be declared before the three overrides.
+    // Kotlin initializes properties in declaration order, so the holder must exist before the
+    // exposed flows delegate to it.
     private val state = ConsentStateHolder()
 
     override val status: StateFlow<ConsentStatus> = state.status
@@ -47,9 +48,9 @@ internal class AndroidConsentController(
     private val consentScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override suspend fun requestConsentInfoUpdate(config: AdConfig): ConsentStatus {
-        val ownedConfig = prepareConsentConfig(config)
         return withContext(Dispatchers.Main.immediate) {
             state.serialized {
+                val ownedConfig = prepareConsentConfig(config)
                 val generation = state.beginOperation()
                 val activity = awaitHost(InitializationTimeouts.consentHost) { activityProvider() }
                     ?: return@serialized failNoActivity(generation)
@@ -173,7 +174,6 @@ internal class AndroidConsentController(
 
     override suspend fun gatherConsent(config: AdConfig): ConsentStatus =
         withContext(Dispatchers.Main.immediate) {
-            val owned = prepareConsentConfig(config)
             state.exclusiveOfForms(
                 presentsForm = true,
                 onFormPresenting = {
@@ -182,6 +182,7 @@ internal class AndroidConsentController(
                     )
                 },
             ) {
+                val owned = prepareConsentConfig(config)
                 val generation = state.beginOperation()
                 val activity = awaitHost(InitializationTimeouts.consentHost) { activityProvider() }
                     ?: return@exclusiveOfForms failNoActivity(generation)
@@ -190,6 +191,10 @@ internal class AndroidConsentController(
                 // requestConsentInfoUpdate, which would wait for a host a second time.
                 val update = updateWithActivity(activity, owned, consentInformation, generation)
                 if (update is ConsentStatus.Failed && !consentInformation.canRequestAds()) return@exclusiveOfForms update
+                // The irreversible boundary, mirroring GoogleAdManagerBase's markHandoff: past this
+                // line UMP owns the form, and cancelling this coroutine no longer means the screen
+                // is free. Released in the callback below, not by this coroutine's fate.
+                state.markFormPresented(generation)
                 suspendCancellableCoroutine<Unit> { continuation ->
                     UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
                         if (formError != null) {
@@ -200,6 +205,7 @@ internal class AndroidConsentController(
                         // decision (if any) is already persisted by UMP regardless of whether
                         // gatherConsent()'s caller is still listening.
                         reconcileThenResumeIfActive(continuation, Unit) {
+                            state.releaseFormPresentation(generation)
                             state.reconcileAndPublish(
                                 generation,
                                 privacyRequirement = privacyRequirementOf(consentInformation),
@@ -231,6 +237,8 @@ internal class AndroidConsentController(
                 // (invariant 5).
                 val activity = activityProvider() ?: return@exclusiveOfForms false
                 val consentInformation = UserMessagingPlatform.getConsentInformation(appContext)
+                // See gatherConsent: the pin belongs to UMP from here, not to this coroutine.
+                state.markFormPresented(generation)
                 suspendCancellableCoroutine { continuation ->
                     UserMessagingPlatform.showPrivacyOptionsForm(activity) { formError ->
                         // The user may have changed their choices in the form; refresh exposed
@@ -239,6 +247,7 @@ internal class AndroidConsentController(
                         // cancelled — the form already closed and UMP already persisted
                         // whatever the user chose. See reconcileThenResumeIfActive's KDoc.
                         reconcileThenResumeIfActive(continuation, formError == null) {
+                            state.releaseFormPresentation(generation)
                             state.reconcileAndPublish(
                                 generation,
                                 privacyRequirement = privacyRequirementOf(consentInformation),

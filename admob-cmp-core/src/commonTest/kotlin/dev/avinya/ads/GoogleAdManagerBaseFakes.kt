@@ -47,6 +47,8 @@ internal class FakeGoogleAdManager(
     override fun declaredAppId(): DeclaredAppId = when (declared) {
         DeclaredAppIdForTest.Unknown -> DeclaredAppId.Unknown
         DeclaredAppIdForTest.Missing -> DeclaredAppId.Missing
+        // Deliberately built through the factory, exactly as the platform readers do.
+        DeclaredAppIdForTest.Blank -> DeclaredAppId.ofDeclaredValue("")
         DeclaredAppIdForTest.Matching -> DeclaredAppId.Present("ca-app-pub-A")
         DeclaredAppIdForTest.Mismatched -> DeclaredAppId.Present("ca-app-pub-OTHER")
     }
@@ -84,4 +86,4 @@ internal class FakeGoogleAdManager(
 }
 
 /** Mirrors `DeclaredAppId` so a test reads as a scenario rather than a platform type. */
-internal enum class DeclaredAppIdForTest { Unknown, Missing, Matching, Mismatched }
+internal enum class DeclaredAppIdForTest { Unknown, Missing, Blank, Matching, Mismatched }

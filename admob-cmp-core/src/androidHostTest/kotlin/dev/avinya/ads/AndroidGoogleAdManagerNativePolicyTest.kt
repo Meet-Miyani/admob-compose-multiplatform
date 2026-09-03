@@ -84,6 +84,25 @@ class AndroidGoogleAdManagerNativePolicyTest {
     }
 
     @Test
+    fun `declaredAppId reports Missing when the meta-data value is blank`() {
+        // android:value="" declares the key without declaring an application; UMP can resolve
+        // nothing from it, so it is the same gap as an absent key rather than a mismatch.
+        val context = mock(Context::class.java)
+        val packageManager = mock(PackageManager::class.java)
+        val metaDataBundle = mock(Bundle::class.java)
+        val applicationInfo = ApplicationInfo().apply { metaData = metaDataBundle }
+        `when`(context.packageManager).thenReturn(packageManager)
+        `when`(context.packageName).thenReturn("dev.avinya.showcase")
+        `when`(packageManager.getApplicationInfo("dev.avinya.showcase", PackageManager.GET_META_DATA))
+            .thenReturn(applicationInfo)
+        `when`(metaDataBundle.getString("com.google.android.gms.ads.APPLICATION_ID")).thenReturn("   ")
+
+        val manager = AndroidGoogleAdManager(context) { null }
+
+        assertEquals(DeclaredAppId.Missing, manager.declaredAppId())
+    }
+
+    @Test
     fun `declaredAppId reports Missing when there is no meta-data block at all`() {
         val context = mock(Context::class.java)
         val packageManager = mock(PackageManager::class.java)

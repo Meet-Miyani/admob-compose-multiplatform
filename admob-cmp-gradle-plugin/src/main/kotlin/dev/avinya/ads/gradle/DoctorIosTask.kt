@@ -84,13 +84,27 @@ public abstract class DoctorIosTask : DefaultTask() {
             logger.lifecycle("$skip skipped Info.plist check: none found near $projDir")
         } else {
             val content = plist.readText()
-            if (content.contains("GADApplicationIdentifier")) {
-                logger.lifecycle("$ok Info.plist declares GADApplicationIdentifier")
-                if (content.contains("ca-app-pub-3940256099942544~")) {
-                    logger.lifecycle("$skip   ...but it is still the Google sample app id — replace before release")
+            // The declared VALUE is read, not just the key: a key present with an empty string is
+            // the same configuration gap as an absent one, and matching on the key alone also
+            // matches a mention in a comment.
+            val declaredAppId = GAD_APPLICATION_IDENTIFIER
+                .find(content)
+                ?.groupValues
+                ?.get(1)
+                ?.trim()
+            when {
+                declaredAppId == null ->
+                    logger.lifecycle("$bad Info.plist is missing GADApplicationIdentifier — GMA crashes at startup without it")
+                declaredAppId.isEmpty() -> {
+                    logger.lifecycle("$bad Info.plist declares GADApplicationIdentifier with an empty value")
+                    logger.lifecycle("   GMA crashes at startup on it, and AdMob CMP's preflight fails initialize() with APP_ID_INVALID under the default FailWhenUnusable policy")
                 }
-            } else {
-                logger.lifecycle("$bad Info.plist is missing GADApplicationIdentifier — GMA crashes at startup without it")
+                else -> {
+                    logger.lifecycle("$ok Info.plist declares GADApplicationIdentifier")
+                    if (declaredAppId.startsWith("ca-app-pub-3940256099942544~")) {
+                        logger.lifecycle("$skip   ...but it is still the Google sample app id — replace before release")
+                    }
+                }
             }
             if (content.contains("SKAdNetworkItems")) {
                 logger.lifecycle("$ok Info.plist declares SKAdNetworkItems")
@@ -100,5 +114,12 @@ public abstract class DoctorIosTask : DefaultTask() {
         }
 
         logger.lifecycle("doctorIos is diagnostic only; it never fails the build.")
+    }
+
+    private companion object {
+        val GAD_APPLICATION_IDENTIFIER = Regex(
+            "<key>\\s*GADApplicationIdentifier\\s*</key>\\s*<string>(.*?)</string>",
+            RegexOption.DOT_MATCHES_ALL,
+        )
     }
 }

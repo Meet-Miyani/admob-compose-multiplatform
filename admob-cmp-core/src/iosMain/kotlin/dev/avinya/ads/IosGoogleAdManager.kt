@@ -92,12 +92,13 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
             "Info.plist value at startup, independent of AdConfig."
 
     // infoDictionary itself is null only if the bundle could not be read at all (Unknown, never
-    // a warning); a present dictionary with no String value for this key is a genuine
-    // configuration gap (Missing) -- see DeclaredAppId's KDoc.
+    // a warning); a present dictionary with no usable String value for this key is a genuine
+    // configuration gap (Missing) -- see DeclaredAppId's KDoc. A key declared with an empty
+    // string is that same gap, not a mismatch: GADMobileAds cannot resolve an app from it and
+    // crashes at startup exactly as it does when the key is absent.
     internal override fun declaredAppId(): DeclaredAppId {
         val infoDictionary = NSBundle.mainBundle.infoDictionary ?: return DeclaredAppId.Unknown
-        val value = infoDictionary["GADApplicationIdentifier"] as? String
-        return if (value != null) DeclaredAppId.Present(value) else DeclaredAppId.Missing
+        return DeclaredAppId.ofDeclaredValue(infoDictionary["GADApplicationIdentifier"] as? String)
     }
 
     override fun captureDiagnosticsSnapshotOnMain() {

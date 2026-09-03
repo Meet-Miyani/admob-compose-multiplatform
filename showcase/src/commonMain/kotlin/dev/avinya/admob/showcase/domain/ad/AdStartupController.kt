@@ -59,13 +59,18 @@ class AdStartupController(
         return state.first { it.phase == AdStartupPhase.Complete }.startup
     }
 
+    /**
+     * Starts the UMP-aware startup sequence.
+     *
+     * UMP must be asked on every launch: it presents a form only when required,
+     * while one-time gathering can strand a user whose consent is now required.
+     */
     fun ensureStarted() {
         val manager = boundManager ?: return
         if (_state.value.running || _state.value.phase == AdStartupPhase.Complete || startupJob?.isActive == true) return
         _state.update { it.copy(running = true) }
         startupJob = scope.launch {
-            val isFirstRun = !settings.onboardingComplete.first()
-            runStartup(manager, gather = isFirstRun)
+            runStartup(manager, gather = true)
         }
     }
 
@@ -111,7 +116,12 @@ class AdStartupController(
                     )
                 }
             }
-            val config = showcaseAdConfig(trackingHook = hook, debugGeography = debugGeography)
+            val testDeviceIds = listOfNotNull(settings.consentTestDeviceId.first())
+            val config = showcaseAdConfig(
+                trackingHook = hook,
+                debugGeography = debugGeography,
+                testDeviceIds = testDeviceIds,
+            )
 
             if (gather) {
                 adManager.consent.gatherConsent(config)

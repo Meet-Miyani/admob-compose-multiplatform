@@ -1,11 +1,9 @@
 package dev.avinya.admob.showcase.feature.onboarding
 
 import androidx.lifecycle.viewModelScope
-import dev.avinya.admob.showcase.StartupState
 import dev.avinya.admob.showcase.core.mvi.MviViewModel
 import dev.avinya.admob.showcase.data.prefs.SettingsRepository
 import dev.avinya.admob.showcase.domain.ad.AdStartupController
-import dev.avinya.admob.showcase.domain.ad.AdStartupPhase
 import kotlinx.coroutines.launch
 
 /**
@@ -31,20 +29,10 @@ class OnboardingViewModel(
     init {
         viewModelScope.launch {
             startup.state.collect { snapshot ->
-                val step = when (snapshot.phase) {
-                    AdStartupPhase.Idle, AdStartupPhase.Consent -> OnboardingStep.Consent
-                    AdStartupPhase.Tracking -> OnboardingStep.Tracking
-                    AdStartupPhase.Initializing -> OnboardingStep.Initializing
-                    AdStartupPhase.Complete -> when (snapshot.startup) {
-                        is StartupState.Failed -> OnboardingStep.Failed
-                        else -> OnboardingStep.Done
-                    }
-                }
-
                 updateState {
                     copy(
                         busy = snapshot.running,
-                        step = step,
+                        step = onboardingStepFor(snapshot.phase, snapshot.startup),
                         startup = snapshot.startup,
                         tracking = trackingStepDisplay(snapshot.tracking),
                     )
@@ -69,9 +57,7 @@ class OnboardingViewModel(
                     // re-emit an unchanged value — which left this screen
                     // stuck on the spinner forever.
                     val result = startup.awaitComplete()
-                    // A failure keeps the panel up so the retry action is
-                    // reachable; anything else moves on.
-                    if (result !is StartupState.Failed) finish()
+                    if (shouldFinishOnboarding(result)) finish()
                 }
             }
 
@@ -86,7 +72,10 @@ class OnboardingViewModel(
                 }
             }
 
-            OnboardingIntent.Retry -> startup.retry()
+            OnboardingIntent.Retry -> viewModelScope.launch {
+                val result = startup.retryAwaiting()
+                if (shouldFinishOnboarding(result)) finish()
+            }
 
             OnboardingIntent.Finish -> finish()
         }

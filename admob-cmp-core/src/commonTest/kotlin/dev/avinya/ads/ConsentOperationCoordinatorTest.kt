@@ -1,10 +1,14 @@
 package dev.avinya.ads
 
 import dev.avinya.ads.internal.ConsentOperationCoordinator
+import dev.avinya.ads.internal.InitializationTimeouts
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
+import kotlin.time.TestTimeSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
@@ -12,7 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, ExperimentalTime::class)
 class ConsentOperationCoordinatorTest {
 
     @Test
@@ -68,6 +72,7 @@ class ConsentOperationCoordinatorTest {
         val firstEntered = CompletableDeferred<Unit>()
         val releaseFirst = CompletableDeferred<Unit>()
         var secondRan = false
+        var retainedConfig = "accepted-config"
 
         val first = launch {
             coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) {
@@ -81,11 +86,17 @@ class ConsentOperationCoordinatorTest {
         // A user double-tapping "Privacy options" must NOT be shown the form twice in a row.
         val declined = coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) {
             secondRan = true
+            retainedConfig = "rejected-config"
             true
         }
 
         assertFalse(declined, "an overlapping form presentation must decline")
         assertFalse(secondRan, "the declined path must not run the block")
+        assertEquals(
+            "accepted-config",
+            retainedConfig,
+            "a declined form must not execute admitted config preparation",
+        )
         releaseFirst.complete(Unit)
         first.join()
     }
@@ -148,11 +159,13 @@ class ConsentOperationCoordinatorTest {
     }
 
     @Test
-    fun `exclusiveOfForms restores the form flag after cancellation`() = runTest {
+    fun `cancellation before the native boundary restores the form flag`() = runTest {
         val coordinator = ConsentOperationCoordinator()
         val formEntered = CompletableDeferred<Unit>()
         val neverRelease = CompletableDeferred<Unit>()
 
+        // No markFormPresented: this operation died while still waiting for a host, so UMP was
+        // never handed anything and nothing is on screen to protect.
         val job = launch {
             coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) {
                 formEntered.complete(Unit)
@@ -165,7 +178,75 @@ class ConsentOperationCoordinatorTest {
 
         assertTrue(
             coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) { true },
-            "cancellation must restore the form flag and unlock the mutex",
+            "cancellation short of the native boundary must restore the form flag and unlock the mutex",
+        )
+    }
+
+    @Test
+    fun `a cancelled caller keeps the form pinned until its callback releases it`() = runTest {
+        val coordinator = ConsentOperationCoordinator()
+        val formEntered = CompletableDeferred<Unit>()
+        val neverRelease = CompletableDeferred<Unit>()
+        var generation = 0L
+
+        val job = launch {
+            coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) {
+                generation = coordinator.beginOperation()
+                coordinator.markFormPresented(generation)
+                formEntered.complete(Unit)
+                neverRelease.await()
+                true
+            }
+        }
+        formEntered.await()
+        // Navigation, rotation, a dead viewModelScope: the waiter dies, the form does not.
+        job.cancelAndJoin()
+
+        assertFalse(
+            coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) { true },
+            "a cancelled caller must not free a form UMP is still presenting",
+        )
+
+        // UMP finally reports back, which is the only thing that means the screen is free.
+        coordinator.releaseFormPresentation(generation)
+
+        assertTrue(
+            coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) { true },
+            "the form callback must free the slot",
+        )
+    }
+
+    @Test
+    fun `a superseded generation cannot release a newer form pin`() = runTest {
+        val coordinator = ConsentOperationCoordinator()
+        val stale = coordinator.beginOperation()
+        val current = coordinator.beginOperation()
+        coordinator.markFormPresented(current)
+
+        coordinator.releaseFormPresentation(stale)
+
+        assertFalse(
+            coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) { true },
+            "a superseded form's late callback must not free the form on screen",
+        )
+    }
+
+    @Test
+    fun `a stranded form pin expires at the backstop instead of declining forever`() = runTest {
+        val timeSource = TestTimeSource()
+        val coordinator = ConsentOperationCoordinator(timeSource)
+        coordinator.markFormPresented(coordinator.beginOperation())
+
+        timeSource += InitializationTimeouts.formPresentationPin - 1.seconds
+        assertFalse(
+            coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) { true },
+            "the pin must hold for the whole backstop window",
+        )
+
+        timeSource += 1.seconds
+        assertTrue(
+            coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) { true },
+            "a callback that never arrives must not decline consent forms for the life of the process",
         )
     }
 }

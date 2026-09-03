@@ -250,25 +250,48 @@ private fun PreparingPanel(
             )
         }
 
-        val startup = state.startup
-        if (state.step == OnboardingStep.Failed && startup is StartupState.Failed) {
-            Text(
-                text = startup.message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = palette.danger,
-                modifier = Modifier.padding(top = Tokens.Spacing.s8),
-            )
-            PrimaryButton(
-                label = "Try again",
-                onClick = onRetry,
-                enabled = !state.busy,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            GhostButton(
-                label = "Skip and read anyway",
-                onClick = onSkip,
-                modifier = Modifier.fillMaxWidth(),
-            )
+        when (val startup = state.startup) {
+            is StartupState.Failed -> if (state.step == OnboardingStep.Failed) {
+                Text(
+                    text = startup.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = palette.danger,
+                    modifier = Modifier.padding(top = Tokens.Spacing.s8),
+                )
+                PrimaryButton(
+                    label = "Try again",
+                    onClick = onRetry,
+                    enabled = !state.busy,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                GhostButton(
+                    label = "Skip and read anyway",
+                    onClick = onSkip,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            StartupState.ConsentRequired -> if (state.step == OnboardingStep.ConsentRequired) {
+                Text(
+                    text = "Ads need your consent before they can load.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = palette.inkMuted,
+                    modifier = Modifier.padding(top = Tokens.Spacing.s8),
+                )
+                PrimaryButton(
+                    label = "Review consent",
+                    onClick = onRetry,
+                    enabled = !state.busy,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                GhostButton(
+                    label = "Continue without ads",
+                    onClick = onSkip,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            else -> Unit
         }
     }
 }
@@ -354,6 +377,7 @@ private fun OnboardingStep.label(): String = when (this) {
     OnboardingStep.Initializing -> "Starting the ads SDK"
     OnboardingStep.Done -> "Ready"
     OnboardingStep.Failed -> "Failed"
+    OnboardingStep.ConsentRequired -> "Consent required"
 }
 
 private fun OnboardingStep.detail(state: OnboardingState): String = when (this) {
@@ -368,6 +392,7 @@ private fun OnboardingStep.detail(state: OnboardingState): String = when (this) 
     OnboardingStep.Initializing -> "Google Mobile Ads, after consent resolves"
     OnboardingStep.Done -> "Done"
     OnboardingStep.Failed -> "Failed"
+    OnboardingStep.ConsentRequired -> "Review your consent choice"
 }
 
 private fun OnboardingStep.statusFor(state: OnboardingState): StepStatus {
