@@ -56,7 +56,7 @@ Configure your iOS application target's `Info.plist` with required metadata keys
 </array>
 ```
 
-- `GADApplicationIdentifier`: Application identifier with a tilde separator (`ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX`).
+- `GADApplicationIdentifier`: Application identifier with a tilde separator (`ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX`). Omitting this key, or leaving its value empty, crashes native GMA on launch. AdMob CMP validates it during `initialize()` preflight under `AdAppIdVerification.policy` (`FailWhenUnusable` default, `Strict`, `WarnOnly`).
 - `SKAdNetworkItems`: Array of ad network identifiers enabling privacy-preserving ad attribution.
 
 ## App Tracking Transparency (ATT) setup

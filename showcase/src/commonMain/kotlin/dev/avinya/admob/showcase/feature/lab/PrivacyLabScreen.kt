@@ -2,16 +2,22 @@ package dev.avinya.admob.showcase.feature.lab
 
 import androidx.compose.material3.MaterialTheme
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +26,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import dev.avinya.admob.showcase.core.device.normalizeTestDeviceId
+import dev.avinya.admob.showcase.core.device.readLoggedTestDeviceId
+import dev.avinya.admob.showcase.core.device.supportsLoggedTestDeviceIdDetection
 import dev.avinya.admob.showcase.di.LocalAppGraph
 import dev.avinya.admob.showcase.feature.profile.shouldShowPrivacyOptionsButton
 import dev.avinya.admob.showcase.ui.kit.ChoiceRow
@@ -28,6 +41,7 @@ import dev.avinya.admob.showcase.ui.kit.PrimaryButton
 import dev.avinya.admob.showcase.ui.kit.StatRow
 import dev.avinya.admob.showcase.ui.kit.SunkenPanel
 import dev.avinya.admob.showcase.ui.theme.ShowcaseType
+import dev.avinya.admob.showcase.ui.theme.ShowcaseShapes
 import dev.avinya.admob.showcase.ui.theme.Tokens
 import dev.avinya.admob.showcase.ui.theme.showcaseColors
 import dev.avinya.ads.AdTrackingAuthorization
@@ -59,6 +73,12 @@ fun PrivacyLabScreen(
     val storedGeography by graph.settings.consentDebugGeography.collectAsState(
         initial = ConsentDebugGeography.Disabled.name,
     )
+    val storedTestDeviceId by graph.settings.consentTestDeviceId.collectAsState(initial = null)
+    var testDeviceIdInput by remember { mutableStateOf("") }
+    LaunchedEffect(storedTestDeviceId) {
+        testDeviceIdInput = storedTestDeviceId.orEmpty()
+    }
+    val normalizedTestDeviceId = normalizeTestDeviceId(testDeviceIdInput)
     var tracking by remember { mutableStateOf(adManager.tracking.status()) }
     // Guards showPrivacyOptions/resetConsentForDebug/requestAuthorization
     // against a double-tap firing the SDK call twice concurrently — the
@@ -143,10 +163,106 @@ fun PrivacyLabScreen(
                 }
             }
 
+            item(key = "testDevice") {
+                LabSection(
+                    title = "Test device",
+                    description = "UMP applies the debug geography above ONLY to registered test " +
+                        "devices. On an unregistered physical device an EEA override silently does " +
+                        "nothing. Enter the 32-character id printed in logcat or the Xcode console.",
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Tokens.Spacing.s8)) {
+                        Text(
+                            text = storedTestDeviceId
+                                ?.let { "Registered: $it" }
+                                ?: "Not registered — the debug geography above has no effect.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (storedTestDeviceId == null) palette.inkMuted else palette.ink,
+                        )
+                        TestDeviceIdField(
+                            value = testDeviceIdInput,
+                            onValueChange = { testDeviceIdInput = it },
+                            enabled = !busy,
+                        )
+                        if (testDeviceIdInput.isNotBlank() && normalizedTestDeviceId == null) {
+                            Text(
+                                text = "Enter exactly 32 hexadecimal characters.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = palette.danger,
+                            )
+                        }
+                        PrimaryButton(
+                            label = "Save test device ID",
+                            enabled = !busy && normalizedTestDeviceId != null &&
+                                normalizedTestDeviceId != storedTestDeviceId,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                busy = true
+                                scope.launch {
+                                    try {
+                                        val id = normalizedTestDeviceId ?: return@launch
+                                        graph.settings.setConsentTestDeviceId(id)
+                                        snackbar.showSnackbar("Registered — relaunch to apply")
+                                    } finally {
+                                        busy = false
+                                    }
+                                }
+                            },
+                        )
+                        if (storedTestDeviceId != null) {
+                            GhostButton(
+                                label = "Remove test device ID",
+                                enabled = !busy,
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = {
+                                    busy = true
+                                    scope.launch {
+                                        try {
+                                            graph.settings.setConsentTestDeviceId(null)
+                                            testDeviceIdInput = ""
+                                            snackbar.showSnackbar("Removed — relaunch to apply")
+                                        } finally {
+                                            busy = false
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                        if (supportsLoggedTestDeviceIdDetection) {
+                            GhostButton(
+                                label = if (storedTestDeviceId == null) "Detect from SDK log" else "Re-detect",
+                                enabled = !busy,
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = {
+                                    busy = true
+                                    scope.launch {
+                                        try {
+                                            val resolved = readLoggedTestDeviceId()?.let(::normalizeTestDeviceId)
+                                            if (resolved == null) {
+                                                snackbar.showSnackbar(
+                                                    "No id logged yet. Load an ad or relaunch, then retry.",
+                                                )
+                                            } else {
+                                                graph.settings.setConsentTestDeviceId(resolved)
+                                                testDeviceIdInput = resolved
+                                                snackbar.showSnackbar("Registered — relaunch to apply")
+                                            }
+                                        } finally {
+                                            busy = false
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
             item(key = "reset") {
                 LabSection(
                     title = "Reset",
-                    description = "Clears the stored consent so the form appears again on relaunch.",
+                    description = "Clears stored UMP consent. On the next launch, startup gathers " +
+                        "again and UMP presents a form when required. Debug geography applies only " +
+                        "when a test-device ID is registered above.",
                 ) {
                     GhostButton(
                         label = "Reset consent state",
@@ -155,9 +271,18 @@ fun PrivacyLabScreen(
                         onClick = {
                             busy = true
                             scope.launch {
-                                adManager.consent.resetConsentForDebug()
-                                busy = false
-                                snackbar.showSnackbar("Consent reset — relaunch to see the form")
+                                try {
+                                    val reset = adManager.consent.resetConsentForDebug()
+                                    snackbar.showSnackbar(
+                                        if (reset) {
+                                            "Consent reset — relaunch to review consent"
+                                        } else {
+                                            "A consent form is open. Dismiss it, then retry."
+                                        },
+                                    )
+                                } finally {
+                                    busy = false
+                                }
                             }
                         },
                     )
@@ -215,5 +340,45 @@ fun PrivacyLabScreen(
         }
 
         SnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+@Composable
+private fun TestDeviceIdField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    enabled: Boolean,
+) {
+    val palette = showcaseColors
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = Tokens.touchTarget)
+            .clip(ShowcaseShapes.control)
+            .background(palette.surfaceSunken)
+            .border(Tokens.hairline, palette.hairline, ShowcaseShapes.control)
+            .padding(horizontal = Tokens.Spacing.s12, vertical = Tokens.Spacing.s12),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        if (value.isEmpty()) {
+            Text(
+                text = "32-character test-device ID",
+                style = MaterialTheme.typography.bodyMedium,
+                color = palette.inkFaint,
+            )
+        }
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            enabled = enabled,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = palette.ink),
+            cursorBrush = SolidColor(palette.primary),
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Characters,
+                keyboardType = KeyboardType.Ascii,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }

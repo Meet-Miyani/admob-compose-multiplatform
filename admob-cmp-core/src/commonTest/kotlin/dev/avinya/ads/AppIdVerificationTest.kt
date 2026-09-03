@@ -3,6 +3,7 @@ package dev.avinya.ads
 import dev.avinya.ads.internal.DeclaredAppId
 import dev.avinya.ads.internal.appIdConfigurationWarningOrNull
 import kotlin.test.Test
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -72,5 +73,21 @@ class AppIdVerificationTest {
         )
 
         assertNull(warning)
+    }
+
+    @Test
+    fun `a blank declared value reads as a configuration gap`() {
+        // Present("") would otherwise print "does not match ... (…)" with an empty redacted id,
+        // which describes neither the problem nor its fix.
+        val warning = appIdConfigurationWarningOrNull(
+            configuredAppId = "ca-app-pub-1111111111111111",
+            declared = DeclaredAppId.Present(""),
+            declaredAppIdSource = source,
+            declaredAppIdConsumerDescription = consumer,
+        )
+
+        assertNotNull(warning)
+        assertTrue(warning.contains("has no value set"), "a blank value is the missing-value message")
+        assertTrue("does not match" !in warning, "a blank value must not be reported as a mismatch")
     }
 }

@@ -104,3 +104,60 @@ internal fun appliedConfigurationDecision(
     }
     return AppliedConfigurationDecision.Accepted(appliedTerminalStatus)
 }
+
+/**
+ * What a new native-initialization attempt should do, given what was already handed to the
+ * process-global ad SDK.
+ *
+ * Distinct from [appliedConfigurationDecision], which answers the same question for a
+ * *completed* initialization. This one covers the window in between: the native call has been
+ * accepted but its callback has not arrived — or never will. A wrapper timeout may release the
+ * waiter, but it cannot un-hand-off an irreversible call, so ownership must survive it.
+ */
+internal sealed interface NativeHandoffDecision {
+
+    /** Nothing was handed off yet, or the same configuration is being retried. */
+    data object Proceed : NativeHandoffDecision
+
+    /**
+     * A different configuration was already handed to the native singleton.
+     *
+     * @property rejection returned to **this** caller only. As with
+     *   [AppliedConfigurationDecision.Conflict], it must NOT be published as the manager's
+     *   status: `adRequestBlockedError()` blocks every ad request whenever the status is not
+     *   [AdManagerStatus.Ready], which would take down ad serving process-wide.
+     */
+    data class Refuse(
+        val rejection: AdManagerStatus.Failed,
+        val reason: String,
+    ) : NativeHandoffDecision
+}
+
+/**
+ * Decides whether a native initialization attempt may proceed.
+ *
+ * A same-identity retry is always permitted: when GMA accepts a call and never calls back, the
+ * documented recovery is to retry the same configuration, and both platform SDKs tolerate a
+ * repeated initialize.
+ */
+internal fun nativeHandoffDecision(
+    handedOffIdentity: AdInitializationConfigIdentity?,
+    requestedIdentity: AdInitializationConfigIdentity,
+): NativeHandoffDecision {
+    if (handedOffIdentity == null || handedOffIdentity == requestedIdentity) {
+        return NativeHandoffDecision.Proceed
+    }
+    val reason = if (handedOffIdentity.platformAppId != requestedIdentity.platformAppId) {
+        "The ad SDK was already started with app ID '${handedOffIdentity.platformAppId}', but " +
+            "'${requestedIdentity.platformAppId}' was requested."
+    } else {
+        "The ad SDK was already started with a different global request configuration."
+    }
+    return NativeHandoffDecision.Refuse(
+        rejection = AdManagerStatus.Failed(
+            error = initializationConflictError(reason),
+            retryable = false,
+        ),
+        reason = reason,
+    )
+}

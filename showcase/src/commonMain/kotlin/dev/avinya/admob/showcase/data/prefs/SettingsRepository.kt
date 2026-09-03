@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import dev.avinya.admob.showcase.core.device.normalizeTestDeviceId
 import dev.avinya.admob.showcase.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -13,6 +14,7 @@ internal object SettingsKeys {
     val ThemeMode = stringPreferencesKey("theme_mode")
     val OnboardingComplete = booleanPreferencesKey("onboarding_complete")
     val ConsentDebugGeography = stringPreferencesKey("consent_debug_geography")
+    val ConsentTestDeviceId = stringPreferencesKey("consent_test_device_id")
     val InspectorEnabled = booleanPreferencesKey("inspector_enabled")
     val AdsMasterSwitch = booleanPreferencesKey("ads_master_switch")
 }
@@ -37,6 +39,16 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
     val consentDebugGeography: Flow<String?> =
         dataStore.data.map { it[SettingsKeys.ConsentDebugGeography] }
 
+    /**
+     * This device's hashed test-device id, once registered from the Privacy lab.
+     *
+     * Stored rather than hardcoded because the value identifies one physical device: committing
+     * it would put a personal advertising-id-derived hash into a public repository, and it would
+     * only ever work for whoever committed it. [consentDebugGeography] is inert without it.
+     */
+    val consentTestDeviceId: Flow<String?> =
+        dataStore.data.map { it[SettingsKeys.ConsentTestDeviceId] }
+
     val inspectorEnabled: Flow<Boolean> =
         dataStore.data.map { it[SettingsKeys.InspectorEnabled] ?: true }
 
@@ -55,6 +67,15 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { prefs ->
             if (value == null) prefs.remove(SettingsKeys.ConsentDebugGeography)
             else prefs[SettingsKeys.ConsentDebugGeography] = value
+        }
+    }
+
+    suspend fun setConsentTestDeviceId(value: String?) {
+        val normalized = value?.let(::normalizeTestDeviceId)
+        require(value == null || normalized != null) { "Consent test-device id must be 32 hexadecimal characters." }
+        dataStore.edit { prefs ->
+            if (normalized == null) prefs.remove(SettingsKeys.ConsentTestDeviceId)
+            else prefs[SettingsKeys.ConsentTestDeviceId] = normalized
         }
     }
 

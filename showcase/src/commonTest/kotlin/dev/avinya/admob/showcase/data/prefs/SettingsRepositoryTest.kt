@@ -39,6 +39,18 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun persistsNormalizedConsentTestDeviceIdAndRemovesIt() = runTest {
+        val repo = SettingsRepository(inMemoryPreferencesDataStore())
+
+        assertEquals(null, repo.consentTestDeviceId.first())
+        repo.setConsentTestDeviceId("  1bfd804287b2c3ae94087f1138dda00e ")
+        assertEquals("1BFD804287B2C3AE94087F1138DDA00E", repo.consentTestDeviceId.first())
+
+        repo.setConsentTestDeviceId(null)
+        assertEquals(null, repo.consentTestDeviceId.first())
+    }
+
+    @Test
     fun anUnrecognisedStoredThemeFallsBackToTheDefault() = runTest {
         val store = inMemoryPreferencesDataStore()
         store.updateData { prefs ->

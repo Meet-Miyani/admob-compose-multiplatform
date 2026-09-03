@@ -139,10 +139,32 @@ public interface ConsentController {
     public suspend fun requestConsentInfoUpdate(config: AdConfig): ConsentStatus
     /** Requests an update and shows the consent form if required. */
     public suspend fun gatherConsent(config: AdConfig): ConsentStatus
-    /** Shows the privacy options form. Should only be called when [privacyOptionsRequirementStatus] is [PrivacyOptionsRequirementStatus.Required]. */
+    /**
+     * Shows the privacy options form. Should only be called when [privacyOptionsRequirementStatus]
+     * is [PrivacyOptionsRequirementStatus.Required].
+     *
+     * Returns `false` when the form could not be shown, or when a form-presenting operation
+     * already holds the SDK's consent slot — two forms cannot stack. The slot is claimed when
+     * such an operation starts, not when UMP puts a form on screen, so this also covers the window
+     * in which a [gatherConsent] — including the one an `initialize(…, GatherBeforeInitialize)`
+     * sequence runs — is still waiting for a host and running its bounded info update, before
+     * anything is visible. A [requestConsentInfoUpdate] never claims the slot and is **not** a
+     * decline: this call waits for it. Retry once the in-flight operation finishes rather than
+     * treating `false` as a permanent failure.
+     */
     public suspend fun showPrivacyOptions(): Boolean
-    /** Resets consent state for debug/testing purposes only. */
+
+    /**
+     * Resets consent state for debug/testing purposes only.
+     *
+     * Returns `false` when a form-presenting operation holds the SDK's consent slot — resetting
+     * consent out from under a form the user is reading, or out from under a [gatherConsent] that
+     * is about to present one, is incoherent. A bounded [requestConsentInfoUpdate] never claims
+     * the slot and is not a decline: this call waits for it. Retry once the in-flight operation
+     * finishes.
+     */
     public suspend fun resetConsentForDebug(): Boolean
+
 }
 
 /**

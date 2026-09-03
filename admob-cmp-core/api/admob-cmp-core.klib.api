@@ -152,6 +152,18 @@ final enum class dev.avinya.ads/AgeRestrictedTreatment : kotlin/Enum<dev.avinya.
     final fun values(): kotlin/Array<dev.avinya.ads/AgeRestrictedTreatment> // dev.avinya.ads/AgeRestrictedTreatment.values|values#static(){}[0]
 }
 
+final enum class dev.avinya.ads/AppIdVerificationPolicy : kotlin/Enum<dev.avinya.ads/AppIdVerificationPolicy> { // dev.avinya.ads/AppIdVerificationPolicy|null[0]
+    enum entry FailWhenUnusable // dev.avinya.ads/AppIdVerificationPolicy.FailWhenUnusable|null[0]
+    enum entry Strict // dev.avinya.ads/AppIdVerificationPolicy.Strict|null[0]
+    enum entry WarnOnly // dev.avinya.ads/AppIdVerificationPolicy.WarnOnly|null[0]
+
+    final val entries // dev.avinya.ads/AppIdVerificationPolicy.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.avinya.ads/AppIdVerificationPolicy> // dev.avinya.ads/AppIdVerificationPolicy.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.avinya.ads/AppIdVerificationPolicy // dev.avinya.ads/AppIdVerificationPolicy.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.avinya.ads/AppIdVerificationPolicy> // dev.avinya.ads/AppIdVerificationPolicy.values|values#static(){}[0]
+}
+
 final enum class dev.avinya.ads/CollapsiblePlacement : kotlin/Enum<dev.avinya.ads/CollapsiblePlacement> { // dev.avinya.ads/CollapsiblePlacement|null[0]
     enum entry Bottom // dev.avinya.ads/CollapsiblePlacement.Bottom|null[0]
     enum entry Top // dev.avinya.ads/CollapsiblePlacement.Top|null[0]
@@ -1675,7 +1687,15 @@ final class dev.avinya.ads/ServerSideVerificationOptions { // dev.avinya.ads/Ser
     final fun toString(): kotlin/String // dev.avinya.ads/ServerSideVerificationOptions.toString|toString(){}[0]
 }
 
+final object dev.avinya.ads/AdAppIdVerification { // dev.avinya.ads/AdAppIdVerification|null[0]
+    final var policy // dev.avinya.ads/AdAppIdVerification.policy|{}policy[0]
+        final fun <get-policy>(): dev.avinya.ads/AppIdVerificationPolicy // dev.avinya.ads/AdAppIdVerification.policy.<get-policy>|<get-policy>(){}[0]
+        final fun <set-policy>(dev.avinya.ads/AppIdVerificationPolicy) // dev.avinya.ads/AdAppIdVerification.policy.<set-policy>|<set-policy>(dev.avinya.ads.AppIdVerificationPolicy){}[0]
+}
+
 final object dev.avinya.ads/AdErrorCode { // dev.avinya.ads/AdErrorCode|null[0]
+    final const val APP_ID_INVALID // dev.avinya.ads/AdErrorCode.APP_ID_INVALID|{}APP_ID_INVALID[0]
+        final fun <get-APP_ID_INVALID>(): kotlin/String // dev.avinya.ads/AdErrorCode.APP_ID_INVALID.<get-APP_ID_INVALID>|<get-APP_ID_INVALID>(){}[0]
     final const val CONSENT_REQUIRED // dev.avinya.ads/AdErrorCode.CONSENT_REQUIRED|{}CONSENT_REQUIRED[0]
         final fun <get-CONSENT_REQUIRED>(): kotlin/String // dev.avinya.ads/AdErrorCode.CONSENT_REQUIRED.<get-CONSENT_REQUIRED>|<get-CONSENT_REQUIRED>(){}[0]
     final const val INITIALIZATION_CONFLICT // dev.avinya.ads/AdErrorCode.INITIALIZATION_CONFLICT|{}INITIALIZATION_CONFLICT[0]

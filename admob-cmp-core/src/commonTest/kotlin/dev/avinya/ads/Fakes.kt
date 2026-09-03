@@ -229,13 +229,19 @@ internal class FakeAdManager : AdManager, FullScreenPresenceAware {
 }
 
 internal class FakeConsentController : ConsentController {
+    var gatherConsentCalls = 0
     private val _status: MutableStateFlow<ConsentStatus> = MutableStateFlow(ConsentStatus.Unknown)
     override val status: StateFlow<ConsentStatus> = _status
     override val privacyOptionsRequirementStatus: StateFlow<PrivacyOptionsRequirementStatus>
         get() = MutableStateFlow(PrivacyOptionsRequirementStatus.Unknown)
-    override val canRequestAds: StateFlow<Boolean> = MutableStateFlow(true)
+    private val _canRequestAds = MutableStateFlow(true)
+    override val canRequestAds: StateFlow<Boolean> = _canRequestAds
+    fun setCanRequestAds(value: Boolean) { _canRequestAds.value = value }
     override suspend fun requestConsentInfoUpdate(config: AdConfig): ConsentStatus = _status.value
-    override suspend fun gatherConsent(config: AdConfig): ConsentStatus = _status.value
+    override suspend fun gatherConsent(config: AdConfig): ConsentStatus {
+        gatherConsentCalls++
+        return _status.value
+    }
     override suspend fun showPrivacyOptions(): Boolean = false
     override suspend fun resetConsentForDebug(): Boolean = false
     fun setStatus(s: ConsentStatus) { _status.value = s }

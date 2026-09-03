@@ -209,6 +209,8 @@ then call `adManager.consent.showPrivacyOptions()`. Do NOT gate on
 > `AdPlacement.strictTestMode` is the safety guard: it **throws at construction** if the
 > placement points at a production ad unit. Turn it on in debug builds.
 
+- App-ID preflight: `AdAppIdVerification.policy` (`FailWhenUnusable` default, `Strict`, `WarnOnly`) — set before the first `initialize()` call.
+
 ## iOS setup (executable steps)
 
 1. Add SPM packages to the Xcode project (File → Add Package Dependencies):
@@ -262,6 +264,7 @@ Android has no ATT; `adManager.tracking` is a no-op there, always reporting
 | iOS link: `_OBJC_CLASS_$_GADMobileAds` undefined | GMA SPM package missing → step 1 above |
 | iOS link: `_OBJC_CLASS_$_JSContext` undefined | Add `-framework JavaScriptCore` → step 3 above |
 | Banner composable renders nothing | Manager not `Ready`, or `Manual` refresh policy with no `refresh()` call |
+| App ID mismatch / missing | Check manifest / Info.plist, or configure `AdAppIdVerification.policy` (`FailWhenUnusable`, `Strict`, `WarnOnly`) |
 
 ## KDoc style for data-class constructors
 

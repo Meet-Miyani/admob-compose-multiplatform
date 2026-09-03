@@ -22,10 +22,14 @@ const val SHOWCASE_IOS_APP_ID: String = "ca-app-pub-3940256099942544~1458002511"
 fun showcaseAdConfig(
     trackingHook: AdInitializationHook,
     debugGeography: ConsentDebugGeography = ConsentDebugGeography.Disabled,
+    testDeviceIds: List<String> = emptyList(),
 ): AdConfig = AdConfig(
     androidAppId = SHOWCASE_ANDROID_APP_ID,
     iosAppId = SHOWCASE_IOS_APP_ID,
     testMode = true,
+    // Feeds BOTH systems: buildConsentParams concatenates consentTestDeviceIds + testDeviceIds,
+    // so one registered id makes the UMP debug geography apply AND forces GMA test ads.
+    testDeviceIds = testDeviceIds,
     debugGeography = debugGeography,
     initializationHooks = listOf(trackingHook),
 )

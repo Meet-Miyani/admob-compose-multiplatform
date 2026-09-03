@@ -47,6 +47,8 @@ class AdStartupControllerTest {
         var initializeCalls = 0
         var lastConfig: AdConfig? = null
         var lastConsentMode: ConsentMode? = null
+        val gatherConfigs = mutableListOf<AdConfig>()
+        val initializeConfigs = mutableListOf<AdConfig>()
 
         override val consent: ConsentController = object : ConsentController {
             override val status: StateFlow<ConsentStatus> = MutableStateFlow(ConsentStatus.Unknown)
@@ -57,6 +59,7 @@ class AdStartupControllerTest {
             override suspend fun gatherConsent(config: AdConfig): ConsentStatus {
                 gatherConsentCalls++
                 lastConfig = config
+                gatherConfigs += config
                 return ConsentStatus.Obtained
             }
             override suspend fun showPrivacyOptions(): Boolean = true
@@ -71,6 +74,7 @@ class AdStartupControllerTest {
         override suspend fun initialize(config: AdConfig, consentMode: ConsentMode): AdManagerStatus {
             initializeCalls++
             lastConfig = config
+            initializeConfigs += config
             lastConsentMode = consentMode
             config.initializationHooks.forEach {
                 it.onPhase(dev.avinya.ads.AdInitializationPhase.BeforeMobileAdsInitialize, config)
@@ -103,7 +107,7 @@ class AdStartupControllerTest {
     }
 
     @Test
-    fun `returning run skips gatherConsent but still initialises`() = runTest {
+    fun `returning run gathers consent before initialising`() = runTest {
         val settings = SettingsRepository(inMemoryPreferencesDataStore())
         settings.setOnboardingComplete(true)
         val controller = AdStartupController(settings, this)
@@ -112,7 +116,9 @@ class AdStartupControllerTest {
         controller.attach(manager)
         testScheduler.advanceUntilIdle()
 
-        assertEquals(0, manager.gatherConsentCalls)
+        // UMP decides whether a form is necessary; skipping the gather on a
+        // later launch can strand a user whose consent has become required.
+        assertEquals(1, manager.gatherConsentCalls)
         assertEquals(1, manager.initializeCalls)
         assertEquals(ConsentMode.InitializeOnlyIfAlreadyAllowed, manager.lastConsentMode)
         assertEquals(AdStartupPhase.Complete, controller.state.value.phase)
@@ -130,6 +136,21 @@ class AdStartupControllerTest {
         testScheduler.advanceUntilIdle()
 
         assertEquals(ConsentDebugGeography.Eea, manager.lastConfig?.debugOptions?.consentDebugGeography)
+    }
+
+    @Test
+    fun `persisted test device id reaches gathering and initialization`() = runTest {
+        val settings = SettingsRepository(inMemoryPreferencesDataStore())
+        val id = "1BFD804287B2C3AE94087F1138DDA00E"
+        settings.setConsentTestDeviceId(id)
+        val controller = AdStartupController(settings, this)
+        val manager = FakeAdManager()
+
+        controller.attach(manager)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(listOf(id), manager.gatherConfigs.single().testDeviceIds)
+        assertEquals(listOf(id), manager.initializeConfigs.single().testDeviceIds)
     }
 
     @Test
@@ -155,14 +176,14 @@ class AdStartupControllerTest {
         controller.attach(manager)
         testScheduler.advanceUntilIdle()
 
-        assertEquals(0, manager.gatherConsentCalls)
+        assertEquals(1, manager.gatherConsentCalls)
         assertEquals(1, manager.initializeCalls)
         assertEquals(StartupState.ConsentRequired, controller.state.value.startup)
 
         manager.initResult = AdManagerStatus.Ready
         val result = controller.retryAwaiting()
 
-        assertEquals(1, manager.gatherConsentCalls)
+        assertEquals(2, manager.gatherConsentCalls)
         assertEquals(2, manager.initializeCalls)
         assertEquals(StartupState.Ready, result)
         assertEquals(StartupState.Ready, controller.state.value.startup)

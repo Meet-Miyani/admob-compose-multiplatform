@@ -85,12 +85,13 @@ fun DiagnosticsLabScreen(
                                 label = "Startup",
                                 value = when (val current = startup.startup) {
                                     is StartupState.Failed -> "Failed (${current.message})"
+                                    StartupState.ConsentRequired -> "Consent required"
                                     else -> current.toString()
                                 },
-                                valueColor = if (startup.startup is StartupState.Failed) {
-                                    palette.danger
-                                } else {
-                                    palette.ink
+                                valueColor = when (startup.startup) {
+                                    is StartupState.Failed -> palette.danger
+                                    StartupState.ConsentRequired -> palette.accent
+                                    else -> palette.ink
                                 },
                             )
                         }
