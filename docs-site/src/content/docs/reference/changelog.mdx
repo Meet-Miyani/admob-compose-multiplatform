@@ -12,11 +12,12 @@ import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 All published artifacts live under `dev.avinya.ads` on Maven Central:
 `admob-cmp`, `admob-cmp-core`, `admob-cmp-compose`, and the
 `dev.avinya.ads.admob-cmp.gradle.plugin` marker. The current
-release is **2.1.0**.
+release is **2.2.0**.
 
 | Version | Status | Highlights |
 |---|---|---|
-| 2.1.0 | Current | Native-ad renderer parity across Android, iOS, and preview; themeable templates |
+| 2.2.0 | Current | Non-retryable `initialize()` conflicts, serialized consent operations, bounded startup timeouts, constructor-time configuration validation, configurable `AdLogger` and app ID verification policy |
+| 2.1.0 | Superseded | Native-ad renderer parity across Android, iOS, and preview; themeable templates |
 | 2.0.1 | Superseded | Native-ad custom fonts, renderer parity, synchronous leases, and grid sessions |
 | 2.0.0 | Superseded | Release 2.0.0 |
 | 1.1.1 | Superseded | Banner and native state-machine fixes, main-thread confinement of SDK metadata reads, stricter test-mode warning |
@@ -28,7 +29,7 @@ release is **2.1.0**.
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
 
-## Unreleased
+## What changed in 2.2.0?
 
 A reliability release covering exception, timeout, and cancellation behaviour across consent,
 configuration, and ad presentation.
