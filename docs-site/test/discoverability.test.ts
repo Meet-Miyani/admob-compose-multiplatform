@@ -120,3 +120,13 @@ describe('search intent copy', () => {
     expect(roadmap).not.toMatch(/ship(?:s|ped)? as `?2\.0\.0`?|when 2\.0\.0 ships/i);
   });
 });
+
+describe('integration recommendations', () => {
+  it('recommends Strict AppIdVerificationPolicy in all setup guides', () => {
+    const expectedLine = 'AdAppIdVerification.policy = AppIdVerificationPolicy.Strict';
+    expect(readRepoFile('docs-site/src/content/docs/start/quickstart.mdx')).toContain(expectedLine);
+    expect(readRepoFile('docs-site/src/content/docs/start/installation.mdx')).toContain(expectedLine);
+    expect(readRepoFile('docs-site/src/content/docs/start/android-setup.mdx')).toContain(expectedLine);
+    expect(readRepoFile('docs-site/src/content/docs/start/ios-setup.mdx')).toContain(expectedLine);
+  });
+});

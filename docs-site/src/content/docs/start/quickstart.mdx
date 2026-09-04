@@ -70,12 +70,18 @@ Use a `LaunchedEffect` to initialize it with test configuration, and then displa
 ```kotlin
 import androidx.compose.runtime.CompositionLocalProvider
 import dev.avinya.ads.LocalAdManager
+import dev.avinya.ads.AdAppIdVerification
+import dev.avinya.ads.AppIdVerificationPolicy
 
 @Composable
 fun App() {
     val adManager = rememberAdManager()
 
     LaunchedEffect(adManager) {
+        // Recommended setting for new integrations. Note it must be set at app startup, before the first initialize().
+        // It turns app-ID mismatches into a deterministic APP_ID_INVALID failure instead of a warning, and it becomes the default in 3.0.0.
+        AdAppIdVerification.policy = AppIdVerificationPolicy.Strict
+
         adManager.gatherConsentAndInitialize(
             AdConfig(
                 androidAppId = TestAdIds.ANDROID_APP_ID,

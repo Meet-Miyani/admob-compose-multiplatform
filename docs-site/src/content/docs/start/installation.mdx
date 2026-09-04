@@ -127,6 +127,17 @@ Execute the following verification commands to confirm correct dependency resolu
 
 `doctorIos` verifies framework download caches, Xcode project references, and required `Info.plist` key declarations. Successful execution of test tasks confirms that native bindings link correctly across all targets.
 
+## Strict App ID Verification
+
+For new integrations, we recommend configuring the process-wide App ID verification policy at app startup, before your first `initialize()` call. It turns app-ID mismatches into a deterministic `APP_ID_INVALID` failure instead of a warning, and becomes the default in 3.0.0.
+
+```kotlin
+import dev.avinya.ads.AdAppIdVerification
+import dev.avinya.ads.AppIdVerificationPolicy
+
+AdAppIdVerification.policy = AppIdVerificationPolicy.Strict
+```
+
 ## Where to next?
 
 <CardGrid>
