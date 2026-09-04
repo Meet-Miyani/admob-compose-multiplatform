@@ -375,9 +375,9 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
                 admittedAttempt.identity == requestedIdentity && admittedAttempt.consentMode == consentMode
             val result = try {
                 admittedAttempt.completion.await()
-            } catch (leaderCancellation: CancellationException) {
+            } catch (attemptCancellation: CancellationException) {
                 currentCoroutineContext().ensureActive()
-                if (equivalentAttempt) throw leaderCancellation
+                // An active follower must not inherit the leader's cancellation.
                 continue
             }
             if (equivalentAttempt) return result
@@ -651,10 +651,31 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
             withContext(NonCancellable) {
                 mobileAdsInitializationMutex.withLock {
                     if (nativeInitialization?.generation == generation) nativeInitialization = null
-                    if (result is NativeInitializationResult.Failed && appliedConfigIdentity == requestedIdentity) {
-                        val failed = failedInitializationStatus(result.failure)
-                        appliedTerminalStatus = failed
-                        publishAppliedTerminalLocked(failed)
+                    // Terminal publication is owned by this operation because no waiter is
+                    // guaranteed to exist. A caller cancelled after handoff leaves nobody to
+                    // publish, and the manager would otherwise sit at its pre-attempt status --
+                    // blocking every ad request through adRequestBlockedError() -- while the
+                    // process-global native SDK is already initialized (or already, terminally,
+                    // failed). Both outcomes publish; only the guard differs.
+                    when (result) {
+                        // The success path assigned appliedConfigIdentity just above, so this
+                        // guard confirms THIS operation is the one that committed.
+                        is NativeInitializationResult.Applied ->
+                            if (appliedConfigIdentity == requestedIdentity) {
+                                appliedTerminalStatus?.let { publishAppliedTerminalLocked(it) }
+                            }
+                        // A failure never assigns appliedConfigIdentity, so it must not be
+                        // required to match: requiring it made this branch unreachable for a
+                        // genuine native failure. What must hold is that no OTHER configuration
+                        // owns the process -- publishing this failure over a configuration that
+                        // was actually applied would take down ad serving for the caller whose
+                        // configuration succeeded.
+                        is NativeInitializationResult.Failed ->
+                            if (appliedConfigIdentity == null || appliedConfigIdentity == requestedIdentity) {
+                                val failed = failedInitializationStatus(result.failure)
+                                appliedTerminalStatus = failed
+                                publishAppliedTerminalLocked(failed)
+                            }
                     }
                 }
             }

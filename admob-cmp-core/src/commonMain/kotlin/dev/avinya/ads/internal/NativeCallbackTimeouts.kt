@@ -23,6 +23,14 @@ internal object InitializationTimeouts {
     /** Native `MobileAds.initialize` / `GADMobileAds.start`. */
     val nativeInitialize: Duration = 30.seconds
 
+    /**
+     * GMA iOS documents that `startWithCompletionHandler` fires after setup completes *or* after
+     * its own ~30-second internal bound, so an outer watchdog set to the same nominal value can
+     * win the race and report a false failure for a slow mediation setup — exactly the case the
+     * native fallback exists to resolve.
+     */
+    val nativeInitializeIos: Duration = 40.seconds
+
     /** UMP `requestConsentInfoUpdate` — a network round trip with no user interaction. */
     val consentInfoUpdate: Duration = 20.seconds
 
@@ -67,6 +75,11 @@ internal object InitializationTimeouts {
      * process is a worse outcome than the overlapping form the pin exists to prevent.
      */
     val formPresentationPin: Duration = 5.minutes
+
+    /**
+     * How long the native info update stays pinned.
+     */
+    val infoUpdatePin: Duration = 30.seconds
 }
 
 /**
