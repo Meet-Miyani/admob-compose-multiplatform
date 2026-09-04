@@ -23,22 +23,23 @@ import kotlinx.coroutines.sync.withLock
  *    superseded operation must not overwrite a newer operation's result. That is what
  *    [beginOperation]/[isCurrentOperation] enforce.
  *
- * [serialized] and [exclusiveOfForms] then make the concurrency contract explicit rather than
- * delegating it to whatever the native UMP SDK happens to do about a second form. UMP
- * rejecting an overlapping form does not make the wrapper's status ordering safe.
+ * [serializedExclusiveOfNativeConsentOperations] and [exclusiveOfForms] make the concurrency
+ * contract explicit rather than delegating it to whatever the native UMP SDK happens to do about
+ * a second form. UMP rejecting an overlapping form does not make the wrapper's status ordering safe.
  *
  * **Form ownership is two facts, not one.** [slotHoldsForm] covers the window between taking
  * the slot and touching UMP — that is what stops a double tap. [nativeFormHandoff] covers the
- * window UMP itself owns, and it deliberately OUTLIVES the coroutine that opened the form:
- * cancelling a caller does not dismiss a form the user is looking at, so a cancelled waiter is
- * not evidence that the screen is free. Only the form's own callback — via
- * [releaseFormPresentation], which every UMP form callback reaches unconditionally through
- * [reconcileThenResumeIfActive] — or the [InitializationTimeouts.formPresentationPin] backstop
- * releases it.
+ * window UMP itself owns.
+ *
+ * **Native operations have two pins:** [nativeFormHandoff] (for forms) and [nativeInfoUpdate]
+ * (for info updates). These pins outlive their calling coroutines: cancelling a caller does not
+ * cancel the in-flight native UMP call, so a cancelled waiter is not evidence that the platform
+ * is free. Only the operation's own callback — which every UMP callback reaches unconditionally
+ * through [reconcileThenResumeIfActive] — or the backstop timeouts release them.
  *
  * **Threading:** every consent entry point already runs on `Dispatchers.Main.immediate`, and
  * UMP delivers its callbacks on the main thread on both platforms, so [currentGeneration] and
- * both form facts are main-confined. `@Volatile` is for visibility only — matching
+ * the pins are main-confined. `@Volatile` is for visibility only — matching
  * `GoogleAdManagerBase`'s own `appliedConfigIdentity` — not a substitute for that confinement.
  */
 internal class ConsentOperationCoordinator(
@@ -56,10 +57,15 @@ internal class ConsentOperationCoordinator(
     @Volatile
     private var nativeFormHandoff: FormHandoff? = null
 
+    /** Set from the moment a native info update starts until its callback releases it. */
+    @Volatile
+    private var nativeInfoUpdate: InfoUpdate? = null
+
     /** Serializes the info-update / form sequences that may legitimately wait for each other. */
     private val operationMutex = Mutex()
 
     private class FormHandoff(val generation: Long, val markedAt: TimeMark)
+    private class InfoUpdate(val generation: Long, val markedAt: TimeMark)
 
     /**
      * Claims the newest generation. Every consent entry point calls this once, up front —
@@ -94,12 +100,51 @@ internal class ConsentOperationCoordinator(
     }
 
     /**
+     * Records that a native info update has started, on behalf of [generation].
+     */
+    fun markInfoUpdateStarted(generation: Long) {
+        nativeInfoUpdate = InfoUpdate(generation, timeSource.markNow())
+    }
+
+    /**
+     * Releases the info update [generation] started.
+     */
+    fun releaseInfoUpdate(generation: Long) {
+        if (nativeInfoUpdate?.generation == generation) nativeInfoUpdate = null
+    }
+
+    /**
      * Runs [block] with no other coordinated consent operation in flight, waiting if one is.
      *
      * For the info-update and consent-gathering paths, where a caller waiting a moment is
      * strictly better than a duplicate UMP round trip.
      */
-    suspend fun <T> serialized(block: suspend () -> T): T = operationMutex.withLock { block() }
+    private suspend fun <T> serialized(block: suspend () -> T): T = operationMutex.withLock { block() }
+
+    /**
+     * Serialized execution that declines via [onBusy] if a native consent operation (form or info
+     * update) is already in progress and has outlived its coroutine.
+     */
+    suspend fun <T> serializedExclusiveOfNativeConsentOperations(
+        onBusy: () -> T,
+        block: suspend () -> T,
+    ): T {
+        // Pre-lock, decline ONLY on a native form handoff -- a form can be on screen with no
+        // mutex holder, so waiting for the lock would be waiting for nothing. Deliberately NOT
+        // formIsLive(): slotHoldsForm means a gatherConsent holds the slot but has not presented
+        // anything yet, and that operation still holds the mutex, so an info update must queue
+        // behind it exactly as it always has rather than fail.
+        if (liveHandoffOrNull() != null) return onBusy()
+
+        return serialized {
+            // Post-lock, re-check BOTH pins. A pin still live once the mutex has been acquired
+            // can only belong to an operation whose waiter is gone (timed out or cancelled) while
+            // UMP is still working -- the abandoned case, and the only one that declines. Two live
+            // concurrent callers never reach here together, so they still queue and both run.
+            if (liveHandoffOrNull() != null || liveInfoUpdateOrNull() != null) return@serialized onBusy()
+            block()
+        }
+    }
 
     /**
      * Declines when a form-presenting operation holds the slot -- two forms cannot stack. The slot
@@ -157,6 +202,17 @@ internal class ConsentOperationCoordinator(
                 "screen, a further consent operation may be refused by UMP itself."
         )
         nativeFormHandoff = null
+        return null
+    }
+
+    private fun liveInfoUpdateOrNull(): InfoUpdate? {
+        val infoUpdate = nativeInfoUpdate ?: return null
+        if (infoUpdate.markedAt.elapsedNow() < InitializationTimeouts.infoUpdatePin) return infoUpdate
+        AdLogger.w(
+            "A native consent info update started over ${InitializationTimeouts.infoUpdatePin} ago " +
+                "and never reported back. Releasing the info update slot."
+        )
+        nativeInfoUpdate = null
         return null
     }
 }

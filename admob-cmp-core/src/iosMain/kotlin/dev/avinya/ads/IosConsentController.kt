@@ -16,6 +16,7 @@ import UserMessagingPlatform.UMPPrivacyOptionsRequirementStatus
 import UserMessagingPlatform.UMPPrivacyOptionsRequirementStatusNotRequired
 import UserMessagingPlatform.UMPPrivacyOptionsRequirementStatusRequired
 import UserMessagingPlatform.UMPRequestParameters
+import dev.avinya.ads.internal.ConsentInfoUpdateOutcome
 import dev.avinya.ads.internal.ConsentStateHolder
 import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeCallbackTimeoutException
@@ -58,13 +59,20 @@ internal class IosConsentController(
 
     override suspend fun requestConsentInfoUpdate(config: AdConfig): ConsentStatus =
         withContext(Dispatchers.Main.immediate) {
-            state.serialized {
+            state.serializedExclusiveOfNativeConsentOperations(
+                onBusy = {
+                    ConsentStatus.Failed(
+                        AdError.message("requestConsentInfoUpdate() ignored: another native consent operation is already in progress.")
+                    )
+                }
+            ) {
                 val owned = prepareConsentConfig(config)
-                performConsentInfoUpdate(
+                val outcome = performConsentInfoUpdate(
                     owned,
                     UMPConsentInformation.sharedInstance,
                     state.beginOperation(),
                 )
+                outcome.status
             }
         }
 
@@ -87,21 +95,8 @@ internal class IosConsentController(
         config: AdConfig,
         consentInformation: UMPConsentInformation,
         generation: Long,
-    ): ConsentStatus {
-        // MUST stay bounded: this is a non-interactive network round trip, and UMP can accept the
-        // call and never call back, which hangs consent admission -- and therefore ad serving --
-        // indefinitely.
-        //
-        // On timeout the status becomes Failed, but [canRequestAds] is deliberately NOT reset: it
-        // keeps whatever the last COMPLETED refresh established. On a first run that is false, so a
-        // cold start still admits nothing on an unknown consent state. On a later run it may be a
-        // previously granted true, and a dropped network round trip is not evidence that consent was
-        // withdrawn -- revoking admission on a blip would stop ad serving until the next successful
-        // refresh, for no gain in consent correctness. Consent itself has not changed; only our
-        // ability to re-confirm it has, and UMP has already persisted the user's actual choice.
-        //
-        // The consent FORM and privacy options form stay unbounded on purpose; a person is reading
-        // those.
+    ): ConsentInfoUpdateOutcome {
+        state.markInfoUpdateStarted(generation)
         try {
             awaitNativeCallback(
                 operation = "UMP requestConsentInfoUpdate",
@@ -114,13 +109,6 @@ internal class IosConsentController(
                     // unnecessary, prove it and record the reason, do not delete it because the body looks empty.
                     continuation.invokeOnCancellation { }
                     consentInformation.requestConsentInfoUpdateWithParameters(buildParams(config)) { error ->
-                        // Reconciliation is unconditional, matching the form paths below and
-                        // AndroidConsentController: this callback READS the UMP singleton, so a
-                        // callback that arrives after the waiter timed out still reports current
-                        // truth -- and it can carry a revocation. Only the STATUS is ordered, by
-                        // generation, which is what keeps a late success from overwriting a newer
-                        // operation's result. That ordering, not dropping the callback, is what
-                        // protects the terminal Failed(timeout) status.
                         val mapped = error?.let {
                             AdError(
                                 code = (it.code ?: 0).toString(),
@@ -128,13 +116,12 @@ internal class IosConsentController(
                             )
                         }
                         reconcileThenResumeIfActive(continuation, Unit) {
+                            state.releaseInfoUpdate(generation)
                             state.reconcileAndPublish(
-                                generation,
                                 privacyRequirement = privacyRequirementOf(consentInformation),
                                 canRequestAds = consentInformation.canRequestAds,
                                 status = resolveConsentInfoUpdateStatus(
                                     error = mapped,
-                                    canRequestAds = consentInformation.canRequestAds,
                                     nativeStatus = consentInformationStatus(consentInformation),
                                 ),
                             )
@@ -144,11 +131,10 @@ internal class IosConsentController(
             }
         } catch (timeout: NativeCallbackTimeoutException) {
             AdLogger.e("iOS UMP consent info update timed out.", timeout)
-            // canRequestAds is deliberately NOT reset here. See consentInfoUpdateTimeoutStatus's
-            // KDoc. The late callback above will still reconcile it if UMP ever answers.
-            state.publishOperationStatus(generation, consentInfoUpdateTimeoutStatus(timeout.message))
+            val status = state.publishOperationStatus(generation, consentInfoUpdateTimeoutStatus(timeout.message))
+            return ConsentInfoUpdateOutcome.TimedOut(status)
         }
-        return state.status.value
+        return ConsentInfoUpdateOutcome.Completed(state.status.value)
     }
 
     override suspend fun gatherConsent(config: AdConfig): ConsentStatus =
@@ -170,7 +156,7 @@ internal class IosConsentController(
                 // private performConsentInfoUpdate step directly rather than routing through the public
                 // requestConsentInfoUpdate to avoid Mutex re-entrancy deadlocks on the operations slot.
                 val update = performConsentInfoUpdate(owned, consentInformation, generation)
-                if (update is ConsentStatus.Failed && !consentInformation.canRequestAds) return@exclusiveOfForms update
+                if (update is ConsentInfoUpdateOutcome.TimedOut) return@exclusiveOfForms update.status
                 // Waits rather than failing on the first null. topViewController() deliberately
                 // reports null while the top controller is mid-presentation or mid-dismissal, which
                 // is routine at launch — the host's Compose UIViewController is often still being
@@ -192,17 +178,21 @@ internal class IosConsentController(
                 // line UMP owns the form, and cancelling this coroutine no longer means the screen
                 // is free. Released in the callback below, not by this coroutine's fate.
                 state.markFormPresented(generation)
-                suspendCancellableCoroutine<Unit> { continuation ->
+                val formStatus = suspendCancellableCoroutine<ConsentStatus?> { continuation ->
                     continuation.invokeOnCancellation { }
-                    UMPConsentForm.loadAndPresentIfRequiredFromViewController(rootVC) {
+                    UMPConsentForm.loadAndPresentIfRequiredFromViewController(rootVC) { error ->
+                        val errorStatus = if (error != null) {
+                            AdLogger.w("UMP consent form load/show failed: code=${error.code} message=${error.localizedDescription}")
+                            ConsentStatus.Failed(AdError(code = error.code.toString(), message = error.localizedDescription))
+                        } else null
+
                         // Reconciliation must not be conditional on the caller still being around —
                         // see reconcileThenResumeIfActive's KDoc. The form was shown and the user's
                         // decision (if any) is already persisted by UMP regardless of whether
                         // gatherConsent()'s caller is still listening.
-                        reconcileThenResumeIfActive(continuation, Unit) {
+                        reconcileThenResumeIfActive(continuation, errorStatus) {
                             state.releaseFormPresentation(generation)
                             state.reconcileAndPublish(
-                                generation,
                                 privacyRequirement = privacyRequirementOf(consentInformation),
                                 canRequestAds = consentInformation.canRequestAds,
                                 status = consentInformationStatus(consentInformation),
@@ -210,7 +200,7 @@ internal class IosConsentController(
                         }
                     }
                 }
-                state.status.value
+                formStatus ?: state.status.value
             }
         }
 
@@ -242,7 +232,6 @@ internal class IosConsentController(
                         reconcileThenResumeIfActive(continuation, error == null) {
                             state.releaseFormPresentation(generation)
                             state.reconcileAndPublish(
-                                generation,
                                 privacyRequirement = privacyRequirementOf(consentInformation),
                                 canRequestAds = consentInformation.canRequestAds,
                                 status = consentInformationStatus(consentInformation),
@@ -263,12 +252,11 @@ internal class IosConsentController(
         }
 
     override suspend fun resetConsentForDebug(): Boolean = withContext(Dispatchers.Main.immediate) {
-        state.exclusiveOfForms(
-            presentsForm = false,
-            onFormPresenting = {
+        state.serializedExclusiveOfNativeConsentOperations(
+            onBusy = {
                 AdLogger.w(
-                    "resetConsentForDebug() ignored: a consent form is already presenting. " +
-                        "Wait for it to dismiss before resetting consent."
+                    "resetConsentForDebug() ignored: a native consent operation is already in progress. " +
+                        "Wait for it to finish before resetting consent."
                 )
                 false
             },

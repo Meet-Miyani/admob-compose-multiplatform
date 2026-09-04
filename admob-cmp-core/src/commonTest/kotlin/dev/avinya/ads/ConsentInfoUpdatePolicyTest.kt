@@ -27,7 +27,6 @@ class ConsentInfoUpdatePolicyTest {
     fun `a successful update publishes the native status`() {
         val status = resolveConsentInfoUpdateStatus(
             error = null,
-            canRequestAds = true,
             nativeStatus = ConsentStatus.Obtained,
         )
 
@@ -35,10 +34,9 @@ class ConsentInfoUpdatePolicyTest {
     }
 
     @Test
-    fun `a successful update publishes NotRequired without collapsing it to Obtained`() {
+    fun `completed success maps to native status when not required`() {
         val status = resolveConsentInfoUpdateStatus(
             error = null,
-            canRequestAds = true,
             nativeStatus = ConsentStatus.NotRequired,
         )
 
@@ -46,54 +44,25 @@ class ConsentInfoUpdatePolicyTest {
     }
 
     @Test
-    fun `an error while ads remain servable keeps the native status not Failed`() {
-        // UMP can fail a refresh while the previously persisted decision still
-        // permits ad serving. Publishing Failed here would block admission on a
-        // network blip, for no gain in consent correctness.
-        val status = resolveConsentInfoUpdateStatus(
+    fun `completed error maps to Failed regardless of canRequestAds`() {
+        val networkError = AdError.message("Network dropped")
+        val statusWithTrue = resolveConsentInfoUpdateStatus(
             error = networkError,
-            canRequestAds = true,
             nativeStatus = ConsentStatus.Obtained,
         )
-
-        assertEquals(ConsentStatus.Obtained, status)
-    }
-
-    @Test
-    fun `an error with no servable consent publishes Failed carrying that error`() {
-        val status = resolveConsentInfoUpdateStatus(
+        val statusWithFalse = resolveConsentInfoUpdateStatus(
             error = networkError,
-            canRequestAds = false,
             nativeStatus = ConsentStatus.Unknown,
         )
 
-        val failed = assertIs<ConsentStatus.Failed>(status)
-        assertEquals("3", failed.error.code)
-        assertEquals("network error", failed.error.message)
-    }
+        // The point of the branch is that the NATIVE status no longer decides the outcome: a
+        // completed-with-error refresh reports the error either way, and carries it through
+        // unchanged so the caller can act on the real cause.
+        val failedTrue = assertIs<ConsentStatus.Failed>(statusWithTrue)
+        assertEquals(networkError, failedTrue.error)
 
-    @Test
-    fun `the resolution never reports Failed while ads are servable`() {
-        // The admission-preserving invariant, stated directly: whatever the
-        // error, a true canRequestAds must not produce Failed on either platform.
-        val statuses = listOf(
-            ConsentStatus.Unknown,
-            ConsentStatus.Required,
-            ConsentStatus.NotRequired,
-            ConsentStatus.Obtained,
-        )
-
-        for (native in statuses) {
-            val status = resolveConsentInfoUpdateStatus(
-                error = networkError,
-                canRequestAds = true,
-                nativeStatus = native,
-            )
-            assertFalse(
-                status is ConsentStatus.Failed,
-                "canRequestAds=true with nativeStatus=$native must not resolve to Failed",
-            )
-        }
+        val failedFalse = assertIs<ConsentStatus.Failed>(statusWithFalse)
+        assertEquals(networkError, failedFalse.error)
     }
 
     @Test

@@ -21,7 +21,6 @@ class ConsentStateHolderTest {
         val generation = holder.beginOperation()
 
         val result = holder.reconcileAndPublish(
-            generation = generation,
             privacyRequirement = PrivacyOptionsRequirementStatus.Required,
             canRequestAds = true,
             status = ConsentStatus.Required,
@@ -34,28 +33,24 @@ class ConsentStateHolderTest {
     }
 
     @Test
-    fun `reconcileAndPublish updates privacy state for superseded generation while leaving status untouched`() {
+    fun `reconcileAndPublish unconditionally updates all three flows even for superseded generation`() {
         val holder = ConsentStateHolder()
-        val stale = holder.beginOperation()
         val current = holder.beginOperation()
 
         holder.publishOperationStatus(current, ConsentStatus.Obtained)
 
-        // Reconciliation is NOT generation-gated: it reads the UMP singleton, so it is current
-        // no matter which operation's callback observed it. The STATUS is gated, so the stale
-        // callback must reconcile privacy state without republishing its own status.
         val result = holder.reconcileAndPublish(
-            generation = stale,
             privacyRequirement = PrivacyOptionsRequirementStatus.NotRequired,
             canRequestAds = true,
             status = ConsentStatus.Required,
         )
 
-        assertEquals(ConsentStatus.Obtained, result, "result should be current status value")
-        assertEquals(ConsentStatus.Obtained, holder.status.value, "superseded status must not overwrite current status")
+        assertEquals(ConsentStatus.Required, result, "result should be passed status value")
+        assertEquals(ConsentStatus.Required, holder.status.value, "superseded status MUST overwrite current status now")
         assertEquals(PrivacyOptionsRequirementStatus.NotRequired, holder.privacyOptionsRequirementStatus.value)
         assertTrue(holder.canRequestAds.value)
     }
+
 
     @Test
     fun `a late callback on the same still-current generation replaces a timeout status`() {
@@ -68,7 +63,6 @@ class ConsentStateHolderTest {
 
         // ...and later the callback for the SAME still-current generation completes with Obtained.
         val result = holder.reconcileAndPublish(
-            generation = generation,
             privacyRequirement = PrivacyOptionsRequirementStatus.NotRequired,
             canRequestAds = true,
             status = ConsentStatus.Obtained,
@@ -83,22 +77,18 @@ class ConsentStateHolderTest {
     @Test
     fun `a revocation observed by reconcileAndPublish sets canRequestAds false regardless of generation`() {
         val holder = ConsentStateHolder()
-        val initial = holder.beginOperation()
         holder.reconcileAndPublish(
-            generation = initial,
             privacyRequirement = PrivacyOptionsRequirementStatus.NotRequired,
             canRequestAds = true,
             status = ConsentStatus.Obtained,
         )
         assertTrue(holder.canRequestAds.value)
 
-        val stale = holder.beginOperation()
         val current = holder.beginOperation()
         holder.publishOperationStatus(current, ConsentStatus.Obtained)
 
         // Stale callback observes revocation
         holder.reconcileAndPublish(
-            generation = stale,
             privacyRequirement = PrivacyOptionsRequirementStatus.Required,
             canRequestAds = false,
             status = ConsentStatus.Required,
@@ -106,7 +96,7 @@ class ConsentStateHolderTest {
 
         assertFalse(holder.canRequestAds.value, "revocation must close ad request gate immediately")
         assertEquals(PrivacyOptionsRequirementStatus.Required, holder.privacyOptionsRequirementStatus.value)
-        assertEquals(ConsentStatus.Obtained, holder.status.value, "superseded status must not overwrite current status")
+        assertEquals(ConsentStatus.Required, holder.status.value, "superseded status must now overwrite current status")
     }
 
     @Test
@@ -114,7 +104,6 @@ class ConsentStateHolderTest {
         val holder = ConsentStateHolder()
         val outstanding = holder.beginOperation()
         holder.reconcileAndPublish(
-            generation = outstanding,
             privacyRequirement = PrivacyOptionsRequirementStatus.Required,
             canRequestAds = true,
             status = ConsentStatus.Obtained,
@@ -139,7 +128,7 @@ class ConsentStateHolderTest {
         val releaseFirst = CompletableDeferred<Unit>()
 
         val first = launch {
-            holder.serialized {
+            holder.serializedExclusiveOfNativeConsentOperations(onBusy = {}) {
                 order += "first-in"
                 firstEntered.complete(Unit)
                 releaseFirst.await()
@@ -147,7 +136,7 @@ class ConsentStateHolderTest {
             }
         }
         firstEntered.await()
-        val second = launch { holder.serialized { order += "second-in" } }
+        val second = launch { holder.serializedExclusiveOfNativeConsentOperations(onBusy = {}) { order += "second-in" } }
         advanceUntilIdle()
 
         assertEquals(listOf("first-in"), order, "the second block must not overlap the first")
@@ -192,7 +181,7 @@ class ConsentStateHolderTest {
         val releaseNonForm = CompletableDeferred<Unit>()
 
         val nonForm = launch {
-            holder.serialized {
+            holder.serializedExclusiveOfNativeConsentOperations(onBusy = {}) {
                 order += "non-form-in"
                 nonFormEntered.complete(Unit)
                 releaseNonForm.await()
@@ -304,15 +293,9 @@ class ConsentStateHolderTest {
         )
     }
 
-    /**
-     * Status ordering is independent of the form slot and is unchanged: an older generation still
-     * reconciles authoritative privacy truth unconditionally, but cannot publish its status over a
-     * newer operation's.
-     */
     @Test
-    fun `a superseded form callback reconciles privacy truth without publishing its status`() {
+    fun `a superseded form callback reconciles privacy truth and publishes its status`() {
         val holder = ConsentStateHolder()
-        val inFlightFormGen = holder.beginOperation()
         val newerOperationGen = holder.beginOperation()
 
         // Newer operation finishes first and sets status
@@ -320,21 +303,15 @@ class ConsentStateHolderTest {
 
         // In-flight form eventually calls back on its older generation
         holder.reconcileAndPublish(
-            generation = inFlightFormGen,
             privacyRequirement = PrivacyOptionsRequirementStatus.NotRequired,
             canRequestAds = true,
             status = ConsentStatus.Obtained,
         )
 
-        // Privacy state updated
+        // All three values move together
         assertTrue(holder.canRequestAds.value)
         assertEquals(PrivacyOptionsRequirementStatus.NotRequired, holder.privacyOptionsRequirementStatus.value)
-        // But status is NOT overwritten by the older form callback
-        assertEquals(
-            ConsentStatus.NotRequired,
-            holder.status.value,
-            "superseded form callback must not overwrite newer operation's status",
-        )
+        assertEquals(ConsentStatus.Obtained, holder.status.value, "superseded form callback MUST overwrite newer operation's status")
     }
 
     @Test
@@ -377,7 +354,7 @@ class ConsentStateHolderTest {
         val releaseNonForm = CompletableDeferred<Unit>()
 
         val nonForm = launch {
-            holder.serialized {
+            holder.serializedExclusiveOfNativeConsentOperations(onBusy = {}) {
                 order += "non-form-in"
                 nonFormEntered.complete(Unit)
                 releaseNonForm.await()
@@ -412,7 +389,6 @@ class ConsentStateHolderTest {
         val holder = ConsentStateHolder()
         val outstanding = holder.beginOperation()
         holder.reconcileAndPublish(
-            generation = outstanding,
             privacyRequirement = PrivacyOptionsRequirementStatus.Required,
             canRequestAds = true,
             status = ConsentStatus.Obtained,
@@ -434,13 +410,12 @@ class ConsentStateHolderTest {
         holder.publishOperationStatus(outstanding, ConsentStatus.Obtained)
         assertEquals(ConsentStatus.Unknown, holder.status.value)
 
-        // An outstanding generation reconcileAndPublish cannot overwrite Unknown status
+        // An outstanding generation reconcileAndPublish overwrites Unknown status
         holder.reconcileAndPublish(
-            generation = outstanding,
             privacyRequirement = PrivacyOptionsRequirementStatus.NotRequired,
             canRequestAds = true,
             status = ConsentStatus.Obtained,
         )
-        assertEquals(ConsentStatus.Unknown, holder.status.value)
+        assertEquals(ConsentStatus.Obtained, holder.status.value)
     }
 }

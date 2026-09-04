@@ -5,30 +5,27 @@ import dev.avinya.ads.AdError
 import dev.avinya.ads.ConsentStatus
 
 /**
- * The status both platforms publish after a UMP `requestConsentInfoUpdate`
- * round trip.
+ * The outcome of a native UMP `requestConsentInfoUpdate` operation.
+ */
+internal sealed class ConsentInfoUpdateOutcome {
+    abstract val status: ConsentStatus
+
+    class Completed(override val status: ConsentStatus) : ConsentInfoUpdateOutcome()
+    class TimedOut(override val status: ConsentStatus) : ConsentInfoUpdateOutcome()
+}
+
+/**
+ * The status both platforms derive from a UMP `requestConsentInfoUpdate` callback.
  *
- * Android's `updateWithActivity` and iOS's `requestConsentInfoUpdate` carried
- * this three-branch decision separately, each with a comment requiring it stay
- * byte-identical to the other because "a consent-admission divergence between
- * the platforms is the kind of thing that is only discovered in production".
- * Nothing enforced that. It lives here now so the parity is structural.
- *
- * The middle branch is the load-bearing one: UMP can fail a refresh while the
- * user's previously persisted decision still permits ad serving. A dropped
- * network round trip is not evidence that consent was withdrawn, so admission
- * keeps whatever the last COMPLETED refresh established rather than collapsing
- * to [ConsentStatus.Failed].
+ * If the platform reports an error (e.g. no network connection), the status is ALWAYS
+ * [ConsentStatus.Failed]. Note that this does NOT reset `canRequestAds`: UMP keeps
+ * whatever the last COMPLETED refresh established, so a network drop does not revoke
+ * an already-persisted consent choice. The status merely describes this specific operation.
  */
 internal fun resolveConsentInfoUpdateStatus(
     error: AdError?,
-    canRequestAds: Boolean,
     nativeStatus: ConsentStatus,
-): ConsentStatus = when {
-    error == null -> nativeStatus
-    canRequestAds -> nativeStatus
-    else -> ConsentStatus.Failed(error)
-}
+): ConsentStatus = if (error == null) nativeStatus else ConsentStatus.Failed(error)
 
 /**
  * The status both platforms publish when the bounded info-update round trip

@@ -48,7 +48,7 @@ class ConsentOperationCoordinatorTest {
         val releaseFirst = CompletableDeferred<Unit>()
 
         val first = launch {
-            coordinator.serialized {
+            coordinator.serializedExclusiveOfNativeConsentOperations(onBusy = {}) {
                 order += "first-in"
                 firstEntered.complete(Unit)
                 releaseFirst.await()
@@ -56,7 +56,7 @@ class ConsentOperationCoordinatorTest {
             }
         }
         firstEntered.await()
-        val second = launch { coordinator.serialized { order += "second-in" } }
+        val second = launch { coordinator.serializedExclusiveOfNativeConsentOperations(onBusy = {}) { order += "second-in" } }
         advanceUntilIdle()
 
         assertEquals(listOf("first-in"), order, "the second block must not overlap the first")
@@ -109,7 +109,7 @@ class ConsentOperationCoordinatorTest {
         val releaseNonForm = CompletableDeferred<Unit>()
 
         val nonForm = launch {
-            coordinator.serialized {
+            coordinator.serializedExclusiveOfNativeConsentOperations(onBusy = {}) {
                 order += "non-form-in"
                 nonFormEntered.complete(Unit)
                 releaseNonForm.await()
