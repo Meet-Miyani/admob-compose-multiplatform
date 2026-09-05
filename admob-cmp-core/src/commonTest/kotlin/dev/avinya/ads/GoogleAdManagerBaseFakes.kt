@@ -20,7 +20,10 @@ internal class FakeGoogleAdManager(
     override val consent: ConsentController = FakeConsentController(),
     /** True models iOS (`GADApplicationIdentifier`); false models Android. */
     private val requiresDeclaredAppId: Boolean = false,
-    private val failBeforeHandoff: () -> Throwable? = { null },
+    // Suspending so a test can park here — between the native call starting and markHandoff —
+    // and cancel a caller at exactly that point. That window is where the leader/follower and
+    // detached-publication defects live, and it cannot be scripted with a plain lambda.
+    private val failBeforeHandoff: suspend () -> Throwable? = { null },
     private val nativeInitialize: suspend (AdConfig, AdInitializationConfigIdentity) -> Unit = { _, _ -> },
 ) : GoogleAdManagerBase() {
 

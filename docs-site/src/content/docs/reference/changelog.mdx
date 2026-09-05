@@ -29,6 +29,36 @@ release is **2.2.0**.
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
 
+## Unreleased
+
+### Fixes
+
+Initialization previously stranded the manager in a non-`Ready` state when the caller that started it was cancelled after the native handoff, blocking every ad request while GMA was initialized. Initialization now reaches `Ready` when the caller that started it was cancelled after the native handoff. Concurrent equivalent `initialize()` callers no longer cancel each other.
+
+Two consent form callers that queued behind a launch-time consent info update could previously both proceed, so the second presented the moment the first form was dismissed — into a preload slot UMP had just consumed, which both platforms report as a form error rather than a second form. A form operation now claims the form slot when it is called rather than when it reaches the front of the queue, so the second caller declines.
+
+The iOS initialization watchdog previously raced GMA's own completion bound. It no longer does so. iOS consent-form errors previously lacked parity with Android. They are now logged with parity to Android. `doctorIos` previously reported a commented-out `GADApplicationIdentifier` as configured. It no longer does so.
+
+### Behaviour changes
+
+A late UMP consent callback might previously not override a newer operation's status. `ConsentStatus` now always reflects current UMP truth, so a late callback can overwrite a newer operation's status — that operation's failure remains its own return value.
+
+<Aside type="caution" title="Behaviour change">
+`ConsentStatus` now always reflects current UMP truth, so a late callback can overwrite a newer operation's status — that operation's failure remains its own return value. Admission (`canRequestAds`) is unchanged, and `gatherConsent` no longer presents a form after a *timed-out* refresh while still presenting one after a completed-with-error refresh.
+</Aside>
+
+A failed consent refresh previously returned the mapped native status. A failed consent refresh now returns `Failed` instead of the mapped native status even when prior-session admission still permits ads.
+
+<Aside type="caution" title="Behaviour change">
+A failed consent refresh now returns `Failed` instead of the mapped native status even when prior-session admission still permits ads. Admission (`canRequestAds`) is unchanged, and `gatherConsent` no longer presents a form after a *timed-out* refresh while still presenting one after a completed-with-error refresh.
+</Aside>
+
+An abandoned native consent operation might previously not explicitly decline subsequent update requests. `requestConsentInfoUpdate` can now return `Failed` when it declines because an abandoned native consent operation is still live.
+
+<Aside type="caution" title="Behaviour change">
+`requestConsentInfoUpdate` can now return `Failed` when it declines because an abandoned native consent operation is still live. Admission (`canRequestAds`) is unchanged, and `gatherConsent` no longer presents a form after a *timed-out* refresh while still presenting one after a completed-with-error refresh.
+</Aside>
+
 ## What changed in 2.2.0?
 
 A reliability release covering exception, timeout, and cancellation behaviour across consent,

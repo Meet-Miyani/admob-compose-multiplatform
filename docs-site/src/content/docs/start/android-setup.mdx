@@ -29,7 +29,7 @@ Google Mobile Ads requires an Application Identifier declared in your Android ap
 - **Metadata Location**: Place `<meta-data>` inside the `<application>` tag of the runnable Android application module (`androidApp`), not inside a shared Kotlin library module.
 - **Identifier Format**: Application IDs use a tilde separator (`ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX`). Providing an Ad Unit ID (which uses a slash separator) will cause initialisation failure or runtime crashes.
 - **Consent Identity**: UMP reads `com.google.android.gms.ads.APPLICATION_ID` from the manifest, while GMA Next-Gen initializes from `AdConfig.androidAppId`. Missing or mismatched metadata can make consent and ads resolve different applications and must be fixed.
-- **App ID Preflight**: During `initialize()`, the SDK checks `AdConfig.androidAppId` against the manifest value. `FailWhenUnusable` (the default) warns and continues on Android, `Strict` rejects before UMP or GMA is touched, and `WarnOnly` always warns and continues.
+- **App ID Preflight**: During `initialize()`, the SDK checks `AdConfig.androidAppId` against the manifest value. `FailWhenUnusable` (the default) warns and continues on Android, `Strict` rejects before UMP or GMA is touched, and `WarnOnly` always warns and continues. We recommend adding `AdAppIdVerification.policy = AppIdVerificationPolicy.Strict` at app startup, before the first `initialize()`, for new integrations. It turns app-ID mismatches into a deterministic `APP_ID_INVALID` failure instead of a warning, and becomes the default in 3.0.0.
 
 ## Managing the AD_ID permission
 

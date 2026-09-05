@@ -7,11 +7,32 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NativeInitializationOwnershipTest {
+
+    @Test
+    fun `iOS native initialization timeout is strictly greater than GMA internal bound`() {
+        val iosTimeout = InitializationTimeouts.nativeInitializeIos
+        val androidTimeout = InitializationTimeouts.nativeInitialize
+        
+        assertTrue(
+            iosTimeout > 30.seconds,
+            "iOS timeout must be > 30s to win the race against GMA's internal watchdog"
+        )
+        assertTrue(
+            iosTimeout > androidTimeout,
+            "iOS timeout must be greater than the default/Android timeout"
+        )
+    }
 
     private fun config(appId: String) = AdConfig(
         androidAppId = appId,
@@ -161,5 +182,198 @@ class NativeInitializationOwnershipTest {
             consent.gatherConsentCalls,
             "a configuration the SDK already knows it will refuse must not put a consent form on screen",
         )
+    }
+
+    @Test
+    fun `a detached native success publishes its terminal status even if the leader was cancelled`() = runSlotTest {
+        val nativeCompletion = CompletableDeferred<Unit>()
+        val manager = FakeGoogleAdManager(
+            nativeInitialize = { _, _ -> nativeCompletion.await() }
+        )
+
+        val job = launch {
+            manager.initialize(config("ca-app-pub-A"), ConsentMode.SkipConsent)
+        }
+
+        while (manager.handoffMarks.isEmpty()) { yield() }
+
+        job.cancelAndJoin()
+        nativeCompletion.complete(Unit)
+        yield()
+
+        assertEquals(AdManagerStatus.Ready, manager.status.value)
+    }
+
+    @Test
+    fun `a detached native failure publishes its terminal status even if the leader was cancelled`() = runSlotTest {
+        val nativeCompletion = CompletableDeferred<Unit>()
+        val exception = RuntimeException("Native SDK crash")
+        val manager = FakeGoogleAdManager(
+            nativeInitialize = { _, _ ->
+                nativeCompletion.await()
+                throw exception
+            }
+        )
+
+        val job = launch {
+            manager.initialize(config("ca-app-pub-A"), ConsentMode.SkipConsent)
+        }
+
+        while (manager.handoffMarks.isEmpty()) { yield() }
+        job.cancelAndJoin()
+        nativeCompletion.complete(Unit)
+        yield()
+
+        val status = manager.status.value
+        assertIs<AdManagerStatus.Failed>(status)
+        assertEquals(exception.message, status.error.message)
+
+        val laterStatus = manager.initialize(config("ca-app-pub-A"), ConsentMode.SkipConsent)
+        assertEquals(status, laterStatus)
+    }
+
+    @Test
+    fun `a detached native success unblocks ad requests after caller cancellation`() = runSlotTest {
+        val nativeCompletion = CompletableDeferred<Unit>()
+        val manager = FakeGoogleAdManager(
+            nativeInitialize = { _, _ -> nativeCompletion.await() }
+        )
+
+        val job = launch {
+            manager.initialize(config("ca-app-pub-A"), ConsentMode.SkipConsent)
+        }
+
+        while (manager.handoffMarks.isEmpty()) { yield() }
+        job.cancelAndJoin()
+        nativeCompletion.complete(Unit)
+        yield()
+
+        // Assert on manager.status.value only since adRequestBlockedError() is protected 
+        // and ad loading surface is not reachable from commonTest.
+        assertEquals(AdManagerStatus.Ready, manager.status.value)
+    }
+
+    @Test
+    fun `a detached native success runs the After hook exactly once`() = runSlotTest {
+        val nativeCompletion = CompletableDeferred<Unit>()
+        var afterCount = 0
+        val hook = object : AdInitializationHook {
+            override suspend fun onPhase(phase: AdInitializationPhase, config: AdConfig) {
+                if (phase == AdInitializationPhase.AfterMobileAdsInitialize) afterCount++
+            }
+        }
+        val manager = FakeGoogleAdManager(
+            nativeInitialize = { _, _ -> nativeCompletion.await() }
+        )
+        val testConfig = AdConfig(
+            androidAppId = "ca-app-pub-A",
+            iosAppId = "ca-app-pub-A",
+            initializationHooks = listOf(hook),
+        )
+
+        val job = launch {
+            manager.initialize(testConfig, ConsentMode.SkipConsent)
+        }
+
+        while (manager.handoffMarks.isEmpty()) { yield() }
+        job.cancelAndJoin()
+        nativeCompletion.complete(Unit)
+        yield()
+
+        assertEquals(1, afterCount, "the After hook must run exactly once across the cancelled caller and the detached completion")
+    }
+
+    @Test
+    fun `a cancelled leader before handoff passes leadership to an equivalent follower`() = runSlotTest {
+        val leaderPause = CompletableDeferred<Unit>()
+        val manager = FakeGoogleAdManager(
+            failBeforeHandoff = {
+                leaderPause.await()
+                null
+            }
+        )
+        val sharedConfig = config("ca-app-pub-A")
+
+        val leaderJob = async { manager.initialize(sharedConfig, ConsentMode.SkipConsent) }
+        yield() // Leader reaches failBeforeHandoff
+
+        val followerJob = async { manager.initialize(sharedConfig, ConsentMode.SkipConsent) }
+        yield() // Follower attaches
+
+        leaderJob.cancelAndJoin()
+        leaderPause.complete(Unit)
+
+        val result = followerJob.await()
+        assertEquals(AdManagerStatus.Ready, result)
+        assertEquals(AdManagerStatus.Ready, manager.status.value)
+    }
+
+    @Test
+    fun `a cancelled leader after handoff leaves an equivalent follower waiting for native result`() = runSlotTest {
+        val nativeCompletion = CompletableDeferred<Unit>()
+        val manager = FakeGoogleAdManager(
+            nativeInitialize = { _, _ -> nativeCompletion.await() }
+        )
+        val sharedConfig = config("ca-app-pub-A")
+
+        val leaderJob = async { manager.initialize(sharedConfig, ConsentMode.SkipConsent) }
+        while (manager.handoffMarks.isEmpty()) { yield() }
+
+        val followerJob = async { manager.initialize(sharedConfig, ConsentMode.SkipConsent) }
+        yield() // Follower attaches
+
+        leaderJob.cancelAndJoin()
+        nativeCompletion.complete(Unit)
+
+        val result = followerJob.await()
+        assertEquals(AdManagerStatus.Ready, result)
+        assertEquals(AdManagerStatus.Ready, manager.status.value)
+    }
+
+    @Test
+    fun `cancelling a follower leaves the leader running to completion`() = runSlotTest {
+        val nativeCompletion = CompletableDeferred<Unit>()
+        val manager = FakeGoogleAdManager(
+            nativeInitialize = { _, _ -> nativeCompletion.await() }
+        )
+        val sharedConfig = config("ca-app-pub-A")
+
+        val leaderJob = async { manager.initialize(sharedConfig, ConsentMode.SkipConsent) }
+        while (manager.handoffMarks.isEmpty()) { yield() }
+
+        val followerJob = async { manager.initialize(sharedConfig, ConsentMode.SkipConsent) }
+        yield() // Follower attaches
+
+        followerJob.cancelAndJoin()
+        nativeCompletion.complete(Unit)
+
+        val result = leaderJob.await()
+        assertEquals(AdManagerStatus.Ready, result)
+        assertEquals(AdManagerStatus.Ready, manager.status.value)
+    }
+
+    @Test
+    fun `a cancelled leader before handoff allows a distinct follower to make its own attempt`() = runSlotTest {
+        val leaderPause = CompletableDeferred<Unit>()
+        val manager = FakeGoogleAdManager(
+            failBeforeHandoff = {
+                leaderPause.await()
+                null
+            }
+        )
+
+        val leaderJob = async { manager.initialize(config("ca-app-pub-A"), ConsentMode.SkipConsent) }
+        yield() // Leader reaches failBeforeHandoff
+
+        val distinctFollowerJob = async { manager.initialize(config("ca-app-pub-B"), ConsentMode.SkipConsent) }
+        yield() // Follower waits for the attempt
+
+        leaderJob.cancelAndJoin()
+        leaderPause.complete(Unit)
+
+        val result = distinctFollowerJob.await()
+        assertEquals(AdManagerStatus.Ready, result)
+        assertEquals(AdManagerStatus.Ready, manager.status.value)
+        assertEquals(listOf("ca-app-pub-B"), manager.handoffMarks.map { it.platformAppId })
     }
 }

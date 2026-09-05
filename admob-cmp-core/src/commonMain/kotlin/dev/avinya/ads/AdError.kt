@@ -55,8 +55,12 @@ public object AdErrorCode {
 
     /**
      * The platform app-ID declaration (`AndroidManifest.xml` meta-data, `Info.plist`) is missing
-     * or inconsistent with [AdConfig][dev.avinya.ads.AdConfig], so the preflight refused initialization
-     * before UMP or GMA was touched.
+     * or inconsistent with [AdConfig][dev.avinya.ads.AdConfig]. This error is emitted when the
+     * selected [AppIdVerificationPolicy] rejects the finding. The default
+     * [FailWhenUnusable][AppIdVerificationPolicy.FailWhenUnusable] rejects only declarations the
+     * platform's own SDK cannot function with (a missing or blank iOS `GADApplicationIdentifier`).
+     * [Strict][AppIdVerificationPolicy.Strict] rejects any missing or mismatched declaration, and
+     * [WarnOnly][AppIdVerificationPolicy.WarnOnly] never rejects.
      *
      * Never retryable: the platform declaration is part of the application binary or manifest, so
      * the same call will fail identically until the app bundle is fixed and rebuilt. Distinguishing

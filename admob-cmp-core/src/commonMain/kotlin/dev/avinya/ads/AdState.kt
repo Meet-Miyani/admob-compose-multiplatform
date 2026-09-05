@@ -13,7 +13,12 @@ public sealed interface AdManagerStatus {
     public data object ConsentRequired : AdManagerStatus
     /** SDK is in the process of initializing. */
     public data object Initializing : AdManagerStatus
-    /** SDK is fully initialized and ready to serve ads. */
+    /**
+     * SDK publishes [Ready] after the platform's initialization callback reports.
+     * On Android, this means mediation adapters have finished initializing, so every
+     * configured network can participate in the first request. A slow adapter delays
+     * [Ready] up to `InitializationTimeouts.nativeInitialize`.
+     */
     public data object Ready : AdManagerStatus
     /** SDK is disabled with a [reason] message. */
     public data class Disabled(val reason: String) : AdManagerStatus

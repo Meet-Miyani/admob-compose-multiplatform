@@ -85,13 +85,8 @@ public abstract class DoctorIosTask : DefaultTask() {
         } else {
             val content = plist.readText()
             // The declared VALUE is read, not just the key: a key present with an empty string is
-            // the same configuration gap as an absent one, and matching on the key alone also
-            // matches a mention in a comment.
-            val declaredAppId = GAD_APPLICATION_IDENTIFIER
-                .find(content)
-                ?.groupValues
-                ?.get(1)
-                ?.trim()
+            // the same configuration gap as an absent one.
+            val declaredAppId = declaredAppIdInPlist(content)
             when {
                 declaredAppId == null ->
                     logger.lifecycle("$bad Info.plist is missing GADApplicationIdentifier — GMA crashes at startup without it")
@@ -106,7 +101,9 @@ public abstract class DoctorIosTask : DefaultTask() {
                     }
                 }
             }
-            if (content.contains("SKAdNetworkItems")) {
+            // Stripped for the same reason the app-ID read is: a commented-out block is not
+            // configuration, and reporting it as present sends an integrator looking elsewhere.
+            if (stripXmlComments(content).contains("SKAdNetworkItems")) {
                 logger.lifecycle("$ok Info.plist declares SKAdNetworkItems")
             } else {
                 logger.lifecycle("$skip Info.plist has no SKAdNetworkItems — attribution will suffer; copy the list from the AdMob iOS docs")
@@ -115,11 +112,32 @@ public abstract class DoctorIosTask : DefaultTask() {
 
         logger.lifecycle("doctorIos is diagnostic only; it never fails the build.")
     }
-
-    private companion object {
-        val GAD_APPLICATION_IDENTIFIER = Regex(
-            "<key>\\s*GADApplicationIdentifier\\s*</key>\\s*<string>(.*?)</string>",
-            RegexOption.DOT_MATCHES_ALL,
-        )
-    }
 }
+
+private val GAD_APPLICATION_IDENTIFIER = Regex(
+    "<key>\\s*GADApplicationIdentifier\\s*</key>\\s*<string>(.*?)</string>",
+    RegexOption.DOT_MATCHES_ALL,
+)
+
+private val XML_COMMENT = Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL)
+
+/**
+ * Drops XML comments so a commented-out declaration is never read as configuration.
+ *
+ * Matching the key AND its value is not sufficient on its own: a fully commented-out
+ * `<key>`/`<string>` pair still matches that shape, which is how `doctorIos` reported an
+ * `Info.plist` with no active `GADApplicationIdentifier` as correctly configured.
+ */
+private fun stripXmlComments(content: String): String = XML_COMMENT.replace(content, "")
+
+/**
+ * The active `GADApplicationIdentifier` value, or null when none is declared outside a comment.
+ *
+ * Returns the empty string when the key is declared with an empty value — a distinct finding
+ * from an absent key, since GMA crashes on both but the fix differs.
+ */
+internal fun declaredAppIdInPlist(content: String): String? = GAD_APPLICATION_IDENTIFIER
+    .find(stripXmlComments(content))
+    ?.groupValues
+    ?.get(1)
+    ?.trim()

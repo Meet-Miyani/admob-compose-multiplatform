@@ -36,6 +36,7 @@ Run every row on both platforms.
 | 10 | Reward is emitted exactly once per rewarded presentation | | |
 | 11 | AdMob native ad validator reports no implementation issues | | |
 | 12 | iOS only: ordering is UMP → ATT → first ad request | n/a | |
+| 13 | Double-tap the privacy options entry point during the launch-time consent refresh → one form, and the second tap declines without a spurious failure | | |
 
 ## Devices
 

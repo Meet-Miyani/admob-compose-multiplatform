@@ -71,6 +71,10 @@ The library provides Kotlin bindings generated against specific Google Mobile Ad
 
 The bound iOS headers require that the resolved SPM major version matches the major version used during cinterop generation (`13.x` for GMA and `3.x` for UMP). An older or newer major version may fail at link time due to missing or modified Objective-C symbol definitions.
 
+## SDK Initialization and `AdManagerStatus.Ready`
+
+The SDK publishes `AdManagerStatus.Ready` after the platform's initialization callback reports, which on Android means mediation adapters have finished initializing, so every configured network can participate in the first request. A slow adapter delays `Ready` up to `InitializationTimeouts.nativeInitialize`.
+
 ## Consuming the library on iOS
 
 The iOS library targets Kotlin Multiplatform projects compiled into an iOS umbrella framework. Pure Swift iOS applications cannot import `admob-cmp` directly without a Kotlin Multiplatform wrapper module, because Kotlin/Native cinterop generates Kotlin-callable APIs rather than native Swift APIs.

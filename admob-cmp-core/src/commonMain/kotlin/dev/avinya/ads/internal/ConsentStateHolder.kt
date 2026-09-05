@@ -47,7 +47,10 @@ internal class ConsentStateHolder(timeSource: TimeSource = TimeSource.Monotonic)
 
     fun beginOperation(): Long = coordinator.beginOperation()
 
-    suspend fun <T> serialized(block: suspend () -> T): T = coordinator.serialized(block)
+    suspend fun <T> serializedExclusiveOfNativeConsentOperations(
+        onBusy: () -> T,
+        block: suspend () -> T,
+    ): T = coordinator.serializedExclusiveOfNativeConsentOperations(onBusy, block)
 
     suspend fun <T> exclusiveOfForms(
         presentsForm: Boolean,
@@ -61,22 +64,30 @@ internal class ConsentStateHolder(timeSource: TimeSource = TimeSource.Monotonic)
     /** See [ConsentOperationCoordinator.releaseFormPresentation]. */
     fun releaseFormPresentation(generation: Long): Unit = coordinator.releaseFormPresentation(generation)
 
+    /** See [ConsentOperationCoordinator.markInfoUpdateStarted]. */
+    fun markInfoUpdateStarted(generation: Long): Unit = coordinator.markInfoUpdateStarted(generation)
+
+    /** See [ConsentOperationCoordinator.releaseInfoUpdate]. */
+    fun releaseInfoUpdate(generation: Long): Unit = coordinator.releaseInfoUpdate(generation)
+
     /**
-     * Reconciles authoritative privacy truth unconditionally and publishes [status] if [generation]
-     * is still the current operation. Returns the resulting [status] value.
+     * Reconciles authoritative privacy truth and publishes [status] unconditionally.
+     * Returns the [status] passed in.
+     *
+     * A callback that reports a privacy state must ALWAYS publish the status it carries,
+     * even if it arrived late (superseded by a newer operation). If a late callback carries
+     * a revocation, dropping it leaves the gate open on stale truth; dropping the status
+     * while accepting the truth leaves the flows out of sync.
      */
     fun reconcileAndPublish(
-        generation: Long,
         privacyRequirement: PrivacyOptionsRequirementStatus,
         canRequestAds: Boolean,
         status: ConsentStatus,
     ): ConsentStatus {
         _privacyOptionsRequirementStatus.value = privacyRequirement
         _canRequestAds.value = canRequestAds
-        if (coordinator.isCurrentOperation(generation)) {
-            _status.value = status
-        }
-        return _status.value
+        _status.value = status
+        return status
     }
 
     /**

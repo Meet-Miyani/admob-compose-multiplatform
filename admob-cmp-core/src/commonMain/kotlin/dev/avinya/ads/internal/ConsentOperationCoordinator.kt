@@ -23,22 +23,23 @@ import kotlinx.coroutines.sync.withLock
  *    superseded operation must not overwrite a newer operation's result. That is what
  *    [beginOperation]/[isCurrentOperation] enforce.
  *
- * [serialized] and [exclusiveOfForms] then make the concurrency contract explicit rather than
- * delegating it to whatever the native UMP SDK happens to do about a second form. UMP
- * rejecting an overlapping form does not make the wrapper's status ordering safe.
+ * [serializedExclusiveOfNativeConsentOperations] and [exclusiveOfForms] make the concurrency
+ * contract explicit rather than delegating it to whatever the native UMP SDK happens to do about
+ * a second form. UMP rejecting an overlapping form does not make the wrapper's status ordering safe.
  *
  * **Form ownership is two facts, not one.** [slotHoldsForm] covers the window between taking
- * the slot and touching UMP — that is what stops a double tap. [nativeFormHandoff] covers the
- * window UMP itself owns, and it deliberately OUTLIVES the coroutine that opened the form:
- * cancelling a caller does not dismiss a form the user is looking at, so a cancelled waiter is
- * not evidence that the screen is free. Only the form's own callback — via
- * [releaseFormPresentation], which every UMP form callback reaches unconditionally through
- * [reconcileThenResumeIfActive] — or the [InitializationTimeouts.formPresentationPin] backstop
- * releases it.
+ * the slot — on entry, before any wait for [operationMutex] — and touching UMP; that is what stops
+ * a double tap. [nativeFormHandoff] covers the window UMP itself owns.
+ *
+ * **Native operations have two pins:** [nativeFormHandoff] (for forms) and [nativeInfoUpdate]
+ * (for info updates). These pins outlive their calling coroutines: cancelling a caller does not
+ * cancel the in-flight native UMP call, so a cancelled waiter is not evidence that the platform
+ * is free. Only the operation's own callback — which every UMP callback reaches unconditionally
+ * through [reconcileThenResumeIfActive] — or the backstop timeouts release them.
  *
  * **Threading:** every consent entry point already runs on `Dispatchers.Main.immediate`, and
  * UMP delivers its callbacks on the main thread on both platforms, so [currentGeneration] and
- * both form facts are main-confined. `@Volatile` is for visibility only — matching
+ * the pins are main-confined. `@Volatile` is for visibility only — matching
  * `GoogleAdManagerBase`'s own `appliedConfigIdentity` — not a substitute for that confinement.
  */
 internal class ConsentOperationCoordinator(
@@ -56,10 +57,15 @@ internal class ConsentOperationCoordinator(
     @Volatile
     private var nativeFormHandoff: FormHandoff? = null
 
+    /** Set from the moment a native info update starts until its callback releases it. */
+    @Volatile
+    private var nativeInfoUpdate: InfoUpdate? = null
+
     /** Serializes the info-update / form sequences that may legitimately wait for each other. */
     private val operationMutex = Mutex()
 
     private class FormHandoff(val generation: Long, val markedAt: TimeMark)
+    private class InfoUpdate(val generation: Long, val markedAt: TimeMark)
 
     /**
      * Claims the newest generation. Every consent entry point calls this once, up front —
@@ -94,12 +100,66 @@ internal class ConsentOperationCoordinator(
     }
 
     /**
+     * Records that a native info update has started, on behalf of [generation].
+     *
+     * Warns when it takes over a pin that is still live. Reaching here under a live pin means the
+     * caller did not come through [serializedExclusiveOfNativeConsentOperations], which declines
+     * exactly that case -- today that is `gatherConsent`, deliberately, for the reason recorded on
+     * [exclusiveOfForms]. The overlap is not defined by UMP either way, so it is worth saying out
+     * loud in the log rather than leaving a consumer to infer it from two interleaved round trips.
+     */
+    fun markInfoUpdateStarted(generation: Long) {
+        if (liveInfoUpdateOrNull() != null) {
+            AdLogger.w(
+                "Starting a UMP consent info update while an earlier one has not reported back. " +
+                    "The earlier call was abandoned by its caller (timed out or cancelled) and UMP " +
+                    "may still be working on it. Overlapping info updates are not defined by UMP; " +
+                    "the wrapper's own state stays coherent because the abandoned call's callback " +
+                    "can no longer publish over this one."
+            )
+        }
+        nativeInfoUpdate = InfoUpdate(generation, timeSource.markNow())
+    }
+
+    /**
+     * Releases the info update [generation] started.
+     */
+    fun releaseInfoUpdate(generation: Long) {
+        if (nativeInfoUpdate?.generation == generation) nativeInfoUpdate = null
+    }
+
+    /**
      * Runs [block] with no other coordinated consent operation in flight, waiting if one is.
      *
      * For the info-update and consent-gathering paths, where a caller waiting a moment is
      * strictly better than a duplicate UMP round trip.
      */
-    suspend fun <T> serialized(block: suspend () -> T): T = operationMutex.withLock { block() }
+    private suspend fun <T> serialized(block: suspend () -> T): T = operationMutex.withLock { block() }
+
+    /**
+     * Serialized execution that declines via [onBusy] if a native consent operation (form or info
+     * update) is already in progress and has outlived its coroutine.
+     */
+    suspend fun <T> serializedExclusiveOfNativeConsentOperations(
+        onBusy: () -> T,
+        block: suspend () -> T,
+    ): T {
+        // Pre-lock, decline ONLY on a native form handoff -- a form can be on screen with no
+        // mutex holder, so waiting for the lock would be waiting for nothing. Deliberately NOT
+        // formIsLive(): slotHoldsForm means a form operation has claimed the slot but has not
+        // presented anything yet -- it may hold the mutex, or may still be queued for it -- and
+        // either way an info update must queue behind it exactly as it always has rather than fail.
+        if (liveHandoffOrNull() != null) return onBusy()
+
+        return serialized {
+            // Post-lock, re-check BOTH pins. A pin still live once the mutex has been acquired
+            // can only belong to an operation whose waiter is gone (timed out or cancelled) while
+            // UMP is still working -- the abandoned case, and the only one that declines. Two live
+            // concurrent callers never reach here together, so they still queue and both run.
+            if (liveHandoffOrNull() != null || liveInfoUpdateOrNull() != null) return@serialized onBusy()
+            block()
+        }
+    }
 
     /**
      * Declines when a form-presenting operation holds the slot -- two forms cannot stack. The slot
@@ -108,6 +168,10 @@ internal class ConsentOperationCoordinator(
      * info update. That is deliberate: freeing the slot for that window would let a second caller
      * reach markFormPresented first and race two presentations.
      *
+     * Entry means this method's first lines, BEFORE the wait on [operationMutex]. A form caller
+     * that is merely queued has already claimed the slot, so a second form caller declines instead
+     * of joining the queue behind it and presenting the moment the first form dismisses.
+     *
      * An operation that does not present a form never claims the slot (presentsForm = false: a
      * consent info update, at most
      * InitializationTimeouts.consentInfoUpdate), and ordering behind it is not a reason to fail:
@@ -115,6 +179,17 @@ internal class ConsentOperationCoordinator(
      * launch-time refresh must get the form, not "unavailable". Callers surface the false return
      * to a person -- see DiagnosticsTab, ProfileViewModel, PrivacyLabScreen -- so a spurious
      * decline is a spurious error message.
+     *
+     * **This gate deliberately does NOT consult [nativeInfoUpdate], which is why `gatherConsent`
+     * can start a native info update while an abandoned one is still outstanding.** That asymmetry
+     * with [serializedExclusiveOfNativeConsentOperations] is a decision, not an oversight.
+     * `gatherConsent` is the launch path: declining it because a pin whose operation nobody is
+     * waiting on is still live would fail the app's whole consent flow for as long as
+     * [InitializationTimeouts.infoUpdatePin], and the pin outlives its coroutine precisely because
+     * the wrapper cannot know the native call finished. That is a real, reproducible launch
+     * failure traded against an overlap UMP does not define -- neither platform documents
+     * concurrent `requestConsentInfoUpdate` calls, and neither exposes an error code for one.
+     * [markInfoUpdateStarted] logs the overlap so it stays diagnosable in the field.
      */
     suspend fun <T> exclusiveOfForms(
         presentsForm: Boolean,
@@ -122,20 +197,36 @@ internal class ConsentOperationCoordinator(
         block: suspend () -> T,
     ): T {
         if (formIsLive()) return onFormPresenting()
-        return operationMutex.withLock {
-            // The second check is REQUIRED: a cancelled operation releases this mutex while UMP
-            // is still presenting its form, so holding the lock no longer proves the screen is
-            // free. A waiter that queued behind such an operation must decline here rather than
-            // present a second form over the first.
-            if (liveHandoffOrNull() != null) return@withLock onFormPresenting()
-            if (presentsForm) slotHoldsForm = true
-            try {
+        // Claimed HERE, before the mutex wait, and NOT once the mutex has been acquired. Waiting in
+        // the queue is part of the operation: while a non-form operation holds the mutex nothing
+        // has claimed the slot, so two form callers could both pass the check above and queue. The
+        // first would present, the user would dismiss, its callback would release the handoff --
+        // and the second would then find a free slot and present into a preload slot UMP has just
+        // consumed. Both platforms document that as an error rather than a second form (iOS
+        // UMPFormErrorCodeAlreadyUsed / Unavailable, Android FormError INVALID_OPERATION), so the
+        // user dismisses the form they asked for and is handed a failure for the tap that opened it.
+        //
+        // There is no suspension point between formIsLive() above and this assignment, and both are
+        // main-confined, so check-and-claim is atomic. That is the same argument that already made
+        // an uncontended double tap safe; claiming here extends it to cover the queue.
+        if (presentsForm) slotHoldsForm = true
+        try {
+            return operationMutex.withLock {
+                // The second check is REQUIRED: a cancelled operation releases this mutex while UMP
+                // is still presenting its form, so holding the lock no longer proves the screen is
+                // free. A waiter that queued behind such an operation must decline here rather than
+                // present a second form over the first.
+                if (liveHandoffOrNull() != null) return@withLock onFormPresenting()
                 block()
-            } finally {
-                // Only the slot fact unwinds with the coroutine. A handoff already made to UMP
-                // survives it and is released by the form's own callback.
-                slotHoldsForm = false
             }
+        } finally {
+            // Guarded by presentsForm, which is load-bearing now that the claim outlives the mutex:
+            // a non-form operation running inside the lock must not clear the claim of a form
+            // caller still queued behind it.
+            //
+            // Only the slot fact unwinds with the coroutine. A handoff already made to UMP survives
+            // it and is released by the form's own callback.
+            if (presentsForm) slotHoldsForm = false
         }
     }
 
@@ -157,6 +248,17 @@ internal class ConsentOperationCoordinator(
                 "screen, a further consent operation may be refused by UMP itself."
         )
         nativeFormHandoff = null
+        return null
+    }
+
+    private fun liveInfoUpdateOrNull(): InfoUpdate? {
+        val infoUpdate = nativeInfoUpdate ?: return null
+        if (infoUpdate.markedAt.elapsedNow() < InitializationTimeouts.infoUpdatePin) return infoUpdate
+        AdLogger.w(
+            "A native consent info update started over ${InitializationTimeouts.infoUpdatePin} ago " +
+                "and never reported back. Releasing the info update slot."
+        )
+        nativeInfoUpdate = null
         return null
     }
 }
