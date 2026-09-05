@@ -35,6 +35,8 @@ Release details and release assets for all versions are published on the
 
 Initialization previously stranded the manager in a non-`Ready` state when the caller that started it was cancelled after the native handoff, blocking every ad request while GMA was initialized. Initialization now reaches `Ready` when the caller that started it was cancelled after the native handoff. Concurrent equivalent `initialize()` callers no longer cancel each other.
 
+Two consent form callers that queued behind a launch-time consent info update could previously both proceed, so the second presented the moment the first form was dismissed — into a preload slot UMP had just consumed, which both platforms report as a form error rather than a second form. A form operation now claims the form slot when it is called rather than when it reaches the front of the queue, so the second caller declines.
+
 The iOS initialization watchdog previously raced GMA's own completion bound. It no longer does so. iOS consent-form errors previously lacked parity with Android. They are now logged with parity to Android. `doctorIos` previously reported a commented-out `GADApplicationIdentifier` as configured. It no longer does so.
 
 ### Behaviour changes

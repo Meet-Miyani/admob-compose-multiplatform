@@ -143,7 +143,7 @@ internal class IosConsentController(
                 presentsForm = true,
                 onFormPresenting = {
                     ConsentStatus.Failed(
-                        AdError.message("gatherConsent() ignored: a consent form is already presenting.")
+                        AdError.message("gatherConsent() ignored: another consent form operation is already in progress.")
                     )
                 },
             ) {
@@ -210,8 +210,8 @@ internal class IosConsentController(
                 presentsForm = true,
                 onFormPresenting = {
                     AdLogger.w(
-                        "showPrivacyOptions() ignored: another consent form is already " +
-                            "presenting. Wait for it to dismiss before presenting privacy options."
+                        "showPrivacyOptions() ignored: another consent form operation is " +
+                            "already in progress. Wait for it to finish before presenting privacy options."
                     )
                     false
                 },

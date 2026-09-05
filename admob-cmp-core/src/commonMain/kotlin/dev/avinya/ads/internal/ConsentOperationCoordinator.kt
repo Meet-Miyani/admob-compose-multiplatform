@@ -28,8 +28,8 @@ import kotlinx.coroutines.sync.withLock
  * a second form. UMP rejecting an overlapping form does not make the wrapper's status ordering safe.
  *
  * **Form ownership is two facts, not one.** [slotHoldsForm] covers the window between taking
- * the slot and touching UMP — that is what stops a double tap. [nativeFormHandoff] covers the
- * window UMP itself owns.
+ * the slot — on entry, before any wait for [operationMutex] — and touching UMP; that is what stops
+ * a double tap. [nativeFormHandoff] covers the window UMP itself owns.
  *
  * **Native operations have two pins:** [nativeFormHandoff] (for forms) and [nativeInfoUpdate]
  * (for info updates). These pins outlive their calling coroutines: cancelling a caller does not
@@ -131,9 +131,9 @@ internal class ConsentOperationCoordinator(
     ): T {
         // Pre-lock, decline ONLY on a native form handoff -- a form can be on screen with no
         // mutex holder, so waiting for the lock would be waiting for nothing. Deliberately NOT
-        // formIsLive(): slotHoldsForm means a gatherConsent holds the slot but has not presented
-        // anything yet, and that operation still holds the mutex, so an info update must queue
-        // behind it exactly as it always has rather than fail.
+        // formIsLive(): slotHoldsForm means a form operation has claimed the slot but has not
+        // presented anything yet -- it may hold the mutex, or may still be queued for it -- and
+        // either way an info update must queue behind it exactly as it always has rather than fail.
         if (liveHandoffOrNull() != null) return onBusy()
 
         return serialized {
@@ -153,6 +153,10 @@ internal class ConsentOperationCoordinator(
      * info update. That is deliberate: freeing the slot for that window would let a second caller
      * reach markFormPresented first and race two presentations.
      *
+     * Entry means this method's first lines, BEFORE the wait on [operationMutex]. A form caller
+     * that is merely queued has already claimed the slot, so a second form caller declines instead
+     * of joining the queue behind it and presenting the moment the first form dismisses.
+     *
      * An operation that does not present a form never claims the slot (presentsForm = false: a
      * consent info update, at most
      * InitializationTimeouts.consentInfoUpdate), and ordering behind it is not a reason to fail:
@@ -167,20 +171,36 @@ internal class ConsentOperationCoordinator(
         block: suspend () -> T,
     ): T {
         if (formIsLive()) return onFormPresenting()
-        return operationMutex.withLock {
-            // The second check is REQUIRED: a cancelled operation releases this mutex while UMP
-            // is still presenting its form, so holding the lock no longer proves the screen is
-            // free. A waiter that queued behind such an operation must decline here rather than
-            // present a second form over the first.
-            if (liveHandoffOrNull() != null) return@withLock onFormPresenting()
-            if (presentsForm) slotHoldsForm = true
-            try {
+        // Claimed HERE, before the mutex wait, and NOT once the mutex has been acquired. Waiting in
+        // the queue is part of the operation: while a non-form operation holds the mutex nothing
+        // has claimed the slot, so two form callers could both pass the check above and queue. The
+        // first would present, the user would dismiss, its callback would release the handoff --
+        // and the second would then find a free slot and present into a preload slot UMP has just
+        // consumed. Both platforms document that as an error rather than a second form (iOS
+        // UMPFormErrorCodeAlreadyUsed / Unavailable, Android FormError INVALID_OPERATION), so the
+        // user dismisses the form they asked for and is handed a failure for the tap that opened it.
+        //
+        // There is no suspension point between formIsLive() above and this assignment, and both are
+        // main-confined, so check-and-claim is atomic. That is the same argument that already made
+        // an uncontended double tap safe; claiming here extends it to cover the queue.
+        if (presentsForm) slotHoldsForm = true
+        try {
+            return operationMutex.withLock {
+                // The second check is REQUIRED: a cancelled operation releases this mutex while UMP
+                // is still presenting its form, so holding the lock no longer proves the screen is
+                // free. A waiter that queued behind such an operation must decline here rather than
+                // present a second form over the first.
+                if (liveHandoffOrNull() != null) return@withLock onFormPresenting()
                 block()
-            } finally {
-                // Only the slot fact unwinds with the coroutine. A handoff already made to UMP
-                // survives it and is released by the form's own callback.
-                slotHoldsForm = false
             }
+        } finally {
+            // Guarded by presentsForm, which is load-bearing now that the claim outlives the mutex:
+            // a non-form operation running inside the lock must not clear the claim of a form
+            // caller still queued behind it.
+            //
+            // Only the slot fact unwinds with the coroutine. A handoff already made to UMP survives
+            // it and is released by the form's own callback.
+            if (presentsForm) slotHoldsForm = false
         }
     }
 

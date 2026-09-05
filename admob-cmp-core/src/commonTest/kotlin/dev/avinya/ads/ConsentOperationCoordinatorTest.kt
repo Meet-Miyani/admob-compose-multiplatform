@@ -135,6 +135,161 @@ class ConsentOperationCoordinatorTest {
     }
 
     @Test
+    fun `a second form caller queued behind a non-form operation declines`() = runTest {
+        val coordinator = ConsentOperationCoordinator()
+        val order = mutableListOf<String>()
+        val nonFormEntered = CompletableDeferred<Unit>()
+        val releaseNonForm = CompletableDeferred<Unit>()
+
+        // A launch-time consent info update holds the mutex. It presents nothing, so it never
+        // claims the form slot -- which is what used to let two form callers queue behind it.
+        val nonForm = launch {
+            coordinator.serializedExclusiveOfNativeConsentOperations(onBusy = {}) {
+                order += "non-form-in"
+                nonFormEntered.complete(Unit)
+                releaseNonForm.await()
+            }
+        }
+        nonFormEntered.await()
+
+        // The user double-taps "Privacy options" while that update is still in flight. Neither tap
+        // can see a form on screen, because the first one has not presented anything yet.
+        var firstPresented = false
+        val firstTap = launch {
+            firstPresented = coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) {
+                val generation = coordinator.beginOperation()
+                coordinator.markFormPresented(generation)
+                order += "first-presented"
+                // UMP reports the dismissal, which is the only thing that frees the native pin.
+                coordinator.releaseFormPresentation(generation)
+                true
+            }
+        }
+        var secondPresented = false
+        val secondTap = launch {
+            secondPresented = coordinator.exclusiveOfForms(
+                presentsForm = true,
+                onFormPresenting = {
+                    order += "second-declined"
+                    false
+                },
+            ) {
+                order += "second-presented"
+                true
+            }
+        }
+        advanceUntilIdle()
+
+        releaseNonForm.complete(Unit)
+        nonForm.join()
+        firstTap.join()
+        secondTap.join()
+
+        assertTrue(firstPresented, "the first tap must present once the queue drains")
+        assertFalse(
+            secondPresented,
+            "the second tap must decline rather than present into a preload slot UMP just consumed",
+        )
+        assertEquals(
+            listOf("non-form-in", "second-declined", "first-presented"),
+            order,
+            "the second tap must decline while queued, not run after the first form dismisses",
+        )
+    }
+
+    @Test
+    fun `cancellation while queued for the mutex releases the form slot`() = runTest {
+        val coordinator = ConsentOperationCoordinator()
+        val nonFormEntered = CompletableDeferred<Unit>()
+        val releaseNonForm = CompletableDeferred<Unit>()
+
+        val nonForm = launch {
+            coordinator.serializedExclusiveOfNativeConsentOperations(onBusy = {}) {
+                nonFormEntered.complete(Unit)
+                releaseNonForm.await()
+            }
+        }
+        nonFormEntered.await()
+
+        // Claims the slot on entry and then waits for the mutex. The claim now spans that wait,
+        // so its unwinding is the window this fix opened and the one worth pinning.
+        var ran = false
+        val queued = launch {
+            coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) {
+                ran = true
+                true
+            }
+        }
+        advanceUntilIdle()
+        queued.cancelAndJoin()
+
+        releaseNonForm.complete(Unit)
+        nonForm.join()
+
+        assertFalse(ran, "the cancelled caller never reached the block")
+        assertTrue(
+            coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) { true },
+            "a caller cancelled while queued must not strand the form slot",
+        )
+    }
+
+    @Test
+    fun `a non-form operation does not clear a queued form caller's claim`() = runTest {
+        val coordinator = ConsentOperationCoordinator()
+        val nonFormEntered = CompletableDeferred<Unit>()
+        val releaseNonForm = CompletableDeferred<Unit>()
+        val formEntered = CompletableDeferred<Unit>()
+        val releaseForm = CompletableDeferred<Unit>()
+
+        // presentsForm = false, so this one holds the mutex WITHOUT claiming the slot -- and its
+        // finally must therefore not clear a claim it never made. The claim now outlives the
+        // mutex, so an unguarded release here would free the slot under the caller below.
+        val nonForm = launch {
+            coordinator.exclusiveOfForms(presentsForm = false, onFormPresenting = { false }) {
+                nonFormEntered.complete(Unit)
+                releaseNonForm.await()
+                true
+            }
+        }
+        nonFormEntered.await()
+
+        val form = launch {
+            coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) {
+                formEntered.complete(Unit)
+                // Deliberately short of the native boundary: no markFormPresented, so only the
+                // slot -- not the handoff pin -- can decline the probe below.
+                releaseForm.await()
+                true
+            }
+        }
+        advanceUntilIdle()
+
+        releaseNonForm.complete(Unit)
+        nonForm.join()
+        formEntered.await()
+
+        var probeDeclined = false
+        var probeRan = false
+        val probe = launch {
+            probeDeclined = !coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) {
+                probeRan = true
+                true
+            }
+        }
+        advanceUntilIdle()
+
+        assertTrue(
+            probeDeclined,
+            "a non-form operation completing must not free the slot a queued form caller claimed",
+        )
+        assertFalse(probeRan, "the probe must not run while a form operation owns the slot")
+
+        releaseForm.complete(Unit)
+        form.join()
+        probe.join()
+    }
+
+    @Test
     fun `exclusiveOfForms restores the form flag after normal completion`() = runTest {
         val coordinator = ConsentOperationCoordinator()
         assertTrue(coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) { true })
