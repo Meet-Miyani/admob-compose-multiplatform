@@ -101,8 +101,23 @@ internal class ConsentOperationCoordinator(
 
     /**
      * Records that a native info update has started, on behalf of [generation].
+     *
+     * Warns when it takes over a pin that is still live. Reaching here under a live pin means the
+     * caller did not come through [serializedExclusiveOfNativeConsentOperations], which declines
+     * exactly that case -- today that is `gatherConsent`, deliberately, for the reason recorded on
+     * [exclusiveOfForms]. The overlap is not defined by UMP either way, so it is worth saying out
+     * loud in the log rather than leaving a consumer to infer it from two interleaved round trips.
      */
     fun markInfoUpdateStarted(generation: Long) {
+        if (liveInfoUpdateOrNull() != null) {
+            AdLogger.w(
+                "Starting a UMP consent info update while an earlier one has not reported back. " +
+                    "The earlier call was abandoned by its caller (timed out or cancelled) and UMP " +
+                    "may still be working on it. Overlapping info updates are not defined by UMP; " +
+                    "the wrapper's own state stays coherent because the abandoned call's callback " +
+                    "can no longer publish over this one."
+            )
+        }
         nativeInfoUpdate = InfoUpdate(generation, timeSource.markNow())
     }
 
@@ -164,6 +179,17 @@ internal class ConsentOperationCoordinator(
      * launch-time refresh must get the form, not "unavailable". Callers surface the false return
      * to a person -- see DiagnosticsTab, ProfileViewModel, PrivacyLabScreen -- so a spurious
      * decline is a spurious error message.
+     *
+     * **This gate deliberately does NOT consult [nativeInfoUpdate], which is why `gatherConsent`
+     * can start a native info update while an abandoned one is still outstanding.** That asymmetry
+     * with [serializedExclusiveOfNativeConsentOperations] is a decision, not an oversight.
+     * `gatherConsent` is the launch path: declining it because a pin whose operation nobody is
+     * waiting on is still live would fail the app's whole consent flow for as long as
+     * [InitializationTimeouts.infoUpdatePin], and the pin outlives its coroutine precisely because
+     * the wrapper cannot know the native call finished. That is a real, reproducible launch
+     * failure traded against an overlap UMP does not define -- neither platform documents
+     * concurrent `requestConsentInfoUpdate` calls, and neither exposes an error code for one.
+     * [markInfoUpdateStarted] logs the overlap so it stays diagnosable in the field.
      */
     suspend fun <T> exclusiveOfForms(
         presentsForm: Boolean,

@@ -387,6 +387,68 @@ class ConsentOperationCoordinatorTest {
     }
 
     @Test
+    fun `exclusiveOfForms ignores a live info update pin`() = runTest {
+        val coordinator = ConsentOperationCoordinator()
+        coordinator.markInfoUpdateStarted(coordinator.beginOperation())
+
+        // Pins the DECISION recorded on exclusiveOfForms, not an accident of the implementation:
+        // gatherConsent is the launch path and must not be starved for the length of the info
+        // update backstop by an operation nobody is waiting on. Adding the pin check here would
+        // trade an overlap UMP does not define for a reproducible launch failure.
+        assertTrue(
+            coordinator.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) { true },
+            "a form operation must not be declined by an abandoned native info update",
+        )
+    }
+
+    @Test
+    fun `taking over a live info update pin warns and keeps the newer pin`() = runTest {
+        val coordinator = ConsentOperationCoordinator()
+        val warnings = mutableListOf<String>()
+        // AdLogger's properties are process-wide, so this must be restored even on failure.
+        val originalSink = AdLogger.sink
+        AdLogger.sink = AdLogSink { level, _, message, _ ->
+            if (level == AdLogLevel.Warn) warnings += message
+        }
+        try {
+            val abandoned = coordinator.beginOperation()
+            coordinator.markInfoUpdateStarted(abandoned)
+            assertTrue(warnings.isEmpty(), "the first info update has nothing to take over")
+
+            // gatherConsent does not come through serializedExclusiveOfNativeConsentOperations,
+            // so it reaches markInfoUpdateStarted with the abandoned pin still live.
+            val current = coordinator.beginOperation()
+            coordinator.markInfoUpdateStarted(current)
+
+            assertEquals(1, warnings.size, "taking over a live info update pin must be logged")
+            assertTrue(
+                warnings.single().contains("has not reported back"),
+                "the warning must name the overlap, not the backstop expiry: ${warnings.single()}",
+            )
+
+            // The abandoned call's late callback must not free the pin the newer operation owns.
+            coordinator.releaseInfoUpdate(abandoned)
+            var ran = false
+            assertTrue(
+                coordinator.serializedExclusiveOfNativeConsentOperations(onBusy = { true }) {
+                    ran = true
+                    false
+                },
+                "a superseded info update's late callback must not open the gate",
+            )
+            assertFalse(ran, "the declined path must not run the block")
+
+            coordinator.releaseInfoUpdate(current)
+            assertFalse(
+                coordinator.serializedExclusiveOfNativeConsentOperations(onBusy = { true }) { false },
+                "the owning generation's callback must open the gate again",
+            )
+        } finally {
+            AdLogger.sink = originalSink
+        }
+    }
+
+    @Test
     fun `a stranded form pin expires at the backstop instead of declining forever`() = runTest {
         val timeSource = TestTimeSource()
         val coordinator = ConsentOperationCoordinator(timeSource)
