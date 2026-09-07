@@ -4,7 +4,7 @@
 
 [![Maven Central](https://img.shields.io/maven-central/v/dev.avinya.ads/admob-cmp?label=Maven%20Central)](https://central.sonatype.com/artifact/dev.avinya.ads/admob-cmp)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4.20-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Platforms](https://img.shields.io/badge/Platforms-Android%20%7C%20iOS-3DDC84)](#compatibility)
 [![API reference](https://img.shields.io/badge/docs-API%20reference-1793D1)](https://ads.avinya.dev/reference/api/)
 
@@ -178,7 +178,7 @@ Underlying Google SDKs bound by 2.3.0:
 | User Messaging Platform, Android | 4.0.0 |
 | User Messaging Platform, iOS | 3.1.0 |
 
-**Kotlin:** the module is compiled with 2.3.20. Consumers on a different Kotlin *minor* version may fail to resolve the klib. Patch versions are generally safe.
+**Kotlin:** the module is compiled with 2.4.20. Consumers on a different Kotlin *minor* version may fail to resolve the klib. Patch versions are generally safe.
 
 **Compose Multiplatform:** required only if you use the composable surface (`BannerAdView`, `NativeAdView`, `rememberAdManager`). The controller API in `dev.avinya.ads:admob-cmp-core` has no Compose dependency.
 

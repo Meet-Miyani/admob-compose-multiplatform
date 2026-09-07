@@ -16,7 +16,7 @@ kotlin {
     explicitApi()
 
     @OptIn(org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation::class)
-    abiValidation { enabled.set(true) }
+    abiValidation { }
 
     // Silences the recurring "'expect'/'actual' classes ... are in Beta" warning
     // (KT-61573) across every target — mirrors admob-cmp-core/build.gradle.kts.

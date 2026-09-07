@@ -41,7 +41,7 @@ When integrating or testing on iOS, it is vital to distinguish Kotlin klib ABI r
 <Aside type="caution">
 From the Kotlin evolution principles: "klib binaries are backwards compatible starting with Kotlin 1.9.20." However, that guarantee **explicitly excludes cinterop klibs**: "The Kotlin cinterop klib binaries are still in Beta."
 
-`admob-cmp` publishes cinterop klibs, so standard klib backward-compatibility guarantees do not cover them. If your project uses a newer Kotlin minor version than the version used to compile the library (Kotlin 2.3.20), verify your link step.
+`admob-cmp` publishes cinterop klibs, so standard klib backward-compatibility guarantees do not cover them. If your project uses a newer Kotlin minor version than the version used to compile the library (Kotlin 2.4.20), verify your link step.
 </Aside>
 
 If an iOS build or test task fails with undefined `GAD*` or `UMP*` symbols:
@@ -57,7 +57,7 @@ Compose Multiplatform is required only for UI composable components (`BannerAdVi
 
 The core SDK module (`admob-cmp-core`) contains the underlying state machine, `AdManager`, full-screen controllers, placement models, consent handling, diagnostics, and event streams. Non-Compose UI layers or custom native UI wrappers can depend on `admob-cmp-core` directly without pulling in Compose Multiplatform dependencies.
 
-The current library release is compiled against **Compose Multiplatform 1.11.1** and **Kotlin 2.3.20**. Consumer projects using Compose Multiplatform 1.11.1 fit naturally into this toolchain, whilst non-Compose projects depending strictly on `admob-cmp-core` should verify Kotlin compiler compatibility against 2.3.20.
+The current library release is compiled against **Compose Multiplatform 1.11.1** and **Kotlin 2.4.20**. Consumer projects using Compose Multiplatform 1.11.1 fit naturally into this toolchain, whilst non-Compose projects depending strictly on `admob-cmp-core` should verify Kotlin compiler compatibility against 2.4.20.
 
 ## Which Google SDK versions are bound?
 
