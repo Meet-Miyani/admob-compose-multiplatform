@@ -10,7 +10,7 @@
 agp = "9.4.0"
 android-compileSdk = "37"
 android-minSdk = "26"
-android-targetSdk = "36"
+android-targetSdk = "37"
 androidx-activity = "1.13.0"
 androidx-lifecycle = "2.11.0"
 # admob-cmp uses the pure-AndroidX lifecycle-process (NOT the CMP lifecycle above).
