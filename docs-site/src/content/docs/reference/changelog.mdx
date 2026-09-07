@@ -51,10 +51,10 @@ Release details and release assets for all versions are published on the
 Three changes affect what `ConsentStatus` your code sees. Admission (`canRequestAds`) is unchanged by all three — it still carries whatever the last completed refresh established, which is what [UMP's own guidance](https://developers.google.com/admob/android/privacy) says to check when a consent operation reports an error.
 
 1. **A failed consent refresh now returns `Failed`** rather than the mapped native status, even when a previous session's admission still permits ads.
-2. **`requestConsentInfoUpdate` can now return `Failed`** when it declines because another native consent operation is still outstanding. This decline carries `AdErrorCode.CONSENT_OPERATION_IN_PROGRESS` and is retryable within seconds — treat it as "try again shortly", not as a consent failure.
+2. **`requestConsentInfoUpdate` can now return `Failed`** when it declines because another native consent operation is still outstanding. This busy error is returned to the declined caller and does not overwrite shared published status. It carries `AdErrorCode.CONSENT_OPERATION_IN_PROGRESS`. Wait for the existing operation to finish before retrying if the action is still needed.
 3. **`gatherConsent` no longer presents a form after a *timed-out* refresh**, while it still presents one after a refresh that completed with an error.
 
-A late UMP callback still reconciles privacy truth unconditionally — a revocation is never dropped — but it does **not** publish a status over a newer operation's. `ConsentStatus` and `canRequestAds` can no longer contradict each other.
+A late UMP callback still reconciles privacy truth unconditionally — a revocation is never dropped — but a superseded callback cannot overwrite a newer operation's published status, while callback reconciliation still refreshes current native privacy/admission values. It remains a valid case for an operation to return or publish `Failed` while `canRequestAds` remains `true` (if a previous completed refresh permitted ads).
 </Aside>
 
 ## What changed in 2.2.0?

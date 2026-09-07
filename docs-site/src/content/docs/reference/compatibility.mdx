@@ -73,9 +73,11 @@ The bound iOS headers require that the resolved SPM major version matches the ma
 
 ## SDK Initialization and `AdManagerStatus.Ready`
 
-The SDK publishes `AdManagerStatus.Ready` after the platform's initialization callback reports. On both Android and iOS that means mediation adapters have finished initializing, so every configured network can participate in the first ad request.
+The SDK publishes `AdManagerStatus.Ready` after completion of the wrapper's initialization path, allowing ad requests subject to the existing admission gates.
 
-Google Mobile Ads invokes that callback once the SDK and its adapters finish, **or after its own 30-second bound**, whichever comes first — on Android (`MobileAds.initialize`) and on iOS (`startWithCompletionHandler`) alike. AdMob CMP waits up to **40 seconds** on both platforms, deliberately longer than that bound, so a slow but ultimately successful mediation setup is never reported as an initialization failure. In practice a slow adapter delays `Ready` by at most about 30 seconds.
+Google Mobile Ads invokes its initialization callback once the SDK and its adapters finish, or after its own internal timeout — on Android (`MobileAds.initialize`) and on iOS (`startWithCompletionHandler`) alike. Individual mediation adapters can fail or time out independently; `Ready` does not guarantee that every configured adapter has successfully initialized or will participate in the first ad request.
+
+To prevent hanging indefinitely if a native response never arrives, the wrapper enforces its own initialization watchdog. In **2.2.0**, this was a **30-second** bound. In **unreleased versions**, this is a **40-second** margin beyond Google's documented 30-second limit. Note that this timeout applies only to the native initialization phase, not the entire application startup sequence (which also includes consent gathering and pre-initialization hooks).
 
 ## Consuming the library on iOS
 

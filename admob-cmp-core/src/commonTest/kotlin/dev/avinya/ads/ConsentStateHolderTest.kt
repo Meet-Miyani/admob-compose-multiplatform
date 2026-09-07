@@ -378,8 +378,8 @@ class ConsentStateHolderTest {
         var resetRan = false
 
         // Holds the mutex WITHOUT claiming the form slot, so the form caller below claims the slot
-        // on entry and then queues. That is the window the mutex cannot cover on its own: nothing
-        // is on screen, no handoff pin exists, and reset can legitimately win the lock first.
+        // on entry and then queues. Because reset is called after the form claims the slot,
+        // it fails the pre-lock check and declines immediately.
         val nonForm = launch {
             holder.serializedExclusiveOfNativeConsentOperations(onBusy = {}) {
                 nonFormEntered.complete(Unit)
@@ -408,6 +408,59 @@ class ConsentStateHolderTest {
         releaseNonForm.complete(Unit)
         nonForm.join()
         form.join()
+    }
+
+    @Test
+    fun `reset declines when a form claims the slot after reset queues`() = runTest {
+        val holder = ConsentStateHolder()
+        val nonFormEntered = CompletableDeferred<Unit>()
+        val releaseNonForm = CompletableDeferred<Unit>()
+        var resetRan = false
+        var resetBusyCount = 0
+
+        val nonForm = launch {
+            holder.serializedExclusiveOfNativeConsentOperations(onBusy = {}) {
+                nonFormEntered.complete(Unit)
+                releaseNonForm.await()
+                true
+            }
+        }
+        nonFormEntered.await()
+
+        val reset = launch {
+            val result = holder.serializedExclusiveOfNativeConsentOperations(
+                onBusy = { resetBusyCount++; false },
+                declineWhileFormSlotHeld = true,
+            ) {
+                resetRan = true
+                holder.reset()
+                true
+            }
+            assertFalse(result, "reset must return false when declined")
+        }
+
+        advanceUntilIdle()
+        assertFalse(resetRan, "reset block must not have run yet")
+        assertEquals(0, resetBusyCount, "reset must not have run its busy callback yet")
+
+        val formEntered = CompletableDeferred<Unit>()
+        val form = launch {
+            holder.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) {
+                formEntered.complete(Unit)
+                true
+            }
+        }
+
+        advanceUntilIdle()
+
+        releaseNonForm.complete(Unit)
+
+        reset.join()
+        assertFalse(resetRan, "reset block must never execute")
+        assertEquals(1, resetBusyCount, "reset busy callback must run exactly once")
+
+        form.join()
+        assertTrue(formEntered.isCompleted, "queued form must enter and complete successfully")
     }
 
     @Test

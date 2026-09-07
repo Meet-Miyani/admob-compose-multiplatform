@@ -16,12 +16,12 @@ public sealed interface AdManagerStatus {
     /**
      * SDK is fully initialized and ready to serve ads.
      *
-     * Published after the platform's initialization callback reports, which on both platforms
-     * means mediation adapters have finished initializing — so every configured network can
-     * participate in the first request. GMA invokes that callback once the adapters finish *or*
-     * after its own 30-second bound, whichever comes first; the wrapper waits up to 40 seconds so
-     * it cannot mistake a slow-but-successful setup for a failure. A slow adapter therefore delays
-     * [Ready] by at most ~30 seconds in practice.
+     * Published after completion of the wrapper's initialization path, allowing requests subject to
+     * the existing admission gates. Google's callback can arrive after initialization completes or
+     * after its internal timeout. Individual mediation adapters can fail or time out independently;
+     * there is no guarantee that every configured mediation adapter has successfully initialized or
+     * will participate in the first request. The wrapper waits up to 40 seconds as a margin beyond
+     * Google's documented 30-second bound.
      */
     public data object Ready : AdManagerStatus
     /** SDK is disabled with a [reason] message. */

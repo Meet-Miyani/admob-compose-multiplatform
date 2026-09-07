@@ -48,45 +48,74 @@ adManager.gatherConsentAndInitialize(
 | `NotRequired` | Regulation does not require consent for this user. |
 | `Failed(error)` | The consent-info update failed; the error is attached. |
 
-A practical note on `Failed(error)`: the error is a regular
+A practical note on consent state: there are three distinct concepts at play.
+1. The **return value** of a suspending call describes the outcome of that specific attempted operation.
+2. `consent.status` is the **shared published state**. A rejected busy call leaves this unchanged.
+3. `consent.canRequestAds` determines **consent admission**. Actual ad loading also requires manager readiness.
+
+When an operation returns `Failed(error)`, the error is a regular
 `AdError` carrying standard fields — `code`,
 `message`, `domain`, `responseInfo`. The most common cause is a
-network failure on the consent-info update endpoint, which is a
-transient condition and can be retried. A persistent `Failed`
-state usually points to a misconfigured AdMob app ID or missing App ID settings.
+network failure, which is a
+transient condition. A persistent `Failed`
+state usually points to a misconfigured AdMob app ID.
 
-Two things are worth checking before you show a person an error.
-
-**`canRequestAds` is the value that matters.** A failed refresh does not revoke
+Before you show a person an error, check `canRequestAds`. A failed refresh does not revoke
 consent: UMP keeps whatever the last completed refresh established, so
 `consent.canRequestAds` may still be `true` and ads may still serve while
-`status` reads `Failed`. This is [what Google's own guidance recommends
-checking](https://developers.google.com/admob/android/privacy) when a consent
-operation reports an error.
+an operation failed. This is [what Google's own guidance recommends
+checking](https://developers.google.com/admob/android/privacy).
 
-**Check `error.code` for `AdErrorCode.CONSENT_OPERATION_IN_PROGRESS`.** That code
-means the call declined because another native UMP operation was still
-outstanding — a form on screen, or an earlier call whose caller was cancelled. It
-is retryable within seconds and is not a consent failure, so it should not surface
-to a person as one.
+If an action fails because a form is already showing or an update is in progress, wait for the existing operation to finish before retrying if the action is still needed. Do not implement an automatic retry loop: a duplicate tap should not cause another form to open after dismissal.
+
+### Handling errors in 2.2.0
 
 ```kotlin
-when (val status = adManager.consent.status.value) {
-    is ConsentStatus.Failed ->
-        if (status.error.code == AdErrorCode.CONSENT_OPERATION_IN_PROGRESS) {
-            // Transient. Retry shortly; nothing to tell the user.
+import dev.avinya.ads.AdManager
+import dev.avinya.ads.AdConfig
+import dev.avinya.ads.ConsentStatus
+
+suspend fun startConsentFlow(adManager: AdManager, config: AdConfig) {
+    val result = adManager.consent.gatherConsent(config)
+
+    if (result is ConsentStatus.Failed) {
+        if (adManager.consent.canRequestAds.value) {
+            // Refresh failed, but a previous session's choice still permits ads.
+        } else {
+            // A real consent problem worth surfacing. Note that 2.2.0 has no dedicated
+            // busy-error constant, and not every failed native refresh is guaranteed
+            // to return Failed.
+        }
+    }
+}
+```
+
+<Aside type="note" title="Unreleased — unavailable in 2.2.0">
+The following demonstrates handling the busy error introduced after 2.2.0. This code branches on the awaited operation result, never `consent.status.value`. A `CONSENT_OPERATION_IN_PROGRESS` error is returned to the declined caller as a declined concurrent request, and explicitly is not published to the status flow. The same handling applies to `requestConsentInfoUpdate(config)`. These examples are alternatives for different versions, do not call both sequentially.
+
+```kotlin
+import dev.avinya.ads.AdErrorCode
+import dev.avinya.ads.AdManager
+import dev.avinya.ads.AdConfig
+import dev.avinya.ads.ConsentStatus
+
+suspend fun startConsentFlow(adManager: AdManager, config: AdConfig) {
+    val result = adManager.consent.gatherConsent(config)
+
+    if (result is ConsentStatus.Failed) {
+        if (result.error.code == AdErrorCode.CONSENT_OPERATION_IN_PROGRESS) {
+            // Another consent operation is already running.
         } else if (adManager.consent.canRequestAds.value) {
             // Refresh failed, but a previous session's choice still permits ads.
         } else {
             // A real consent problem worth surfacing.
         }
-    else -> Unit
+    }
 }
 ```
 
-`error.domain` distinguishes the platform the numeric `code` came from. Android's
-`FormError.ErrorCode` and iOS's `UMPRequestErrorCode` both use `1..4` with
-different meanings, so never branch on a bare numeric consent code without it.
+Additionally, in unreleased versions, `error.domain` is improved on consent errors to distinguish the platform the numeric `code` came from. Android's `FormError.ErrorCode` and iOS's `UMPRequestErrorCode` both use `1..4` with different meanings, so never branch on a bare numeric consent code without it.
+</Aside>
 
 ## Which ConsentMode should I use?
 

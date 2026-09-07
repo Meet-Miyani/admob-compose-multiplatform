@@ -91,9 +91,9 @@ internal class ConsentStateHolder(timeSource: TimeSource = TimeSource.Monotonic)
      * `Failed(error)`. Publishing that unconditionally lets a superseded operation's stale error
      * land on top of a newer operation's success -- e.g. a refresh that times out at
      * `consentInfoUpdate`, a retry that succeeds, and then the first call's late error callback
-     * arriving last and republishing `Failed` while [canRequestAds] says `true`. The two public
-     * flows would then contradict each other. The generation gate is what prevents that, and it
-     * is not interchangeable with the unconditional reconcile above.
+     * arriving last and overwriting the success with `Failed`. An older operation's failure
+     * must not overwrite a newer operation's success. The generation gate is what prevents
+     * that, and it is not interchangeable with the unconditional reconcile above.
      */
     fun reconcileAndPublish(
         generation: Long,
