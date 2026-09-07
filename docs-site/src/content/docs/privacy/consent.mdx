@@ -90,8 +90,8 @@ suspend fun startConsentFlow(adManager: AdManager, config: AdConfig) {
 }
 ```
 
-<Aside type="note" title="Unreleased — unavailable in 2.2.0">
-The following demonstrates handling the busy error introduced after 2.2.0. This code branches on the awaited operation result, never `consent.status.value`. A `CONSENT_OPERATION_IN_PROGRESS` error is returned to the declined caller as a declined concurrent request, and explicitly is not published to the status flow. The same handling applies to `requestConsentInfoUpdate(config)`. These examples are alternatives for different versions, do not call both sequentially.
+<Aside type="note" title="New in 2.3.0 — unavailable in 2.2.0">
+The following demonstrates handling the busy error introduced in 2.3.0. This code branches on the awaited operation result, never `consent.status.value`. A `CONSENT_OPERATION_IN_PROGRESS` error is returned to the declined caller as a declined concurrent request, and explicitly is not published to the status flow. The same handling applies to `requestConsentInfoUpdate(config)`. These examples are alternatives for different versions, do not call both sequentially.
 
 ```kotlin
 import dev.avinya.ads.AdErrorCode
@@ -114,7 +114,7 @@ suspend fun startConsentFlow(adManager: AdManager, config: AdConfig) {
 }
 ```
 
-Additionally, in unreleased versions, `error.domain` is improved on consent errors to distinguish the platform the numeric `code` came from. Android's `FormError.ErrorCode` and iOS's `UMPRequestErrorCode` both use `1..4` with different meanings, so never branch on a bare numeric consent code without it.
+Additionally, in 2.3.0, `error.domain` is improved on consent errors to distinguish the platform the numeric `code` came from. Android's `FormError.ErrorCode` and iOS's `UMPRequestErrorCode` both use `1..4` with different meanings, so never branch on a bare numeric consent code without it.
 </Aside>
 
 ## Which ConsentMode should I use?

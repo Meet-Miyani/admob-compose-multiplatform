@@ -14,6 +14,7 @@ Every row in the matrix reflects the exact toolchain and platform SDK bindings p
 
 | `admob-cmp` | Kotlin | Compose Multiplatform | Android `minSdk` | iOS deployment target |
 |---|---|---|---|---|
+| 2.3.0 | 2.3.20 | 1.11.1 | 26 | 15.0 |
 | 2.2.0 | 2.3.20 | 1.11.1 | 26 | 15.0 |
 | 2.1.0 | 2.3.20 | 1.11.1 | 26 | 15.0 |
 | 2.0.1 | 2.3.20 | 1.11.1 | 26 | 15.0 |
@@ -77,7 +78,7 @@ The SDK publishes `AdManagerStatus.Ready` after completion of the wrapper's init
 
 Google Mobile Ads invokes its initialization callback once the SDK and its adapters finish, or after its own internal timeout — on Android (`MobileAds.initialize`) and on iOS (`startWithCompletionHandler`) alike. Individual mediation adapters can fail or time out independently; `Ready` does not guarantee that every configured adapter has successfully initialized or will participate in the first ad request.
 
-To prevent hanging indefinitely if a native response never arrives, the wrapper enforces its own initialization watchdog. In **2.2.0**, this was a **30-second** bound. In **unreleased versions**, this is a **40-second** margin beyond Google's documented 30-second limit. Note that this timeout applies only to the native initialization phase, not the entire application startup sequence (which also includes consent gathering and pre-initialization hooks).
+To prevent hanging indefinitely if a native response never arrives, the wrapper enforces its own initialization watchdog. In **2.2.0** and earlier, this was a **30-second** bound. In **2.3.0**, this is a **40-second** margin beyond Google's documented 30-second limit. Note that this timeout applies only to the native initialization phase, not the entire application startup sequence (which also includes consent gathering and pre-initialization hooks).
 
 ## Consuming the library on iOS
 
