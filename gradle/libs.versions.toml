@@ -34,7 +34,7 @@ ksp = "2.3.11"
 # --- admob-cmp-core (Google Mobile Ads / UMP) ---
 gmaIos = "13.7.0"       # GMA iOS XCFramework (downloaded by admob-cmp-core at build time)
 gmaUmpIos = "3.1.0"     # UMP iOS XCFramework
-gmaNextGen = "1.3.0"    # Android GMA Next-Gen SDK
+gmaNextGen = "1.4.0"     # Android GMA Next-Gen SDK
 gmaUmp = "4.0.0"        # Android UMP (also pulled transitively by gmaNextGen)
 
 [libraries]

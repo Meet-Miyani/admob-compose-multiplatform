@@ -173,7 +173,7 @@ Underlying Google SDKs bound by 2.3.0:
 
 | SDK | Version |
 |---|---|
-| Google Mobile Ads, Android (Next-Gen) | 1.3.0 |
+| Google Mobile Ads, Android (Next-Gen) | 1.4.0 |
 | Google Mobile Ads, iOS | 13.7.0 |
 | User Messaging Platform, Android | 4.0.0 |
 | User Messaging Platform, iOS | 3.1.0 |
