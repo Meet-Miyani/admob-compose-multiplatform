@@ -21,6 +21,7 @@ class ConsentStateHolderTest {
         val generation = holder.beginOperation()
 
         val result = holder.reconcileAndPublish(
+            generation = generation,
             privacyRequirement = PrivacyOptionsRequirementStatus.Required,
             canRequestAds = true,
             status = ConsentStatus.Required,
@@ -33,20 +34,28 @@ class ConsentStateHolderTest {
     }
 
     @Test
-    fun `reconcileAndPublish unconditionally updates all three flows even for superseded generation`() {
+    fun `reconcileAndPublish reconciles truth for a superseded generation but does not publish its status`() {
         val holder = ConsentStateHolder()
+        val superseded = holder.beginOperation()
         val current = holder.beginOperation()
 
         holder.publishOperationStatus(current, ConsentStatus.Obtained)
 
         val result = holder.reconcileAndPublish(
+            generation = superseded,
             privacyRequirement = PrivacyOptionsRequirementStatus.NotRequired,
             canRequestAds = true,
             status = ConsentStatus.Required,
         )
 
-        assertEquals(ConsentStatus.Required, result, "result should be passed status value")
-        assertEquals(ConsentStatus.Required, holder.status.value, "superseded status MUST overwrite current status now")
+        assertEquals(ConsentStatus.Obtained, result, "the result is what status actually holds, not the dropped value")
+        assertEquals(
+            ConsentStatus.Obtained,
+            holder.status.value,
+            "a superseded operation's status must never overwrite the current operation's",
+        )
+        // Truth is NOT gated: the callback reads it from the UMP singleton, so it is current
+        // however late the callback is, and it can carry a revocation.
         assertEquals(PrivacyOptionsRequirementStatus.NotRequired, holder.privacyOptionsRequirementStatus.value)
         assertTrue(holder.canRequestAds.value)
     }
@@ -63,6 +72,7 @@ class ConsentStateHolderTest {
 
         // ...and later the callback for the SAME still-current generation completes with Obtained.
         val result = holder.reconcileAndPublish(
+            generation = generation,
             privacyRequirement = PrivacyOptionsRequirementStatus.NotRequired,
             canRequestAds = true,
             status = ConsentStatus.Obtained,
@@ -77,7 +87,9 @@ class ConsentStateHolderTest {
     @Test
     fun `a revocation observed by reconcileAndPublish sets canRequestAds false regardless of generation`() {
         val holder = ConsentStateHolder()
+        val first = holder.beginOperation()
         holder.reconcileAndPublish(
+            generation = first,
             privacyRequirement = PrivacyOptionsRequirementStatus.NotRequired,
             canRequestAds = true,
             status = ConsentStatus.Obtained,
@@ -87,8 +99,9 @@ class ConsentStateHolderTest {
         val current = holder.beginOperation()
         holder.publishOperationStatus(current, ConsentStatus.Obtained)
 
-        // Stale callback observes revocation
+        // Stale callback from `first` observes a revocation on the UMP singleton.
         holder.reconcileAndPublish(
+            generation = first,
             privacyRequirement = PrivacyOptionsRequirementStatus.Required,
             canRequestAds = false,
             status = ConsentStatus.Required,
@@ -96,7 +109,11 @@ class ConsentStateHolderTest {
 
         assertFalse(holder.canRequestAds.value, "revocation must close ad request gate immediately")
         assertEquals(PrivacyOptionsRequirementStatus.Required, holder.privacyOptionsRequirementStatus.value)
-        assertEquals(ConsentStatus.Required, holder.status.value, "superseded status must now overwrite current status")
+        assertEquals(
+            ConsentStatus.Obtained,
+            holder.status.value,
+            "truth is ungated, but a superseded operation's STATUS must not overwrite the current one's",
+        )
     }
 
     @Test
@@ -104,6 +121,7 @@ class ConsentStateHolderTest {
         val holder = ConsentStateHolder()
         val outstanding = holder.beginOperation()
         holder.reconcileAndPublish(
+            generation = outstanding,
             privacyRequirement = PrivacyOptionsRequirementStatus.Required,
             canRequestAds = true,
             status = ConsentStatus.Obtained,
@@ -294,8 +312,9 @@ class ConsentStateHolderTest {
     }
 
     @Test
-    fun `a superseded form callback reconciles privacy truth and publishes its status`() {
+    fun `a superseded form callback reconciles privacy truth without publishing its status`() {
         val holder = ConsentStateHolder()
+        val formGeneration = holder.beginOperation()
         val newerOperationGen = holder.beginOperation()
 
         // Newer operation finishes first and sets status
@@ -303,15 +322,20 @@ class ConsentStateHolderTest {
 
         // In-flight form eventually calls back on its older generation
         holder.reconcileAndPublish(
+            generation = formGeneration,
             privacyRequirement = PrivacyOptionsRequirementStatus.NotRequired,
             canRequestAds = true,
             status = ConsentStatus.Obtained,
         )
 
-        // All three values move together
+        // Truth moves; the superseded status does not.
         assertTrue(holder.canRequestAds.value)
         assertEquals(PrivacyOptionsRequirementStatus.NotRequired, holder.privacyOptionsRequirementStatus.value)
-        assertEquals(ConsentStatus.Obtained, holder.status.value, "superseded form callback MUST overwrite newer operation's status")
+        assertEquals(
+            ConsentStatus.NotRequired,
+            holder.status.value,
+            "a superseded form callback must not overwrite the newer operation's status",
+        )
     }
 
     @Test
@@ -330,9 +354,9 @@ class ConsentStateHolderTest {
         }
         formEntered.await()
 
-        val resetResult = holder.exclusiveOfForms(
-            presentsForm = false,
-            onFormPresenting = { false },
+        val resetResult = holder.serializedExclusiveOfNativeConsentOperations(
+            onBusy = { false },
+            declineWhileFormSlotHeld = true,
         ) {
             resetRan = true
             holder.reset()
@@ -344,6 +368,99 @@ class ConsentStateHolderTest {
 
         releaseForm.complete(Unit)
         form.join()
+    }
+
+    @Test
+    fun `reset declines to a queued form caller that only holds the slot`() = runTest {
+        val holder = ConsentStateHolder()
+        val nonFormEntered = CompletableDeferred<Unit>()
+        val releaseNonForm = CompletableDeferred<Unit>()
+        var resetRan = false
+
+        // Holds the mutex WITHOUT claiming the form slot, so the form caller below claims the slot
+        // on entry and then queues. Because reset is called after the form claims the slot,
+        // it fails the pre-lock check and declines immediately.
+        val nonForm = launch {
+            holder.serializedExclusiveOfNativeConsentOperations(onBusy = {}) {
+                nonFormEntered.complete(Unit)
+                releaseNonForm.await()
+            }
+        }
+        nonFormEntered.await()
+
+        val form = launch {
+            holder.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) { true }
+        }
+        advanceUntilIdle()
+
+        val resetResult = holder.serializedExclusiveOfNativeConsentOperations(
+            onBusy = { false },
+            declineWhileFormSlotHeld = true,
+        ) {
+            resetRan = true
+            holder.reset()
+            true
+        }
+
+        assertFalse(resetResult, "reset must decline to a form caller that has claimed the slot")
+        assertFalse(resetRan, "reset must not wipe UMP consent under a form that is about to present")
+
+        releaseNonForm.complete(Unit)
+        nonForm.join()
+        form.join()
+    }
+
+    @Test
+    fun `reset declines when a form claims the slot after reset queues`() = runTest {
+        val holder = ConsentStateHolder()
+        val nonFormEntered = CompletableDeferred<Unit>()
+        val releaseNonForm = CompletableDeferred<Unit>()
+        var resetRan = false
+        var resetBusyCount = 0
+
+        val nonForm = launch {
+            holder.serializedExclusiveOfNativeConsentOperations(onBusy = {}) {
+                nonFormEntered.complete(Unit)
+                releaseNonForm.await()
+                true
+            }
+        }
+        nonFormEntered.await()
+
+        val reset = launch {
+            val result = holder.serializedExclusiveOfNativeConsentOperations(
+                onBusy = { resetBusyCount++; false },
+                declineWhileFormSlotHeld = true,
+            ) {
+                resetRan = true
+                holder.reset()
+                true
+            }
+            assertFalse(result, "reset must return false when declined")
+        }
+
+        advanceUntilIdle()
+        assertFalse(resetRan, "reset block must not have run yet")
+        assertEquals(0, resetBusyCount, "reset must not have run its busy callback yet")
+
+        val formEntered = CompletableDeferred<Unit>()
+        val form = launch {
+            holder.exclusiveOfForms(presentsForm = true, onFormPresenting = { false }) {
+                formEntered.complete(Unit)
+                true
+            }
+        }
+
+        advanceUntilIdle()
+
+        releaseNonForm.complete(Unit)
+
+        reset.join()
+        assertFalse(resetRan, "reset block must never execute")
+        assertEquals(1, resetBusyCount, "reset busy callback must run exactly once")
+
+        form.join()
+        assertTrue(formEntered.isCompleted, "queued form must enter and complete successfully")
     }
 
     @Test
@@ -364,9 +481,9 @@ class ConsentStateHolderTest {
         nonFormEntered.await()
 
         val reset = launch {
-            val ran = holder.exclusiveOfForms(
-                presentsForm = false,
-                onFormPresenting = { false },
+            val ran = holder.serializedExclusiveOfNativeConsentOperations(
+                onBusy = { false },
+                declineWhileFormSlotHeld = true,
             ) {
                 order += "reset-ran"
                 holder.reset()
@@ -385,18 +502,19 @@ class ConsentStateHolderTest {
     }
 
     @Test
-    fun `reset inside exclusiveOfForms still invalidates an outstanding generation`() = runTest {
+    fun `reset still invalidates an outstanding generation`() = runTest {
         val holder = ConsentStateHolder()
         val outstanding = holder.beginOperation()
         holder.reconcileAndPublish(
+            generation = outstanding,
             privacyRequirement = PrivacyOptionsRequirementStatus.Required,
             canRequestAds = true,
             status = ConsentStatus.Obtained,
         )
 
-        holder.exclusiveOfForms(
-            presentsForm = false,
-            onFormPresenting = { false },
+        holder.serializedExclusiveOfNativeConsentOperations(
+            onBusy = { false },
+            declineWhileFormSlotHeld = true,
         ) {
             holder.reset()
             true
@@ -410,12 +528,16 @@ class ConsentStateHolderTest {
         holder.publishOperationStatus(outstanding, ConsentStatus.Obtained)
         assertEquals(ConsentStatus.Unknown, holder.status.value)
 
-        // An outstanding generation reconcileAndPublish overwrites Unknown status
+        // reset() claims a fresh generation, so the outstanding one is superseded: its late
+        // callback still reconciles truth, but it cannot republish a pre-reset status.
         holder.reconcileAndPublish(
+            generation = outstanding,
             privacyRequirement = PrivacyOptionsRequirementStatus.NotRequired,
             canRequestAds = true,
             status = ConsentStatus.Obtained,
         )
-        assertEquals(ConsentStatus.Obtained, holder.status.value)
+        assertEquals(ConsentStatus.Unknown, holder.status.value, "a pre-reset generation cannot republish")
+        assertEquals(PrivacyOptionsRequirementStatus.NotRequired, holder.privacyOptionsRequirementStatus.value)
+        assertTrue(holder.canRequestAds.value, "truth reconciliation survives the reset")
     }
 }

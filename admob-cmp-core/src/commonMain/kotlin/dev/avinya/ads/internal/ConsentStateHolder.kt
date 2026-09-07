@@ -49,8 +49,13 @@ internal class ConsentStateHolder(timeSource: TimeSource = TimeSource.Monotonic)
 
     suspend fun <T> serializedExclusiveOfNativeConsentOperations(
         onBusy: () -> T,
+        declineWhileFormSlotHeld: Boolean = false,
         block: suspend () -> T,
-    ): T = coordinator.serializedExclusiveOfNativeConsentOperations(onBusy, block)
+    ): T = coordinator.serializedExclusiveOfNativeConsentOperations(
+        onBusy = onBusy,
+        declineWhileFormSlotHeld = declineWhileFormSlotHeld,
+        block = block,
+    )
 
     suspend fun <T> exclusiveOfForms(
         presentsForm: Boolean,
@@ -71,23 +76,37 @@ internal class ConsentStateHolder(timeSource: TimeSource = TimeSource.Monotonic)
     fun releaseInfoUpdate(generation: Long): Unit = coordinator.releaseInfoUpdate(generation)
 
     /**
-     * Reconciles authoritative privacy truth and publishes [status] unconditionally.
-     * Returns the [status] passed in.
+     * Reconciles authoritative privacy truth UNCONDITIONALLY, then publishes [status] only if
+     * [generation] is still the current operation. Returns the value [status] now holds.
      *
-     * A callback that reports a privacy state must ALWAYS publish the status it carries,
-     * even if it arrived late (superseded by a newer operation). If a late callback carries
-     * a revocation, dropping it leaves the gate open on stale truth; dropping the status
-     * while accepting the truth leaves the flows out of sync.
+     * The two halves are gated differently, on purpose.
+     *
+     * **Truth is never dropped.** [privacyRequirement] and [canRequestAds] are read from the UMP
+     * singleton by the callback itself, so they are current however late the callback is -- and a
+     * late callback can carry a revocation. Dropping it would leave the admission gate open on
+     * stale truth, so these publish whether or not this operation was superseded.
+     *
+     * **Status is ordered.** [status] is NOT truth in that sense: it describes the outcome of ONE
+     * operation, and `resolveConsentInfoUpdateStatus` collapses any native error into
+     * `Failed(error)`. Publishing that unconditionally lets a superseded operation's stale error
+     * land on top of a newer operation's success -- e.g. a refresh that times out at
+     * `consentInfoUpdate`, a retry that succeeds, and then the first call's late error callback
+     * arriving last and overwriting the success with `Failed`. An older operation's failure
+     * must not overwrite a newer operation's success. The generation gate is what prevents
+     * that, and it is not interchangeable with the unconditional reconcile above.
      */
     fun reconcileAndPublish(
+        generation: Long,
         privacyRequirement: PrivacyOptionsRequirementStatus,
         canRequestAds: Boolean,
         status: ConsentStatus,
     ): ConsentStatus {
         _privacyOptionsRequirementStatus.value = privacyRequirement
         _canRequestAds.value = canRequestAds
-        _status.value = status
-        return status
+        if (coordinator.isCurrentOperation(generation)) {
+            _status.value = status
+        }
+        return _status.value
     }
 
     /**

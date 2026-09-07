@@ -37,6 +37,8 @@ Run every row on both platforms.
 | 11 | AdMob native ad validator reports no implementation issues | | |
 | 12 | iOS only: ordering is UMP → ATT → first ad request | n/a | |
 | 13 | Double-tap the privacy options entry point during the launch-time consent refresh → one form, and the second tap declines without a spurious failure | | |
+| 14 | Slow mediation adapter (throttled network, real mediation configured) → `Ready` is reached, not a spurious initialization failure, on both platforms | | |
+| 15 | Airplane mode during the launch-time consent refresh, then restore and retry `initialize()` immediately → the retry contacts UMP rather than declining, and `ConsentStatus` never contradicts `canRequestAds` | | |
 
 ## Devices
 

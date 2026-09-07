@@ -5,6 +5,19 @@ import dev.avinya.ads.AdError
 import dev.avinya.ads.ConsentStatus
 
 /**
+ * [AdError.domain] for errors raised by Android's UMP SDK.
+ *
+ * Load-bearing, not decoration. Android surfaces `com.google.android.ump.FormError.ErrorCode`
+ * (INTERNAL_ERROR=1, INTERNET_ERROR=2, INVALID_OPERATION=3, TIME_OUT=4) while iOS surfaces
+ * `UMPRequestErrorCode` (Internal=1, InvalidAppID=2, Network=3, Misconfiguration=4). The two
+ * enumerations occupy the SAME numeric range with DIFFERENT meanings -- "2" is a network error on
+ * Android and an invalid app ID on iOS -- so a bare [AdError.code] is ambiguous across platforms.
+ * The domain is what disambiguates it. iOS passes the `NSError`'s own domain, which already
+ * distinguishes `UMPRequestErrorDomain` from `UMPFormErrorDomain`.
+ */
+internal const val ANDROID_UMP_ERROR_DOMAIN: String = "com.google.android.ump"
+
+/**
  * The outcome of a native UMP `requestConsentInfoUpdate` operation.
  */
 internal sealed class ConsentInfoUpdateOutcome {

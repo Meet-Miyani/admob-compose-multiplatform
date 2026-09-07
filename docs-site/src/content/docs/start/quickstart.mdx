@@ -67,21 +67,89 @@ Now let's render an ad! In your top-level `@Composable` entry point, you'll grab
 
 Use a `LaunchedEffect` to initialize it with test configuration, and then display a `BannerAdView`.
 
+`AdAppIdVerification.policy` is process-wide, so set it once at your app's entry point — not from a composable. Recommended for new integrations: it turns app-ID mismatches into a deterministic `APP_ID_INVALID` failure instead of a warning, and it becomes the default in 3.0.0.
+
+### Android application module
+
+```kotlin
+package com.example
+
+import android.app.Application
+import dev.avinya.ads.AdAppIdVerification
+import dev.avinya.ads.AppIdVerificationPolicy
+
+class MyApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        AdAppIdVerification.policy = AppIdVerificationPolicy.Strict
+    }
+}
+```
+
+If your application already has a custom `Application` class, add the policy assignment to your existing `onCreate()` instead of creating a new class.
+
+Register the application in your `AndroidManifest.xml` using `android:name="com.example.MyApplication"`:
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:name="com.example.MyApplication">
+        <!-- Preserve your existing AdMob metadata -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
+    </application>
+</manifest>
+```
+
+### iOS application module
+
+Use a Kotlin startup bridge called from the existing SwiftUI application entry point. This avoids requiring consumers to export SDK types directly to Swift.
+
+```kotlin
+// iosMain
+import dev.avinya.ads.AdAppIdVerification
+import dev.avinya.ads.AppIdVerificationPolicy
+
+fun configureAdsAtStartup(): Unit {
+    AdAppIdVerification.policy = AppIdVerificationPolicy.Strict
+}
+```
+
+Then invoke the bridge at application startup in your SwiftUI `@main` application, before constructing the Compose root or starting SDK initialization:
+
+```swift
+import SwiftUI
+import Shared
+
+@main
+struct iosApp: App {
+    init() {
+        AdStartupKt.configureAdsAtStartup()
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+```
+
+`Shared` is the example umbrella-framework name and must match your consumer's framework name.
+
+### Shared Compose example
+
+Then initialize from your composable entry point:
+
 ```kotlin
 import androidx.compose.runtime.CompositionLocalProvider
 import dev.avinya.ads.LocalAdManager
-import dev.avinya.ads.AdAppIdVerification
-import dev.avinya.ads.AppIdVerificationPolicy
 
 @Composable
 fun App() {
     val adManager = rememberAdManager()
 
     LaunchedEffect(adManager) {
-        // Recommended setting for new integrations. Note it must be set at app startup, before the first initialize().
-        // It turns app-ID mismatches into a deterministic APP_ID_INVALID failure instead of a warning, and it becomes the default in 3.0.0.
-        AdAppIdVerification.policy = AppIdVerificationPolicy.Strict
-
         adManager.gatherConsentAndInitialize(
             AdConfig(
                 androidAppId = TestAdIds.ANDROID_APP_ID,

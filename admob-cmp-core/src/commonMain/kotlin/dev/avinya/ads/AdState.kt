@@ -14,10 +14,14 @@ public sealed interface AdManagerStatus {
     /** SDK is in the process of initializing. */
     public data object Initializing : AdManagerStatus
     /**
-     * SDK publishes [Ready] after the platform's initialization callback reports.
-     * On Android, this means mediation adapters have finished initializing, so every
-     * configured network can participate in the first request. A slow adapter delays
-     * [Ready] up to `InitializationTimeouts.nativeInitialize`.
+     * SDK is fully initialized and ready to serve ads.
+     *
+     * Published after completion of the wrapper's initialization path, allowing requests subject to
+     * the existing admission gates. Google's callback can arrive after initialization completes or
+     * after its internal timeout. Individual mediation adapters can fail or time out independently;
+     * there is no guarantee that every configured mediation adapter has successfully initialized or
+     * will participate in the first request. The wrapper waits up to 40 seconds as a margin beyond
+     * Google's documented 30-second bound.
      */
     public data object Ready : AdManagerStatus
     /** SDK is disabled with a [reason] message. */

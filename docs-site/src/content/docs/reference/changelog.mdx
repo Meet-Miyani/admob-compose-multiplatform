@@ -33,30 +33,28 @@ Release details and release assets for all versions are published on the
 
 ### Fixes
 
-Initialization previously stranded the manager in a non-`Ready` state when the caller that started it was cancelled after the native handoff, blocking every ad request while GMA was initialized. Initialization now reaches `Ready` when the caller that started it was cancelled after the native handoff. Concurrent equivalent `initialize()` callers no longer cancel each other.
+**Initialization no longer strands the manager in a non-`Ready` state** when the caller that started it was cancelled after the native handoff. Previously that blocked every ad request while GMA was in fact initialized. Concurrent equivalent `initialize()` callers also no longer cancel each other.
 
-Two consent form callers that queued behind a launch-time consent info update could previously both proceed, so the second presented the moment the first form was dismissed — into a preload slot UMP had just consumed, which both platforms report as a form error rather than a second form. A form operation now claims the form slot when it is called rather than when it reaches the front of the queue, so the second caller declines.
+**The native initialization watchdog no longer races GMA's own completion bound, on either platform.** GMA invokes its completion once the SDK and its mediation adapters finish *or* after its own 30-second bound — the same on Android (`MobileAds.initialize`) and iOS (`startWithCompletionHandler`). The wrapper's watchdog was set to that same 30 seconds, so a slow but ultimately successful mediation setup could be reported as an initialization failure. It now waits 40 seconds on both platforms.
 
-The iOS initialization watchdog previously raced GMA's own completion bound. It no longer does so. iOS consent-form errors previously lacked parity with Android. They are now logged with parity to Android. `doctorIos` previously reported a commented-out `GADApplicationIdentifier` as configured. It no longer does so.
+**Two consent form callers queued behind a launch-time consent info update could both proceed**, so the second presented the moment the first was dismissed — into a preload slot UMP had just consumed, which both platforms report as a form error rather than a second form. A form operation now claims the form slot when it is called rather than when it reaches the front of the queue, so the second caller declines.
+
+**A timed-out consent info update no longer blocks the retry that follows it.** The operation's pin is released when the wrapper declares it dead, instead of lingering and making the next `requestConsentInfoUpdate` — including the one `initialize(InitializeOnlyIfAlreadyAllowed)` performs — decline without contacting UMP.
+
+**Consent errors now carry a usable `AdError.domain`.** Android's `FormError.ErrorCode` and iOS's `UMPRequestErrorCode` occupy the same `1..4` numeric range with different meanings, so `AdError.code` alone was ambiguous across platforms.
+
+`resetConsentForDebug()` again declines while a consent form operation holds the form slot. iOS consent-form errors are now logged with parity to Android. `doctorIos` no longer reports a commented-out `GADApplicationIdentifier` as configured.
 
 ### Behaviour changes
 
-A late UMP consent callback might previously not override a newer operation's status. `ConsentStatus` now always reflects current UMP truth, so a late callback can overwrite a newer operation's status — that operation's failure remains its own return value.
+<Aside type="caution" title="Behaviour changes">
+Three changes affect what `ConsentStatus` your code sees. Admission (`canRequestAds`) is unchanged by all three — it still carries whatever the last completed refresh established, which is what [UMP's own guidance](https://developers.google.com/admob/android/privacy) says to check when a consent operation reports an error.
 
-<Aside type="caution" title="Behaviour change">
-`ConsentStatus` now always reflects current UMP truth, so a late callback can overwrite a newer operation's status — that operation's failure remains its own return value. Admission (`canRequestAds`) is unchanged, and `gatherConsent` no longer presents a form after a *timed-out* refresh while still presenting one after a completed-with-error refresh.
-</Aside>
+1. **A failed consent refresh now returns `Failed`** rather than the mapped native status, even when a previous session's admission still permits ads.
+2. **`requestConsentInfoUpdate` can now return `Failed`** when it declines because another native consent operation is still outstanding. This busy error is returned to the declined caller and does not overwrite shared published status. It carries `AdErrorCode.CONSENT_OPERATION_IN_PROGRESS`. Wait for the existing operation to finish before retrying if the action is still needed.
+3. **`gatherConsent` no longer presents a form after a *timed-out* refresh**, while it still presents one after a refresh that completed with an error.
 
-A failed consent refresh previously returned the mapped native status. A failed consent refresh now returns `Failed` instead of the mapped native status even when prior-session admission still permits ads.
-
-<Aside type="caution" title="Behaviour change">
-A failed consent refresh now returns `Failed` instead of the mapped native status even when prior-session admission still permits ads. Admission (`canRequestAds`) is unchanged, and `gatherConsent` no longer presents a form after a *timed-out* refresh while still presenting one after a completed-with-error refresh.
-</Aside>
-
-An abandoned native consent operation might previously not explicitly decline subsequent update requests. `requestConsentInfoUpdate` can now return `Failed` when it declines because an abandoned native consent operation is still live.
-
-<Aside type="caution" title="Behaviour change">
-`requestConsentInfoUpdate` can now return `Failed` when it declines because an abandoned native consent operation is still live. Admission (`canRequestAds`) is unchanged, and `gatherConsent` no longer presents a form after a *timed-out* refresh while still presenting one after a completed-with-error refresh.
+A late UMP callback still reconciles privacy truth unconditionally — a revocation is never dropped — but a superseded callback cannot overwrite a newer operation's published status, while callback reconciliation still refreshes current native privacy/admission values. It remains a valid case for an operation to return or publish `Failed` while `canRequestAds` remains `true` (if a previous completed refresh permitted ads).
 </Aside>
 
 ## What changed in 2.2.0?
