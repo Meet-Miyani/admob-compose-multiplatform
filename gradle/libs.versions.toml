@@ -1,13 +1,13 @@
 [versions]
-# Unified on admob-cmp's blessed toolchain (Kotlin 2.4.20 / AGP 9.3.1 / Gradle 9.5.0).
+# Unified on admob-cmp's blessed toolchain (Kotlin 2.4.20 / AGP 9.4.0 / Gradle 9.7.1).
 # A single Gradle build applies one Kotlin plugin version to every module, so the demo app
 # rides the library's. The experimental abiValidation DSL that guards the frozen ABI changed
 # shape in 2.4.x: the `enabled` property is gone and declaring the block is what enables it.
-# AGP 9.3.1 requires Gradle 9.5.0, so `gradle/wrapper/gradle-wrapper.properties` is pinned there
-# and the two move in lockstep. A consuming app that includes this build runs it under THEIR
+# AGP 9.4.0 requires Gradle 9.6.0 or newer, so `gradle/wrapper/gradle-wrapper.properties`
+# is pinned at 9.7.1 and the two move in lockstep. A consuming app that includes this build runs it under THEIR
 # wrapper, so a mismatch is invisible from the app and surfaces only in a standalone build — which
 # is the one `scripts/release-readiness.sh` uses, and therefore the one that gates every release.
-agp = "9.3.1"
+agp = "9.4.0"
 android-compileSdk = "37"
 android-minSdk = "26"
 android-targetSdk = "36"
@@ -16,7 +16,7 @@ androidx-lifecycle = "2.11.0"
 # admob-cmp uses the pure-AndroidX lifecycle-process (NOT the CMP lifecycle above).
 # Kept separate so the demo app can stay on 2.11.0 while the module pins 2.10.0.
 androidx-lifecycleProcess = "2.10.0"
-composeMultiplatform = "1.11.1"
+composeMultiplatform = "1.12.0"
 kotlin = "2.4.20"
 kotlinx-coroutines = "1.11.0"
 material3 = "1.11.0-alpha07"
