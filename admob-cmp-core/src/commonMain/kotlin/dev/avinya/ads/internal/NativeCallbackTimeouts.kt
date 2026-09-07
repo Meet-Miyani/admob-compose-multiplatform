@@ -20,16 +20,20 @@ import kotlinx.coroutines.withTimeoutOrNull
  * the wrapper keeps BELIEVING a form is on screen, never the form itself.
  */
 internal object InitializationTimeouts {
-    /** Native `MobileAds.initialize` / `GADMobileAds.start`. */
-    val nativeInitialize: Duration = 30.seconds
-
     /**
-     * GMA iOS documents that `startWithCompletionHandler` fires after setup completes *or* after
-     * its own ~30-second internal bound, so an outer watchdog set to the same nominal value can
-     * win the race and report a false failure for a slow mediation setup — exactly the case the
-     * native fallback exists to resolve.
+     * Native `MobileAds.initialize` / `GADMobileAds.start`.
+     *
+     * Deliberately GREATER than the 30 seconds GMA itself waits. Both platforms document the same
+     * internal bound — the completion fires once the SDK and its mediation adapters finish
+     * initializing, *or* after a 30-second timeout (GMA Next-Gen Android `MobileAds.initialize`,
+     * GMA iOS `startWithCompletionHandler`). An outer watchdog set to that same nominal value
+     * races GMA's own fallback and can report a false failure for a slow — but ultimately
+     * successful — mediation setup, which is precisely the case that fallback exists to resolve.
+     *
+     * One value, not one per platform: the bound being defended against is identical on both, so a
+     * platform-specific constant would only let the two drift apart again.
      */
-    val nativeInitializeIos: Duration = 40.seconds
+    val nativeInitialize: Duration = 40.seconds
 
     /** UMP `requestConsentInfoUpdate` — a network round trip with no user interaction. */
     val consentInfoUpdate: Duration = 20.seconds
@@ -77,7 +81,14 @@ internal object InitializationTimeouts {
     val formPresentationPin: Duration = 5.minutes
 
     /**
-     * How long the native info update stays pinned.
+     * Backstop for a native info update whose caller was CANCELLED.
+     *
+     * The bounded-wait path releases its own pin when [consentInfoUpdate] expires: at that point
+     * the wrapper has already declared the operation dead and published a terminal status, so
+     * continuing to refuse later operations on its behalf would block the very retry UMP's own
+     * guidance asks for ("request an update to consent information on every app launch").
+     * Cancellation has no such moment — the coroutine simply unwinds — so this pin is what stops a
+     * cancelled caller from stranding the slot, and it must outlive [consentInfoUpdate] to do it.
      */
     val infoUpdatePin: Duration = 30.seconds
 }

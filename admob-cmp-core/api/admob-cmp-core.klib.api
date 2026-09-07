@@ -1696,6 +1696,8 @@ final object dev.avinya.ads/AdAppIdVerification { // dev.avinya.ads/AdAppIdVerif
 final object dev.avinya.ads/AdErrorCode { // dev.avinya.ads/AdErrorCode|null[0]
     final const val APP_ID_INVALID // dev.avinya.ads/AdErrorCode.APP_ID_INVALID|{}APP_ID_INVALID[0]
         final fun <get-APP_ID_INVALID>(): kotlin/String // dev.avinya.ads/AdErrorCode.APP_ID_INVALID.<get-APP_ID_INVALID>|<get-APP_ID_INVALID>(){}[0]
+    final const val CONSENT_OPERATION_IN_PROGRESS // dev.avinya.ads/AdErrorCode.CONSENT_OPERATION_IN_PROGRESS|{}CONSENT_OPERATION_IN_PROGRESS[0]
+        final fun <get-CONSENT_OPERATION_IN_PROGRESS>(): kotlin/String // dev.avinya.ads/AdErrorCode.CONSENT_OPERATION_IN_PROGRESS.<get-CONSENT_OPERATION_IN_PROGRESS>|<get-CONSENT_OPERATION_IN_PROGRESS>(){}[0]
     final const val CONSENT_REQUIRED // dev.avinya.ads/AdErrorCode.CONSENT_REQUIRED|{}CONSENT_REQUIRED[0]
         final fun <get-CONSENT_REQUIRED>(): kotlin/String // dev.avinya.ads/AdErrorCode.CONSENT_REQUIRED.<get-CONSENT_REQUIRED>|<get-CONSENT_REQUIRED>(){}[0]
     final const val INITIALIZATION_CONFLICT // dev.avinya.ads/AdErrorCode.INITIALIZATION_CONFLICT|{}INITIALIZATION_CONFLICT[0]

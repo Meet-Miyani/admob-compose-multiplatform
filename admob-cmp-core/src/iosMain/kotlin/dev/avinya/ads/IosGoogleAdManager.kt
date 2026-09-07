@@ -125,7 +125,7 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
         // reported as applied. See GoogleAdManagerBase.handedOffConfigIdentity.
         awaitNativeCallback(
             operation = "GADMobileAds.start",
-            timeout = InitializationTimeouts.nativeInitializeIos
+            timeout = InitializationTimeouts.nativeInitialize
         ) {
             suspendCancellableCoroutine<Unit> { continuation ->
                 GADMobileAds.sharedInstance.startWithCompletionHandler { status ->

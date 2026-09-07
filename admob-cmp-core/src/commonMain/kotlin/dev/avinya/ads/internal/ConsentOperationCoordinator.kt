@@ -107,13 +107,16 @@ internal class ConsentOperationCoordinator(
      * exactly that case -- today that is `gatherConsent`, deliberately, for the reason recorded on
      * [exclusiveOfForms]. The overlap is not defined by UMP either way, so it is worth saying out
      * loud in the log rather than leaving a consumer to infer it from two interleaved round trips.
+     *
+     * A pin found live here belongs to a CANCELLED caller. The bounded-wait path releases its own
+     * pin on timeout, so a timed-out operation never reaches this warning.
      */
     fun markInfoUpdateStarted(generation: Long) {
         if (liveInfoUpdateOrNull() != null) {
             AdLogger.w(
                 "Starting a UMP consent info update while an earlier one has not reported back. " +
-                    "The earlier call was abandoned by its caller (timed out or cancelled) and UMP " +
-                    "may still be working on it. Overlapping info updates are not defined by UMP; " +
+                    "The earlier call was abandoned when its caller was cancelled and UMP may " +
+                    "still be working on it. Overlapping info updates are not defined by UMP; " +
                     "the wrapper's own state stays coherent because the abandoned call's callback " +
                     "can no longer publish over this one."
             )
@@ -139,24 +142,40 @@ internal class ConsentOperationCoordinator(
     /**
      * Serialized execution that declines via [onBusy] if a native consent operation (form or info
      * update) is already in progress and has outlived its coroutine.
+     *
+     * [declineWhileFormSlotHeld] additionally declines while a form operation merely HOLDS the
+     * slot -- claimed on entry, possibly still queued for [operationMutex] and not yet on screen.
+     * Only `resetConsentForDebug` sets it, and it is the guard that moved when reset stopped going
+     * through [exclusiveOfForms]: wiping UMP's stored consent out from under a form caller that is
+     * about to present is not something [operationMutex] can prevent, because the claim is made
+     * BEFORE the wait and a reset can legitimately win the lock first.
+     *
+     * Every other caller leaves it false. An info update MUST queue behind a form rather than
+     * fail -- a launch-time refresh that returns "unavailable" instead of getting its form is a
+     * spurious error in front of a person. See [exclusiveOfForms].
      */
     suspend fun <T> serializedExclusiveOfNativeConsentOperations(
         onBusy: () -> T,
+        declineWhileFormSlotHeld: Boolean = false,
         block: suspend () -> T,
     ): T {
         // Pre-lock, decline ONLY on a native form handoff -- a form can be on screen with no
         // mutex holder, so waiting for the lock would be waiting for nothing. Deliberately NOT
-        // formIsLive(): slotHoldsForm means a form operation has claimed the slot but has not
-        // presented anything yet -- it may hold the mutex, or may still be queued for it -- and
-        // either way an info update must queue behind it exactly as it always has rather than fail.
+        // formIsLive() unless the caller opted in: slotHoldsForm means a form operation has claimed
+        // the slot but has not presented anything yet -- it may hold the mutex, or may still be
+        // queued for it -- and either way an info update must queue behind it rather than fail.
         if (liveHandoffOrNull() != null) return onBusy()
+        if (declineWhileFormSlotHeld && slotHoldsForm) return onBusy()
 
         return serialized {
-            // Post-lock, re-check BOTH pins. A pin still live once the mutex has been acquired
-            // can only belong to an operation whose waiter is gone (timed out or cancelled) while
-            // UMP is still working -- the abandoned case, and the only one that declines. Two live
-            // concurrent callers never reach here together, so they still queue and both run.
+            // Post-lock, re-check the pins. A pin still live once the mutex has been acquired can
+            // only belong to an operation whose caller was cancelled while UMP is still working --
+            // the abandoned case, and the only one that declines. Two live concurrent callers never
+            // reach here together, so they still queue and both run.
             if (liveHandoffOrNull() != null || liveInfoUpdateOrNull() != null) return@serialized onBusy()
+            // Re-checked under the lock for the same reason the pins are: a form caller can claim
+            // the slot while this one is queued.
+            if (declineWhileFormSlotHeld && slotHoldsForm) return@serialized onBusy()
             block()
         }
     }

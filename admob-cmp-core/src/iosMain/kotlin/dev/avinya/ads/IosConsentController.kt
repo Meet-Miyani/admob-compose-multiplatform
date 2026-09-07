@@ -62,7 +62,10 @@ internal class IosConsentController(
             state.serializedExclusiveOfNativeConsentOperations(
                 onBusy = {
                     ConsentStatus.Failed(
-                        AdError.message("requestConsentInfoUpdate() ignored: another native consent operation is already in progress.")
+                        AdError(
+                            code = AdErrorCode.CONSENT_OPERATION_IN_PROGRESS,
+                            message = "requestConsentInfoUpdate() ignored: another native consent operation is already in progress.",
+                        )
                     )
                 }
             ) {
@@ -113,11 +116,16 @@ internal class IosConsentController(
                             AdError(
                                 code = (it.code ?: 0).toString(),
                                 message = it.localizedDescription ?: "Consent info update failed.",
+                                // UMPRequestErrorCode occupies the same 1..4 range as Android's
+                                // FormError.ErrorCode with different meanings, so the domain is
+                                // what tells a consumer which enumeration this code belongs to.
+                                domain = it.domain,
                             )
                         }
                         reconcileThenResumeIfActive(continuation, Unit) {
                             state.releaseInfoUpdate(generation)
                             state.reconcileAndPublish(
+                                generation = generation,
                                 privacyRequirement = privacyRequirementOf(consentInformation),
                                 canRequestAds = consentInformation.canRequestAds,
                                 status = resolveConsentInfoUpdateStatus(
@@ -131,6 +139,11 @@ internal class IosConsentController(
             }
         } catch (timeout: NativeCallbackTimeoutException) {
             AdLogger.e("iOS UMP consent info update timed out.", timeout)
+            // Released HERE, not left to the backstop. Past this line the wrapper has declared the
+            // operation dead and is publishing a terminal status for it, so holding the pin would
+            // only refuse the retry UMP's own guidance asks for. The late callback below still
+            // reconciles privacy truth if UMP ever answers; it just no longer gates anyone.
+            state.releaseInfoUpdate(generation)
             val status = state.publishOperationStatus(generation, consentInfoUpdateTimeoutStatus(timeout.message))
             return ConsentInfoUpdateOutcome.TimedOut(status)
         }
@@ -143,7 +156,10 @@ internal class IosConsentController(
                 presentsForm = true,
                 onFormPresenting = {
                     ConsentStatus.Failed(
-                        AdError.message("gatherConsent() ignored: another consent form operation is already in progress.")
+                        AdError(
+                            code = AdErrorCode.CONSENT_OPERATION_IN_PROGRESS,
+                            message = "gatherConsent() ignored: another consent form operation is already in progress.",
+                        )
                     )
                 },
             ) {
@@ -183,7 +199,13 @@ internal class IosConsentController(
                     UMPConsentForm.loadAndPresentIfRequiredFromViewController(rootVC) { error ->
                         val errorStatus = if (error != null) {
                             AdLogger.w("UMP consent form load/show failed: code=${error.code} message=${error.localizedDescription}")
-                            ConsentStatus.Failed(AdError(code = error.code.toString(), message = error.localizedDescription))
+                            ConsentStatus.Failed(
+                                AdError(
+                                    code = error.code.toString(),
+                                    message = error.localizedDescription,
+                                    domain = error.domain,
+                                )
+                            )
                         } else null
 
                         // Reconciliation must not be conditional on the caller still being around —
@@ -193,9 +215,14 @@ internal class IosConsentController(
                         reconcileThenResumeIfActive(continuation, errorStatus) {
                             state.releaseFormPresentation(generation)
                             state.reconcileAndPublish(
+                                generation = generation,
                                 privacyRequirement = privacyRequirementOf(consentInformation),
                                 canRequestAds = consentInformation.canRequestAds,
-                                status = consentInformationStatus(consentInformation),
+                                // The published status and the returned one are the SAME value.
+                                // Returning Failed while publishing the native status would let one
+                                // consumer await an error and another collect success for the very
+                                // same form. Admission is reconciled above either way.
+                                status = errorStatus ?: consentInformationStatus(consentInformation),
                             )
                         }
                     }
@@ -232,6 +259,7 @@ internal class IosConsentController(
                         reconcileThenResumeIfActive(continuation, error == null) {
                             state.releaseFormPresentation(generation)
                             state.reconcileAndPublish(
+                                generation = generation,
                                 privacyRequirement = privacyRequirementOf(consentInformation),
                                 canRequestAds = consentInformation.canRequestAds,
                                 status = consentInformationStatus(consentInformation),
@@ -260,6 +288,10 @@ internal class IosConsentController(
                 )
                 false
             },
+            // Restores the guard reset had under exclusiveOfForms(presentsForm = false): a form
+            // caller claims the slot BEFORE waiting for the mutex, so the mutex alone cannot stop a
+            // reset from wiping UMP's stored consent out from under one that is about to present.
+            declineWhileFormSlotHeld = true,
         ) {
             state.reset()
             UMPConsentInformation.sharedInstance.reset()

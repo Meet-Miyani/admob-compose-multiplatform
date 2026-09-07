@@ -68,6 +68,21 @@ public object AdErrorCode {
      * initialize() once", this one means "fix the app bundle and rebuild".
      */
     public const val APP_ID_INVALID: String = "app_id_invalid"
+
+    /**
+     * A consent entry point declined because another native UMP operation is still outstanding.
+     *
+     * **Retryable, and usually within seconds.** This is not a consent failure: it means a form is
+     * on screen, or an earlier native call's caller was cancelled while UMP may still be working.
+     * Nothing about the user's consent has changed, and [canRequestAds][ConsentController.canRequestAds]
+     * still carries whatever the last completed refresh established -- which, per UMP's own
+     * guidance, is what to check when a consent operation reports an error.
+     *
+     * Distinguishing this from an ordinary [ConsentStatus.Failed] matters: without it a consumer
+     * cannot tell a transient, self-clearing decline from consent being genuinely broken, and will
+     * show a person an error for a condition that resolves on its own.
+     */
+    public const val CONSENT_OPERATION_IN_PROGRESS: String = "consent_operation_in_progress"
 }
 
 

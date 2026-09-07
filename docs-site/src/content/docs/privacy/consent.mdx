@@ -55,6 +55,39 @@ network failure on the consent-info update endpoint, which is a
 transient condition and can be retried. A persistent `Failed`
 state usually points to a misconfigured AdMob app ID or missing App ID settings.
 
+Two things are worth checking before you show a person an error.
+
+**`canRequestAds` is the value that matters.** A failed refresh does not revoke
+consent: UMP keeps whatever the last completed refresh established, so
+`consent.canRequestAds` may still be `true` and ads may still serve while
+`status` reads `Failed`. This is [what Google's own guidance recommends
+checking](https://developers.google.com/admob/android/privacy) when a consent
+operation reports an error.
+
+**Check `error.code` for `AdErrorCode.CONSENT_OPERATION_IN_PROGRESS`.** That code
+means the call declined because another native UMP operation was still
+outstanding — a form on screen, or an earlier call whose caller was cancelled. It
+is retryable within seconds and is not a consent failure, so it should not surface
+to a person as one.
+
+```kotlin
+when (val status = adManager.consent.status.value) {
+    is ConsentStatus.Failed ->
+        if (status.error.code == AdErrorCode.CONSENT_OPERATION_IN_PROGRESS) {
+            // Transient. Retry shortly; nothing to tell the user.
+        } else if (adManager.consent.canRequestAds.value) {
+            // Refresh failed, but a previous session's choice still permits ads.
+        } else {
+            // A real consent problem worth surfacing.
+        }
+    else -> Unit
+}
+```
+
+`error.domain` distinguishes the platform the numeric `code` came from. Android's
+`FormError.ErrorCode` and iOS's `UMPRequestErrorCode` both use `1..4` with
+different meanings, so never branch on a bare numeric consent code without it.
+
 ## Which ConsentMode should I use?
 
 ```kotlin

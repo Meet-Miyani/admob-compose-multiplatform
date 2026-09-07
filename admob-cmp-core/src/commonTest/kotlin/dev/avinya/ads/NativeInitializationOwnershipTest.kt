@@ -20,19 +20,24 @@ import kotlinx.coroutines.yield
 class NativeInitializationOwnershipTest {
 
     @Test
-    fun `iOS native initialization timeout is strictly greater than GMA internal bound`() {
-        val iosTimeout = InitializationTimeouts.nativeInitializeIos
-        val androidTimeout = InitializationTimeouts.nativeInitialize
-        
+    fun `the native initialization watchdog outlasts GMA's own internal bound`() {
+        // Both platforms document the SAME bound, not just iOS: the completion fires once the SDK
+        // and its mediation adapters finish initializing, "or after a 30-second timeout" (GMA
+        // Next-Gen Android MobileAds.initialize, GMA iOS startWithCompletionHandler). A wrapper
+        // watchdog set to that same nominal value races GMA's own fallback and turns a slow -- but
+        // ultimately successful -- mediation setup into a false initialization failure.
+        //
+        // Asserted against the documented bound rather than against the other platform's constant:
+        // a relative assertion was what let Android keep racing while iOS was fixed.
         assertTrue(
-            iosTimeout > 30.seconds,
-            "iOS timeout must be > 30s to win the race against GMA's internal watchdog"
-        )
-        assertTrue(
-            iosTimeout > androidTimeout,
-            "iOS timeout must be greater than the default/Android timeout"
+            InitializationTimeouts.nativeInitialize > gmaInternalCompletionBound,
+            "the wrapper watchdog must outlast GMA's own $gmaInternalCompletionBound bound on " +
+                "every platform, or a slow mediation setup races it into a false failure",
         )
     }
+
+    /** What GMA itself waits before invoking its completion regardless of adapter state. */
+    private val gmaInternalCompletionBound = 30.seconds
 
     private fun config(appId: String) = AdConfig(
         androidAppId = appId,
