@@ -12,11 +12,12 @@ import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 All published artifacts live under `dev.avinya.ads` on Maven Central:
 `admob-cmp`, `admob-cmp-core`, `admob-cmp-compose`, and the
 `dev.avinya.ads.admob-cmp.gradle.plugin` marker. The current
-release is **2.3.0**.
+release is **2.4.0**.
 
 | Version | Status | Highlights |
 |---|---|---|
-| 2.3.0 | Current | Initialization no longer strands a cancelled caller outside `Ready`, 40-second init watchdog, form-slot claimed on entry, released pin after a timed-out info update, platform-qualified consent `AdError.domain`, new `CONSENT_OPERATION_IN_PROGRESS` code |
+| 2.4.0 | Current | Kotlin 2.4.20, Compose Multiplatform 1.12.0, GMA Next-Gen 1.4.0 (Android), GMA iOS 13.9.0 — a toolchain and bound-SDK refresh, no public API change |
+| 2.3.0 | Superseded | Initialization no longer strands a cancelled caller outside `Ready`, 40-second init watchdog, form-slot claimed on entry, released pin after a timed-out info update, platform-qualified consent `AdError.domain`, new `CONSENT_OPERATION_IN_PROGRESS` code |
 | 2.2.0 | Superseded | Non-retryable `initialize()` conflicts, serialized consent operations, bounded startup timeouts, constructor-time configuration validation, configurable `AdLogger` and app ID verification policy |
 | 2.1.0 | Superseded | Native-ad renderer parity across Android, iOS, and preview; themeable templates |
 | 2.0.1 | Superseded | Native-ad custom fonts, renderer parity, synchronous leases, and grid sessions |
@@ -29,6 +30,18 @@ release is **2.3.0**.
 
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
+
+## 2.4.0
+
+### Toolchain and SDK versions
+
+Kotlin 2.3.20 -> 2.4.20, Compose Multiplatform 1.11.1 -> 1.12.0, AGP 9.3.1 -> 9.4.0, Gradle 9.5.0 -> 9.7.1. Bound Google SDKs: Google Mobile Ads Next-Gen (Android) 1.3.0 -> 1.4.0, GoogleMobileAds (iOS) 13.7.0 -> 13.9.0, staying inside the `13.x` major the published cinterop bindings target. User Messaging Platform is unchanged on both platforms (Android 4.0.0, iOS 3.1.0), already the latest release of each.
+
+The public API is unchanged. `admob-cmp-core.klib.api` and `admob-cmp-compose.klib.api` are byte-identical to 2.3.0 — this release adds and removes nothing from the frozen ABI.
+
+<Aside type="caution" title="Cross-Kotlin-minor consumers on iOS">
+`admob-cmp` publishes cinterop klibs, which the [compatibility matrix](/reference/compatibility/) documents as excluded from klib backward compatibility. Moving the compiled-against Kotlin minor from 2.3.20 to 2.4.20 is exactly the scenario that guarantee does not cover. If your project links `admob-cmp` from a Kotlin 2.3.x toolchain, verify your iOS link step before adopting 2.4.0 — it is not guaranteed to resolve the same way a plain (non-cinterop) klib would across a Kotlin minor version change.
+</Aside>
 
 ## 2.3.0
 

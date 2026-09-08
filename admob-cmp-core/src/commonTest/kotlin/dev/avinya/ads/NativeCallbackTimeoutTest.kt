@@ -49,7 +49,12 @@ class NativeCallbackTimeoutTest {
         // catch (CancellationException) arms that restore the previous status and treat the attempt
         // as abandoned. withTimeout would raise TimeoutCancellationException -- a CancellationException
         // -- so every timeout would be silently swallowed as "the caller walked away".
-        val failure = assertFailsWith<NativeCallbackTimeoutException> {
+        // Typed as Throwable on purpose. Kotlin 2.4 reports IMPOSSIBLE_IS_CHECK_ERROR for an
+        // is-check the compiler can already prove, and it can prove this one from the narrow
+        // type assertFailsWith returns. Widening keeps the assertion a real runtime guard: if
+        // NativeCallbackTimeoutException ever gains CancellationException as a supertype, this
+        // test fails instead of silently compiling away.
+        val failure: Throwable = assertFailsWith<NativeCallbackTimeoutException> {
             awaitNativeCallback("op", 5.seconds) { awaitCancellation() }
         }
         assertTrue(failure !is CancellationException, "a timeout must be distinguishable from cancellation")

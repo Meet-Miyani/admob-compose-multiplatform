@@ -1,29 +1,30 @@
 [versions]
-# Unified on admob-cmp's blessed toolchain (Kotlin 2.3.20 / AGP 9.3.1 / Gradle 9.5.0).
-# The module's frozen ABI + experimental abiValidation DSL require Kotlin 2.3.20; a single
-# Gradle build applies one Kotlin plugin version to every module, so the demo app rides it too.
-# AGP 9.3.1 requires Gradle 9.5.0, so `gradle/wrapper/gradle-wrapper.properties` is pinned there
-# and the two move in lockstep. A consuming app that includes this build runs it under THEIR
+# Unified on admob-cmp's blessed toolchain (Kotlin 2.4.20 / AGP 9.4.0 / Gradle 9.7.1).
+# A single Gradle build applies one Kotlin plugin version to every module, so the demo app
+# rides the library's. The experimental abiValidation DSL that guards the frozen ABI changed
+# shape in 2.4.x: the `enabled` property is gone and declaring the block is what enables it.
+# AGP 9.4.0 requires Gradle 9.6.0 or newer, so `gradle/wrapper/gradle-wrapper.properties`
+# is pinned at 9.7.1 and the two move in lockstep. A consuming app that includes this build runs it under THEIR
 # wrapper, so a mismatch is invisible from the app and surfaces only in a standalone build — which
 # is the one `scripts/release-readiness.sh` uses, and therefore the one that gates every release.
-agp = "9.3.1"
+agp = "9.4.0"
 android-compileSdk = "37"
 android-minSdk = "26"
-android-targetSdk = "36"
+android-targetSdk = "37"
 androidx-activity = "1.13.0"
 androidx-lifecycle = "2.11.0"
 # admob-cmp uses the pure-AndroidX lifecycle-process (NOT the CMP lifecycle above).
 # Kept separate so the demo app can stay on 2.11.0 while the module pins 2.10.0.
 androidx-lifecycleProcess = "2.10.0"
-composeMultiplatform = "1.11.1"
-kotlin = "2.3.20"
+composeMultiplatform = "1.12.0"
+kotlin = "2.4.20"
 kotlinx-coroutines = "1.11.0"
 material3 = "1.11.0-alpha07"
-mockito = "5.15.2"
+mockito = "5.23.0"
 androidx-datastore = "1.2.1"
-androidx-nav3Runtime = "1.1.5"
+androidx-nav3Runtime = "1.1.7"
 androidx-nav3Ui = "1.1.1"
-androidx-paging = "3.5.0"
+androidx-paging = "3.5.1"
 androidx-room = "2.8.4"
 androidx-sqlite = "2.7.0"
 ksp = "2.3.11"
@@ -32,9 +33,9 @@ ksp = "2.3.11"
 
 
 # --- admob-cmp-core (Google Mobile Ads / UMP) ---
-gmaIos = "13.7.0"       # GMA iOS XCFramework (downloaded by admob-cmp-core at build time)
+gmaIos = "13.9.0"       # GMA iOS XCFramework (downloaded by admob-cmp-core at build time)
 gmaUmpIos = "3.1.0"     # UMP iOS XCFramework
-gmaNextGen = "1.3.0"    # Android GMA Next-Gen SDK
+gmaNextGen = "1.4.0"     # Android GMA Next-Gen SDK
 gmaUmp = "4.0.0"        # Android UMP (also pulled transitively by gmaNextGen)
 
 [libraries]

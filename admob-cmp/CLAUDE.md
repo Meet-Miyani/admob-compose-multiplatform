@@ -29,9 +29,11 @@ AGENTS.md, not this file.
 - `explicitApi()` is on **and** KGP ABI validation is enforced: after ANY public
   API change run `./gradlew :admob-cmp:updateKotlinAbi` and commit
   `api/admob-cmp.klib.api`, or the build fails. The DSL is still experimental and
-  `enabled` defaults to false — an empty `abiValidation {}` block leaves both
-  `updateKotlinAbi` and `checkKotlinAbi` silently SKIPPED, so keep the explicit
-  `enabled.set(true)` and the `@OptIn(ExperimentalAbiValidation::class)`.
+  its shape changed in Kotlin 2.4.x: the `enabled` property was **removed**, and
+  declaring the `abiValidation { }` block is now itself what turns validation on,
+  so keep the block and the `@OptIn(ExperimentalAbiValidation::class)`. On 2.3.20
+  and earlier the opposite held — an empty block left `updateKotlinAbi` and
+  `checkKotlinAbi` silently SKIPPED and `enabled.set(true)` was required.
 - iOS bindings are cinterop against XCFrameworks downloaded by the
   `dev.avinya.ads.admob-cmp` Gradle plugin (included build) to
   `build/admob-cmp-ios-frameworks/` (version-stamped via a marker file). The

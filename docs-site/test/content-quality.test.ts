@@ -205,11 +205,11 @@ describe('Source-of-truth factual contracts', () => {
   it('dependency and platform versions in gradle/libs.versions.toml match authoritative values', () => {
     const toml = readFileSync(versionsToml, 'utf8');
 
-    expect(toml).toMatch(/^kotlin\s*=\s*"2\.3\.20"(?:\s*#.*)?$/m);
-    expect(toml).toMatch(/^composeMultiplatform\s*=\s*"1\.11\.1"(?:\s*#.*)?$/m);
-    expect(toml).toMatch(/^gmaNextGen\s*=\s*"1\.3\.0"(?:\s*#.*)?$/m);
+    expect(toml).toMatch(/^kotlin\s*=\s*"2\.4\.20"(?:\s*#.*)?$/m);
+    expect(toml).toMatch(/^composeMultiplatform\s*=\s*"1\.12\.0"(?:\s*#.*)?$/m);
+    expect(toml).toMatch(/^gmaNextGen\s*=\s*"1\.4\.0"(?:\s*#.*)?$/m);
     expect(toml).toMatch(/^gmaUmp\s*=\s*"4\.0\.0"(?:\s*#.*)?$/m);
-    expect(toml).toMatch(/^gmaIos\s*=\s*"13\.7\.0"(?:\s*#.*)?$/m);
+    expect(toml).toMatch(/^gmaIos\s*=\s*"13\.9\.0"(?:\s*#.*)?$/m);
     expect(toml).toMatch(/^gmaUmpIos\s*=\s*"3\.1\.0"(?:\s*#.*)?$/m);
   });
 

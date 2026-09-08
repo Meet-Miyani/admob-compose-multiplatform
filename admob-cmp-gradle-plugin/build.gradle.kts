@@ -12,7 +12,7 @@ version = providers.gradleProperty("VERSION_NAME").get()
 
 dependencies {
     // The plugin configures Kotlin Multiplatform test binaries, so it compiles against KGP.
-    compileOnly("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.20")
+    compileOnly("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20")
     testImplementation(kotlin("test"))
 }
 

@@ -1,0 +1,1579 @@
+public final class dev/avinya/ads/AdAppIdVerification {
+	public static final field INSTANCE Ldev/avinya/ads/AdAppIdVerification;
+	public final fun getPolicy ()Ldev/avinya/ads/AppIdVerificationPolicy;
+	public final fun setPolicy (Ldev/avinya/ads/AppIdVerificationPolicy;)V
+}
+
+public final class dev/avinya/ads/AdAppIds {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Ldev/avinya/ads/AdAppIds;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdAppIds;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdAppIds;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAndroid ()Ljava/lang/String;
+	public final fun getIos ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdAvailability {
+	public synthetic fun <init> (ZILkotlin/time/Duration;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (ZILkotlin/time/Duration;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()I
+	public final fun component3-FghU774 ()Lkotlin/time/Duration;
+	public final fun copy-moChb0s (ZILkotlin/time/Duration;)Ldev/avinya/ads/AdAvailability;
+	public static synthetic fun copy-moChb0s$default (Ldev/avinya/ads/AdAvailability;ZILkotlin/time/Duration;ILjava/lang/Object;)Ldev/avinya/ads/AdAvailability;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCachedCount ()I
+	public final fun getExpiresIn-FghU774 ()Lkotlin/time/Duration;
+	public fun hashCode ()I
+	public final fun isReady ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdCachePolicy {
+	public fun <init> ()V
+	public fun <init> (ILdev/avinya/ads/AdExpirationPolicy;Z)V
+	public synthetic fun <init> (ILdev/avinya/ads/AdExpirationPolicy;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ldev/avinya/ads/AdExpirationPolicy;
+	public final fun component3 ()Z
+	public final fun copy (ILdev/avinya/ads/AdExpirationPolicy;Z)Ldev/avinya/ads/AdCachePolicy;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdCachePolicy;ILdev/avinya/ads/AdExpirationPolicy;ZILjava/lang/Object;)Ldev/avinya/ads/AdCachePolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExpirationPolicy ()Ldev/avinya/ads/AdExpirationPolicy;
+	public final fun getMaxSize ()I
+	public final fun getReloadAfterShow ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdConfig {
+	public fun <init> (Ldev/avinya/ads/AdAppIds;Ldev/avinya/ads/GlobalRequestConfiguration;Ldev/avinya/ads/AdDebugOptions;ZLdev/avinya/ads/nativead/NativeAdMemoryPolicy;Ljava/util/List;)V
+	public synthetic fun <init> (Ldev/avinya/ads/AdAppIds;Ldev/avinya/ads/GlobalRequestConfiguration;Ldev/avinya/ads/AdDebugOptions;ZLdev/avinya/ads/nativead/NativeAdMemoryPolicy;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Ldev/avinya/ads/ConsentDebugGeography;Ldev/avinya/ads/AgeRestrictedTreatment;ZLdev/avinya/ads/nativead/NativeAdMemoryPolicy;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Ldev/avinya/ads/ConsentDebugGeography;Ldev/avinya/ads/AgeRestrictedTreatment;ZLdev/avinya/ads/nativead/NativeAdMemoryPolicy;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ldev/avinya/ads/AdAppIds;
+	public final fun component2 ()Ldev/avinya/ads/GlobalRequestConfiguration;
+	public final fun component3 ()Ldev/avinya/ads/AdDebugOptions;
+	public final fun component4 ()Z
+	public final fun component5 ()Ldev/avinya/ads/nativead/NativeAdMemoryPolicy;
+	public final fun component6 ()Ljava/util/List;
+	public final fun copy (Ldev/avinya/ads/AdAppIds;Ldev/avinya/ads/GlobalRequestConfiguration;Ldev/avinya/ads/AdDebugOptions;ZLdev/avinya/ads/nativead/NativeAdMemoryPolicy;Ljava/util/List;)Ldev/avinya/ads/AdConfig;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdConfig;Ldev/avinya/ads/AdAppIds;Ldev/avinya/ads/GlobalRequestConfiguration;Ldev/avinya/ads/AdDebugOptions;ZLdev/avinya/ads/nativead/NativeAdMemoryPolicy;Ljava/util/List;ILjava/lang/Object;)Ldev/avinya/ads/AdConfig;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAndroidAppId ()Ljava/lang/String;
+	public final fun getAppIds ()Ldev/avinya/ads/AdAppIds;
+	public final fun getConsentTagForUnderAgeOfConsent ()Z
+	public final fun getDebugGeography ()Ldev/avinya/ads/ConsentDebugGeography;
+	public final fun getDebugOptions ()Ldev/avinya/ads/AdDebugOptions;
+	public final fun getGlobalRequestConfiguration ()Ldev/avinya/ads/GlobalRequestConfiguration;
+	public final fun getInitializationHooks ()Ljava/util/List;
+	public final fun getIosAppId ()Ljava/lang/String;
+	public final fun getNativeAdMemoryPolicy ()Ldev/avinya/ads/nativead/NativeAdMemoryPolicy;
+	public final fun getTestDeviceIds ()Ljava/util/List;
+	public final fun getTestMode ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdDebugOptions {
+	public fun <init> ()V
+	public fun <init> (ZLdev/avinya/ads/ConsentDebugGeography;Ljava/util/List;Z)V
+	public synthetic fun <init> (ZLdev/avinya/ads/ConsentDebugGeography;Ljava/util/List;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Ldev/avinya/ads/ConsentDebugGeography;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()Z
+	public final fun copy (ZLdev/avinya/ads/ConsentDebugGeography;Ljava/util/List;Z)Ldev/avinya/ads/AdDebugOptions;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdDebugOptions;ZLdev/avinya/ads/ConsentDebugGeography;Ljava/util/List;ZILjava/lang/Object;)Ldev/avinya/ads/AdDebugOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getConsentDebugGeography ()Ldev/avinya/ads/ConsentDebugGeography;
+	public final fun getConsentTestDeviceIds ()Ljava/util/List;
+	public final fun getEnableAdInspectorEntryPoints ()Z
+	public final fun getTestMode ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class dev/avinya/ads/AdDiagnostics {
+	public abstract fun adapterStatuses ()Ljava/util/List;
+	public abstract fun openAdInspector (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun openDebugMenu (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun sdkVersion ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdError {
+	public static final field Companion Ldev/avinya/ads/AdError$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ldev/avinya/ads/AdResponseInfo;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ldev/avinya/ads/AdResponseInfo;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ldev/avinya/ads/AdResponseInfo;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ldev/avinya/ads/AdResponseInfo;)Ldev/avinya/ads/AdError;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdError;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ldev/avinya/ads/AdResponseInfo;ILjava/lang/Object;)Ldev/avinya/ads/AdError;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCode ()Ljava/lang/String;
+	public final fun getDomain ()Ljava/lang/String;
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getResponseInfo ()Ldev/avinya/ads/AdResponseInfo;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdError$Companion {
+	public final fun consentRequired ()Ldev/avinya/ads/AdError;
+	public final fun message (Ljava/lang/String;)Ldev/avinya/ads/AdError;
+	public final fun sdkNotReady ()Ldev/avinya/ads/AdError;
+}
+
+public final class dev/avinya/ads/AdErrorCode {
+	public static final field APP_ID_INVALID Ljava/lang/String;
+	public static final field CONSENT_OPERATION_IN_PROGRESS Ljava/lang/String;
+	public static final field CONSENT_REQUIRED Ljava/lang/String;
+	public static final field INITIALIZATION_CONFLICT Ljava/lang/String;
+	public static final field INSTANCE Ldev/avinya/ads/AdErrorCode;
+	public static final field SDK_NOT_READY Ljava/lang/String;
+}
+
+public abstract interface class dev/avinya/ads/AdEvent {
+	public abstract fun getPlacementId ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$Clicked : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Ldev/avinya/ads/AdEvent$Clicked;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$Clicked;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$Clicked;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdInstanceId ()Ljava/lang/String;
+	public fun getPlacementId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$ClosedFullScreen : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Ldev/avinya/ads/AdEvent$ClosedFullScreen;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$ClosedFullScreen;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$ClosedFullScreen;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getPlacementId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$Impression : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Ldev/avinya/ads/AdEvent$Impression;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$Impression;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$Impression;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdInstanceId ()Ljava/lang/String;
+	public fun getPlacementId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$LoadFailed : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;Ldev/avinya/ads/AdError;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ldev/avinya/ads/AdError;
+	public final fun copy (Ljava/lang/String;Ldev/avinya/ads/AdError;)Ldev/avinya/ads/AdEvent$LoadFailed;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$LoadFailed;Ljava/lang/String;Ldev/avinya/ads/AdError;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$LoadFailed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ldev/avinya/ads/AdError;
+	public fun getPlacementId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$Loaded : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;Ldev/avinya/ads/AdResponseInfo;)V
+	public synthetic fun <init> (Ljava/lang/String;Ldev/avinya/ads/AdResponseInfo;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ldev/avinya/ads/AdResponseInfo;
+	public final fun copy (Ljava/lang/String;Ldev/avinya/ads/AdResponseInfo;)Ldev/avinya/ads/AdEvent$Loaded;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$Loaded;Ljava/lang/String;Ldev/avinya/ads/AdResponseInfo;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$Loaded;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getPlacementId ()Ljava/lang/String;
+	public final fun getResponseInfo ()Ldev/avinya/ads/AdResponseInfo;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$OpenedFullScreen : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Ldev/avinya/ads/AdEvent$OpenedFullScreen;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$OpenedFullScreen;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$OpenedFullScreen;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getPlacementId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$Paid : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;Ldev/avinya/ads/PaidEvent;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ldev/avinya/ads/PaidEvent;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ldev/avinya/ads/PaidEvent;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ldev/avinya/ads/PaidEvent;Ljava/lang/String;)Ldev/avinya/ads/AdEvent$Paid;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$Paid;Ljava/lang/String;Ldev/avinya/ads/PaidEvent;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$Paid;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdInstanceId ()Ljava/lang/String;
+	public final fun getPaidEvent ()Ldev/avinya/ads/PaidEvent;
+	public fun getPlacementId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$RewardEarned : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;Ldev/avinya/ads/AdReward;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ldev/avinya/ads/AdReward;
+	public final fun copy (Ljava/lang/String;Ldev/avinya/ads/AdReward;)Ldev/avinya/ads/AdEvent$RewardEarned;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$RewardEarned;Ljava/lang/String;Ldev/avinya/ads/AdReward;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$RewardEarned;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getPlacementId ()Ljava/lang/String;
+	public final fun getReward ()Ldev/avinya/ads/AdReward;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$ShowFailed : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;Ldev/avinya/ads/AdError;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ldev/avinya/ads/AdError;
+	public final fun copy (Ljava/lang/String;Ldev/avinya/ads/AdError;)Ldev/avinya/ads/AdEvent$ShowFailed;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$ShowFailed;Ljava/lang/String;Ldev/avinya/ads/AdError;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$ShowFailed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ldev/avinya/ads/AdError;
+	public fun getPlacementId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$VideoEnded : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Ldev/avinya/ads/AdEvent$VideoEnded;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$VideoEnded;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$VideoEnded;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdInstanceId ()Ljava/lang/String;
+	public fun getPlacementId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$VideoMuted : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;ZLjava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;ZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Z
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;ZLjava/lang/String;)Ldev/avinya/ads/AdEvent$VideoMuted;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$VideoMuted;Ljava/lang/String;ZLjava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$VideoMuted;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdInstanceId ()Ljava/lang/String;
+	public final fun getMuted ()Z
+	public fun getPlacementId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$VideoPaused : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Ldev/avinya/ads/AdEvent$VideoPaused;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$VideoPaused;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$VideoPaused;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdInstanceId ()Ljava/lang/String;
+	public fun getPlacementId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$VideoPlayed : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Ldev/avinya/ads/AdEvent$VideoPlayed;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$VideoPlayed;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$VideoPlayed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdInstanceId ()Ljava/lang/String;
+	public fun getPlacementId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdEvent$VideoStarted : dev/avinya/ads/AdEvent {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Ldev/avinya/ads/AdEvent$VideoStarted;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdEvent$VideoStarted;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdEvent$VideoStarted;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdInstanceId ()Ljava/lang/String;
+	public fun getPlacementId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdExpirationPolicy {
+	public fun <init> ()V
+	public synthetic fun <init> (JJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JJJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-UwyO8pc ()J
+	public final fun component2-UwyO8pc ()J
+	public final fun component3-UwyO8pc ()J
+	public final fun copy-WzaCiaA (JJJ)Ldev/avinya/ads/AdExpirationPolicy;
+	public static synthetic fun copy-WzaCiaA$default (Ldev/avinya/ads/AdExpirationPolicy;JJJILjava/lang/Object;)Ldev/avinya/ads/AdExpirationPolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAppOpenTtl-UwyO8pc ()J
+	public final fun getFullScreenTtl-UwyO8pc ()J
+	public final fun getNativeTtl-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdFormat : java/lang/Enum {
+	public static final field AppOpen Ldev/avinya/ads/AdFormat;
+	public static final field Banner Ldev/avinya/ads/AdFormat;
+	public static final field Interstitial Ldev/avinya/ads/AdFormat;
+	public static final field Native Ldev/avinya/ads/AdFormat;
+	public static final field Rewarded Ldev/avinya/ads/AdFormat;
+	public static final field RewardedInterstitial Ldev/avinya/ads/AdFormat;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/AdFormat;
+	public static fun values ()[Ldev/avinya/ads/AdFormat;
+}
+
+public abstract interface class dev/avinya/ads/AdInitializationHook {
+	public abstract fun onPhase (Ldev/avinya/ads/AdInitializationPhase;Ldev/avinya/ads/AdConfig;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class dev/avinya/ads/AdInitializationPhase : java/lang/Enum {
+	public static final field AfterMobileAdsInitialize Ldev/avinya/ads/AdInitializationPhase;
+	public static final field BeforeConsentRequest Ldev/avinya/ads/AdInitializationPhase;
+	public static final field BeforeMobileAdsInitialize Ldev/avinya/ads/AdInitializationPhase;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/AdInitializationPhase;
+	public static fun values ()[Ldev/avinya/ads/AdInitializationPhase;
+}
+
+public abstract interface class dev/avinya/ads/AdLoadState {
+}
+
+public final class dev/avinya/ads/AdLoadState$Failed : dev/avinya/ads/AdLoadState {
+	public fun <init> (Ldev/avinya/ads/AdError;)V
+	public final fun component1 ()Ldev/avinya/ads/AdError;
+	public final fun copy (Ldev/avinya/ads/AdError;)Ldev/avinya/ads/AdLoadState$Failed;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdLoadState$Failed;Ldev/avinya/ads/AdError;ILjava/lang/Object;)Ldev/avinya/ads/AdLoadState$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ldev/avinya/ads/AdError;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdLoadState$Idle : dev/avinya/ads/AdLoadState {
+	public static final field INSTANCE Ldev/avinya/ads/AdLoadState$Idle;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdLoadState$Loaded : dev/avinya/ads/AdLoadState {
+	public fun <init> ()V
+	public fun <init> (Ldev/avinya/ads/AdResponseInfo;)V
+	public synthetic fun <init> (Ldev/avinya/ads/AdResponseInfo;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ldev/avinya/ads/AdResponseInfo;
+	public final fun copy (Ldev/avinya/ads/AdResponseInfo;)Ldev/avinya/ads/AdLoadState$Loaded;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdLoadState$Loaded;Ldev/avinya/ads/AdResponseInfo;ILjava/lang/Object;)Ldev/avinya/ads/AdLoadState$Loaded;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getResponseInfo ()Ldev/avinya/ads/AdResponseInfo;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdLoadState$Loading : dev/avinya/ads/AdLoadState {
+	public static final field INSTANCE Ldev/avinya/ads/AdLoadState$Loading;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdLogLevel : java/lang/Enum {
+	public static final field Debug Ldev/avinya/ads/AdLogLevel;
+	public static final field Error Ldev/avinya/ads/AdLogLevel;
+	public static final field Info Ldev/avinya/ads/AdLogLevel;
+	public static final field Verbose Ldev/avinya/ads/AdLogLevel;
+	public static final field Warn Ldev/avinya/ads/AdLogLevel;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/AdLogLevel;
+	public static fun values ()[Ldev/avinya/ads/AdLogLevel;
+}
+
+public abstract interface class dev/avinya/ads/AdLogSink {
+	public abstract fun log (Ldev/avinya/ads/AdLogLevel;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)V
+}
+
+public final class dev/avinya/ads/AdLogger {
+	public static final field INSTANCE Ldev/avinya/ads/AdLogger;
+	public final fun d (Ljava/lang/String;)V
+	public final fun e (Ljava/lang/String;)V
+	public final fun e (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public final fun getMinLevel ()Ldev/avinya/ads/AdLogLevel;
+	public final fun getSink ()Ldev/avinya/ads/AdLogSink;
+	public final fun i (Ljava/lang/String;)V
+	public final fun setMinLevel (Ldev/avinya/ads/AdLogLevel;)V
+	public final fun setSink (Ldev/avinya/ads/AdLogSink;)V
+	public final fun v (Ljava/lang/String;)V
+	public final fun w (Ljava/lang/String;)V
+	public final fun w (Ljava/lang/String;Ljava/lang/Throwable;)V
+}
+
+public abstract interface class dev/avinya/ads/AdManager {
+	public abstract fun appOpen (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/AppOpenAdController;
+	public abstract fun banner (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/BannerAdController;
+	public abstract fun getConsent ()Ldev/avinya/ads/ConsentController;
+	public abstract fun getDiagnostics ()Ldev/avinya/ads/AdDiagnostics;
+	public abstract fun getEvents ()Lkotlinx/coroutines/flow/SharedFlow;
+	public abstract fun getNativeAds ()Ldev/avinya/ads/nativead/NativeAdManager;
+	public abstract fun getStatus ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getTracking ()Ldev/avinya/ads/AdTrackingController;
+	public abstract fun initialize (Ldev/avinya/ads/AdConfig;Ldev/avinya/ads/ConsentMode;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun initialize$default (Ldev/avinya/ads/AdManager;Ldev/avinya/ads/AdConfig;Ldev/avinya/ads/ConsentMode;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun interstitial (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/InterstitialAdController;
+	public abstract fun rewarded (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/RewardedAdController;
+	public abstract fun rewardedInterstitial (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/RewardedInterstitialAdController;
+}
+
+public final class dev/avinya/ads/AdManager$DefaultImpls {
+	public static synthetic fun initialize$default (Ldev/avinya/ads/AdManager;Ldev/avinya/ads/AdConfig;Ldev/avinya/ads/ConsentMode;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class dev/avinya/ads/AdManagerKt {
+	public static final fun gatherConsentAndInitialize (Ldev/avinya/ads/AdManager;Ldev/avinya/ads/AdConfig;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun showPrivacyOptions (Ldev/avinya/ads/AdManager;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class dev/avinya/ads/AdManagerStatus {
+}
+
+public final class dev/avinya/ads/AdManagerStatus$ConsentRequired : dev/avinya/ads/AdManagerStatus {
+	public static final field INSTANCE Ldev/avinya/ads/AdManagerStatus$ConsentRequired;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdManagerStatus$Disabled : dev/avinya/ads/AdManagerStatus {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Ldev/avinya/ads/AdManagerStatus$Disabled;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdManagerStatus$Disabled;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdManagerStatus$Disabled;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdManagerStatus$Failed : dev/avinya/ads/AdManagerStatus {
+	public fun <init> (Ldev/avinya/ads/AdError;Z)V
+	public final fun component1 ()Ldev/avinya/ads/AdError;
+	public final fun component2 ()Z
+	public final fun copy (Ldev/avinya/ads/AdError;Z)Ldev/avinya/ads/AdManagerStatus$Failed;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdManagerStatus$Failed;Ldev/avinya/ads/AdError;ZILjava/lang/Object;)Ldev/avinya/ads/AdManagerStatus$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ldev/avinya/ads/AdError;
+	public final fun getRetryable ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdManagerStatus$Idle : dev/avinya/ads/AdManagerStatus {
+	public static final field INSTANCE Ldev/avinya/ads/AdManagerStatus$Idle;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdManagerStatus$Initializing : dev/avinya/ads/AdManagerStatus {
+	public static final field INSTANCE Ldev/avinya/ads/AdManagerStatus$Initializing;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdManagerStatus$Ready : dev/avinya/ads/AdManagerStatus {
+	public static final field INSTANCE Ldev/avinya/ads/AdManagerStatus$Ready;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdMob {
+	public static final field INSTANCE Ldev/avinya/ads/AdMob;
+	public final fun manager (Landroid/content/Context;)Ldev/avinya/ads/AdManager;
+}
+
+public final class dev/avinya/ads/AdNetworkResponseInfo {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;Ljava/lang/Long;Ldev/avinya/ads/AdError;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Long;Ldev/avinya/ads/AdError;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Long;
+	public final fun component3 ()Ldev/avinya/ads/AdError;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun component7 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Long;Ldev/avinya/ads/AdError;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ldev/avinya/ads/AdNetworkResponseInfo;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdNetworkResponseInfo;Ljava/lang/String;Ljava/lang/Long;Ldev/avinya/ads/AdError;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdNetworkResponseInfo;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdSourceId ()Ljava/lang/String;
+	public final fun getAdSourceInstanceId ()Ljava/lang/String;
+	public final fun getAdSourceInstanceName ()Ljava/lang/String;
+	public final fun getAdSourceName ()Ljava/lang/String;
+	public final fun getAdapterClassName ()Ljava/lang/String;
+	public final fun getError ()Ldev/avinya/ads/AdError;
+	public final fun getLatencyMillis ()Ljava/lang/Long;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdPlacement {
+	public fun <init> (Ljava/lang/String;Ldev/avinya/ads/AdFormat;Ldev/avinya/ads/AdUnitIds;Ldev/avinya/ads/AdRequestOptions;Ldev/avinya/ads/AdCachePolicy;Ldev/avinya/ads/AdRetryPolicy;Ldev/avinya/ads/AdTimeoutPolicy;Ldev/avinya/ads/AdSizePolicy;Ldev/avinya/ads/BannerRefreshPolicy;Ldev/avinya/ads/nativead/NativeAdOptions;Ldev/avinya/ads/FullScreenAdOptions;ZZ)V
+	public synthetic fun <init> (Ljava/lang/String;Ldev/avinya/ads/AdFormat;Ldev/avinya/ads/AdUnitIds;Ldev/avinya/ads/AdRequestOptions;Ldev/avinya/ads/AdCachePolicy;Ldev/avinya/ads/AdRetryPolicy;Ldev/avinya/ads/AdTimeoutPolicy;Ldev/avinya/ads/AdSizePolicy;Ldev/avinya/ads/BannerRefreshPolicy;Ldev/avinya/ads/nativead/NativeAdOptions;Ldev/avinya/ads/FullScreenAdOptions;ZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ldev/avinya/ads/AdFormat;Ljava/lang/String;Ljava/lang/String;IZZ)V
+	public synthetic fun <init> (Ljava/lang/String;Ldev/avinya/ads/AdFormat;Ljava/lang/String;Ljava/lang/String;IZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component10 ()Ldev/avinya/ads/nativead/NativeAdOptions;
+	public final fun component11 ()Ldev/avinya/ads/FullScreenAdOptions;
+	public final fun component12 ()Z
+	public final fun component13 ()Z
+	public final fun component2 ()Ldev/avinya/ads/AdFormat;
+	public final fun component3 ()Ldev/avinya/ads/AdUnitIds;
+	public final fun component4 ()Ldev/avinya/ads/AdRequestOptions;
+	public final fun component5 ()Ldev/avinya/ads/AdCachePolicy;
+	public final fun component6 ()Ldev/avinya/ads/AdRetryPolicy;
+	public final fun component7 ()Ldev/avinya/ads/AdTimeoutPolicy;
+	public final fun component8 ()Ldev/avinya/ads/AdSizePolicy;
+	public final fun component9 ()Ldev/avinya/ads/BannerRefreshPolicy;
+	public final fun copy (Ljava/lang/String;Ldev/avinya/ads/AdFormat;Ldev/avinya/ads/AdUnitIds;Ldev/avinya/ads/AdRequestOptions;Ldev/avinya/ads/AdCachePolicy;Ldev/avinya/ads/AdRetryPolicy;Ldev/avinya/ads/AdTimeoutPolicy;Ldev/avinya/ads/AdSizePolicy;Ldev/avinya/ads/BannerRefreshPolicy;Ldev/avinya/ads/nativead/NativeAdOptions;Ldev/avinya/ads/FullScreenAdOptions;ZZ)Ldev/avinya/ads/AdPlacement;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdPlacement;Ljava/lang/String;Ldev/avinya/ads/AdFormat;Ldev/avinya/ads/AdUnitIds;Ldev/avinya/ads/AdRequestOptions;Ldev/avinya/ads/AdCachePolicy;Ldev/avinya/ads/AdRetryPolicy;Ldev/avinya/ads/AdTimeoutPolicy;Ldev/avinya/ads/AdSizePolicy;Ldev/avinya/ads/BannerRefreshPolicy;Ldev/avinya/ads/nativead/NativeAdOptions;Ldev/avinya/ads/FullScreenAdOptions;ZZILjava/lang/Object;)Ldev/avinya/ads/AdPlacement;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdUnitIds ()Ldev/avinya/ads/AdUnitIds;
+	public final fun getAndroidAdUnitId ()Ljava/lang/String;
+	public final fun getBannerRefreshPolicy ()Ldev/avinya/ads/BannerRefreshPolicy;
+	public final fun getBannerSizePolicy ()Ldev/avinya/ads/AdSizePolicy;
+	public final fun getCachePolicy ()Ldev/avinya/ads/AdCachePolicy;
+	public final fun getEnabled ()Z
+	public final fun getFormat ()Ldev/avinya/ads/AdFormat;
+	public final fun getFullScreenOptions ()Ldev/avinya/ads/FullScreenAdOptions;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getIosAdUnitId ()Ljava/lang/String;
+	public final fun getMaxCacheSize ()I
+	public final fun getNativeOptions ()Ldev/avinya/ads/nativead/NativeAdOptions;
+	public final fun getRequestOptions ()Ldev/avinya/ads/AdRequestOptions;
+	public final fun getRetryPolicy ()Ldev/avinya/ads/AdRetryPolicy;
+	public final fun getStrictTestMode ()Z
+	public final fun getTimeoutPolicy ()Ldev/avinya/ads/AdTimeoutPolicy;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdPlatform : java/lang/Enum {
+	public static final field Android Ldev/avinya/ads/AdPlatform;
+	public static final field Ios Ldev/avinya/ads/AdPlatform;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/AdPlatform;
+	public static fun values ()[Ldev/avinya/ads/AdPlatform;
+}
+
+public final class dev/avinya/ads/AdRequestOptions {
+	public fun <init> ()V
+	public fun <init> (Ljava/util/Set;Ljava/lang/String;Ljava/util/Set;Ljava/lang/String;Ljava/util/Set;Ljava/util/Map;Ljava/util/Map;Ljava/lang/String;Ljava/lang/Long;Z)V
+	public synthetic fun <init> (Ljava/util/Set;Ljava/lang/String;Ljava/util/Set;Ljava/lang/String;Ljava/util/Set;Ljava/util/Map;Ljava/util/Map;Ljava/lang/String;Ljava/lang/Long;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/util/Set;
+	public final fun component10 ()Z
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/util/Set;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/util/Set;
+	public final fun component6 ()Ljava/util/Map;
+	public final fun component7 ()Ljava/util/Map;
+	public final fun component8 ()Ljava/lang/String;
+	public final fun component9 ()Ljava/lang/Long;
+	public final fun copy (Ljava/util/Set;Ljava/lang/String;Ljava/util/Set;Ljava/lang/String;Ljava/util/Set;Ljava/util/Map;Ljava/util/Map;Ljava/lang/String;Ljava/lang/Long;Z)Ldev/avinya/ads/AdRequestOptions;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdRequestOptions;Ljava/util/Set;Ljava/lang/String;Ljava/util/Set;Ljava/lang/String;Ljava/util/Set;Ljava/util/Map;Ljava/util/Map;Ljava/lang/String;Ljava/lang/Long;ZILjava/lang/Object;)Ldev/avinya/ads/AdRequestOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCategoryExclusions ()Ljava/util/Set;
+	public final fun getContentUrl ()Ljava/lang/String;
+	public final fun getCustomTargeting ()Ljava/util/Map;
+	public final fun getGoogleExtras ()Ljava/util/Map;
+	public final fun getKeywords ()Ljava/util/Set;
+	public final fun getNeighboringContentUrls ()Ljava/util/Set;
+	public final fun getPlacementId ()Ljava/lang/Long;
+	public final fun getPublisherProvidedId ()Ljava/lang/String;
+	public final fun getRequestAgent ()Ljava/lang/String;
+	public final fun getSkipUninitializedAdapters ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdResponseInfo {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ldev/avinya/ads/AdNetworkResponseInfo;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ldev/avinya/ads/AdNetworkResponseInfo;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/util/Map;
+	public final fun component4 ()Ldev/avinya/ads/AdNetworkResponseInfo;
+	public final fun component5 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ldev/avinya/ads/AdNetworkResponseInfo;Ljava/util/List;)Ldev/avinya/ads/AdResponseInfo;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdResponseInfo;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ldev/avinya/ads/AdNetworkResponseInfo;Ljava/util/List;ILjava/lang/Object;)Ldev/avinya/ads/AdResponseInfo;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdNetworkResponseInfos ()Ljava/util/List;
+	public final fun getAdapterClassName ()Ljava/lang/String;
+	public final fun getExtras ()Ljava/util/Map;
+	public final fun getLoadedAdNetworkResponseInfo ()Ldev/avinya/ads/AdNetworkResponseInfo;
+	public final fun getResponseId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdRetryPolicy {
+	public fun <init> ()V
+	public synthetic fun <init> (IJJDILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (IJJDLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2-UwyO8pc ()J
+	public final fun component3-UwyO8pc ()J
+	public final fun component4 ()D
+	public final fun copy-vLdBGDU (IJJD)Ldev/avinya/ads/AdRetryPolicy;
+	public static synthetic fun copy-vLdBGDU$default (Ldev/avinya/ads/AdRetryPolicy;IJJDILjava/lang/Object;)Ldev/avinya/ads/AdRetryPolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBackoffMultiplier ()D
+	public final fun getInitialDelay-UwyO8pc ()J
+	public final fun getMaxAttempts ()I
+	public final fun getMaxDelay-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdReward {
+	public fun <init> (JLjava/lang/String;)V
+	public final fun component1 ()J
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (JLjava/lang/String;)Ldev/avinya/ads/AdReward;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdReward;JLjava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdReward;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAmountMicros ()J
+	public final fun getType ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+	public final fun wholeAmountOrNull ()Ljava/lang/Integer;
+}
+
+public abstract interface class dev/avinya/ads/AdShowResult {
+}
+
+public final class dev/avinya/ads/AdShowResult$Failed : dev/avinya/ads/AdShowResult {
+	public fun <init> (Ldev/avinya/ads/AdError;)V
+	public final fun component1 ()Ldev/avinya/ads/AdError;
+	public final fun copy (Ldev/avinya/ads/AdError;)Ldev/avinya/ads/AdShowResult$Failed;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdShowResult$Failed;Ldev/avinya/ads/AdError;ILjava/lang/Object;)Ldev/avinya/ads/AdShowResult$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ldev/avinya/ads/AdError;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdShowResult$NotReady : dev/avinya/ads/AdShowResult {
+	public static final field INSTANCE Ldev/avinya/ads/AdShowResult$NotReady;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdShowResult$Shown : dev/avinya/ads/AdShowResult {
+	public static final field INSTANCE Ldev/avinya/ads/AdShowResult$Shown;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class dev/avinya/ads/AdSizePolicy {
+}
+
+public final class dev/avinya/ads/AdSizePolicy$Fixed : dev/avinya/ads/AdSizePolicy {
+	public fun <init> (II)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun copy (II)Ldev/avinya/ads/AdSizePolicy$Fixed;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdSizePolicy$Fixed;IIILjava/lang/Object;)Ldev/avinya/ads/AdSizePolicy$Fixed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHeightDp ()I
+	public final fun getWidthDp ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdSizePolicy$Fluid : dev/avinya/ads/AdSizePolicy {
+	public static final field INSTANCE Ldev/avinya/ads/AdSizePolicy$Fluid;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdSizePolicy$InlineAdaptive : dev/avinya/ads/AdSizePolicy {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Integer;)V
+	public synthetic fun <init> (Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/lang/Integer;)Ldev/avinya/ads/AdSizePolicy$InlineAdaptive;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdSizePolicy$InlineAdaptive;Ljava/lang/Integer;ILjava/lang/Object;)Ldev/avinya/ads/AdSizePolicy$InlineAdaptive;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMaxHeightDp ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdSizePolicy$LargeAnchoredAdaptive : dev/avinya/ads/AdSizePolicy {
+	public fun <init> ()V
+	public fun <init> (Ldev/avinya/ads/CollapsiblePlacement;)V
+	public synthetic fun <init> (Ldev/avinya/ads/CollapsiblePlacement;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ldev/avinya/ads/CollapsiblePlacement;
+	public final fun copy (Ldev/avinya/ads/CollapsiblePlacement;)Ldev/avinya/ads/AdSizePolicy$LargeAnchoredAdaptive;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdSizePolicy$LargeAnchoredAdaptive;Ldev/avinya/ads/CollapsiblePlacement;ILjava/lang/Object;)Ldev/avinya/ads/AdSizePolicy$LargeAnchoredAdaptive;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCollapsible ()Ldev/avinya/ads/CollapsiblePlacement;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdTimeoutPolicy {
+	public fun <init> ()V
+	public synthetic fun <init> (JJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-UwyO8pc ()J
+	public final fun component2-UwyO8pc ()J
+	public final fun copy-QTBD994 (JJ)Ldev/avinya/ads/AdTimeoutPolicy;
+	public static synthetic fun copy-QTBD994$default (Ldev/avinya/ads/AdTimeoutPolicy;JJILjava/lang/Object;)Ldev/avinya/ads/AdTimeoutPolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLoadTimeout-UwyO8pc ()J
+	public final fun getPresentationHandOffTimeout-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdTrackingAuthorization : java/lang/Enum {
+	public static final field Authorized Ldev/avinya/ads/AdTrackingAuthorization;
+	public static final field Denied Ldev/avinya/ads/AdTrackingAuthorization;
+	public static final field NotApplicable Ldev/avinya/ads/AdTrackingAuthorization;
+	public static final field NotDetermined Ldev/avinya/ads/AdTrackingAuthorization;
+	public static final field Restricted Ldev/avinya/ads/AdTrackingAuthorization;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/AdTrackingAuthorization;
+	public static fun values ()[Ldev/avinya/ads/AdTrackingAuthorization;
+}
+
+public abstract interface class dev/avinya/ads/AdTrackingController {
+	public abstract fun requestAuthorization (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun status ()Ldev/avinya/ads/AdTrackingAuthorization;
+}
+
+public final class dev/avinya/ads/AdUnitIds {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Ldev/avinya/ads/AdUnitIds;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdUnitIds;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdUnitIds;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun forPlatform (Ldev/avinya/ads/AdPlatform;)Ljava/lang/String;
+	public final fun getAndroid ()Ljava/lang/String;
+	public final fun getIos ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdValue {
+	public fun <init> (JLjava/lang/String;Ldev/avinya/ads/AdValuePrecision;)V
+	public final fun component1 ()J
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ldev/avinya/ads/AdValuePrecision;
+	public final fun copy (JLjava/lang/String;Ldev/avinya/ads/AdValuePrecision;)Ldev/avinya/ads/AdValue;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdValue;JLjava/lang/String;Ldev/avinya/ads/AdValuePrecision;ILjava/lang/Object;)Ldev/avinya/ads/AdValue;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCurrencyCode ()Ljava/lang/String;
+	public final fun getPrecision ()Ldev/avinya/ads/AdValuePrecision;
+	public final fun getValueMicros ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdValuePrecision : java/lang/Enum {
+	public static final field Estimated Ldev/avinya/ads/AdValuePrecision;
+	public static final field Precise Ldev/avinya/ads/AdValuePrecision;
+	public static final field PublisherProvided Ldev/avinya/ads/AdValuePrecision;
+	public static final field Unknown Ldev/avinya/ads/AdValuePrecision;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/AdValuePrecision;
+	public static fun values ()[Ldev/avinya/ads/AdValuePrecision;
+}
+
+public final class dev/avinya/ads/AdapterInitializationStatus {
+	public fun <init> (Ljava/lang/String;ZLjava/lang/Long;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;ZLjava/lang/Long;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Z
+	public final fun component3 ()Ljava/lang/Long;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;ZLjava/lang/Long;Ljava/lang/String;)Ldev/avinya/ads/AdapterInitializationStatus;
+	public static synthetic fun copy$default (Ldev/avinya/ads/AdapterInitializationStatus;Ljava/lang/String;ZLjava/lang/Long;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/AdapterInitializationStatus;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdapterName ()Ljava/lang/String;
+	public final fun getDescription ()Ljava/lang/String;
+	public final fun getInitialized ()Z
+	public final fun getLatencyMillis ()Ljava/lang/Long;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AgeRestrictedTreatment : java/lang/Enum {
+	public static final field Child Ldev/avinya/ads/AgeRestrictedTreatment;
+	public static final field Teen Ldev/avinya/ads/AgeRestrictedTreatment;
+	public static final field Unspecified Ldev/avinya/ads/AgeRestrictedTreatment;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/AgeRestrictedTreatment;
+	public static fun values ()[Ldev/avinya/ads/AgeRestrictedTreatment;
+}
+
+public final class dev/avinya/ads/AndroidBannerAdControllerKt {
+	public static final fun attachAndroidBanner (Ldev/avinya/ads/BannerAdController;)V
+	public static final fun currentAndroidBannerAd (Ldev/avinya/ads/BannerAdController;)Lcom/google/android/libraries/ads/mobile/sdk/banner/BannerAd;
+	public static final fun currentAndroidBannerView (Ldev/avinya/ads/BannerAdController;)Lcom/google/android/libraries/ads/mobile/sdk/banner/AdView;
+	public static final fun detachAndroidBanner (Ldev/avinya/ads/BannerAdController;)V
+	public static final fun registerAndroidBannerGeometry (Ldev/avinya/ads/BannerAdController;Ldev/avinya/ads/BannerGeometry;Ldev/avinya/ads/AdSizePolicy;Ldev/avinya/ads/AdRequestOptions;)V
+}
+
+public final class dev/avinya/ads/AndroidBannerSizingKt {
+	public static final fun screenWidthDp (Landroid/app/Activity;)I
+	public static final fun toAndroidAdSize (Ldev/avinya/ads/AdSizePolicy;Landroid/app/Activity;I)Lcom/google/android/libraries/ads/mobile/sdk/banner/AdSize;
+}
+
+public final class dev/avinya/ads/AppIdVerificationPolicy : java/lang/Enum {
+	public static final field FailWhenUnusable Ldev/avinya/ads/AppIdVerificationPolicy;
+	public static final field Strict Ldev/avinya/ads/AppIdVerificationPolicy;
+	public static final field WarnOnly Ldev/avinya/ads/AppIdVerificationPolicy;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/AppIdVerificationPolicy;
+	public static fun values ()[Ldev/avinya/ads/AppIdVerificationPolicy;
+}
+
+public abstract interface class dev/avinya/ads/AppOpenAdController : dev/avinya/ads/FullScreenAdController {
+	public fun showIfAvailable (Ldev/avinya/ads/FullScreenAdOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun showIfAvailable$default (Ldev/avinya/ads/AppOpenAdController;Ldev/avinya/ads/FullScreenAdOptions;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class dev/avinya/ads/AppOpenAdController$DefaultImpls {
+	public static fun isReady (Ldev/avinya/ads/AppOpenAdController;)Z
+	public static fun preload (Ldev/avinya/ads/AppOpenAdController;Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun showIfAvailable (Ldev/avinya/ads/AppOpenAdController;Ldev/avinya/ads/FullScreenAdOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun showIfAvailable$default (Ldev/avinya/ads/AppOpenAdController;Ldev/avinya/ads/FullScreenAdOptions;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract interface class dev/avinya/ads/BannerAdController {
+	public abstract fun clear ()V
+	public abstract fun getEvents ()Lkotlinx/coroutines/flow/SharedFlow;
+	public abstract fun getLoadState ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getPlacement ()Ldev/avinya/ads/AdPlacement;
+	public abstract fun load (Ldev/avinya/ads/BannerGeometry;Ldev/avinya/ads/AdSizePolicy;Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun load$default (Ldev/avinya/ads/BannerAdController;Ldev/avinya/ads/BannerGeometry;Ldev/avinya/ads/AdSizePolicy;Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun refresh (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class dev/avinya/ads/BannerAdController$DefaultImpls {
+	public static synthetic fun load$default (Ldev/avinya/ads/BannerAdController;Ldev/avinya/ads/BannerGeometry;Ldev/avinya/ads/AdSizePolicy;Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class dev/avinya/ads/BannerGeometry {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Ldev/avinya/ads/BannerGeometry;
+	public static synthetic fun copy$default (Ldev/avinya/ads/BannerGeometry;IILjava/lang/Object;)Ldev/avinya/ads/BannerGeometry;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getWidthDp ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class dev/avinya/ads/BannerRefreshPolicy {
+}
+
+public final class dev/avinya/ads/BannerRefreshPolicy$AdServerManaged : dev/avinya/ads/BannerRefreshPolicy {
+	public static final field INSTANCE Ldev/avinya/ads/BannerRefreshPolicy$AdServerManaged;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/BannerRefreshPolicy$Manual : dev/avinya/ads/BannerRefreshPolicy {
+	public static final field INSTANCE Ldev/avinya/ads/BannerRefreshPolicy$Manual;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/BannerRefreshPolicy$SdkManaged : dev/avinya/ads/BannerRefreshPolicy {
+	public synthetic fun <init> (JLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-UwyO8pc ()J
+	public final fun copy-LRDsOJo (J)Ldev/avinya/ads/BannerRefreshPolicy$SdkManaged;
+	public static synthetic fun copy-LRDsOJo$default (Ldev/avinya/ads/BannerRefreshPolicy$SdkManaged;JILjava/lang/Object;)Ldev/avinya/ads/BannerRefreshPolicy$SdkManaged;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getInterval-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/CollapsiblePlacement : java/lang/Enum {
+	public static final field Bottom Ldev/avinya/ads/CollapsiblePlacement;
+	public static final field Top Ldev/avinya/ads/CollapsiblePlacement;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/CollapsiblePlacement;
+	public static fun values ()[Ldev/avinya/ads/CollapsiblePlacement;
+}
+
+public abstract interface class dev/avinya/ads/ConsentController {
+	public abstract fun gatherConsent (Ldev/avinya/ads/AdConfig;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getCanRequestAds ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getPrivacyOptionsRequirementStatus ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getStatus ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun requestConsentInfoUpdate (Ldev/avinya/ads/AdConfig;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun resetConsentForDebug (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun showPrivacyOptions (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class dev/avinya/ads/ConsentDebugGeography : java/lang/Enum {
+	public static final field Disabled Ldev/avinya/ads/ConsentDebugGeography;
+	public static final field Eea Ldev/avinya/ads/ConsentDebugGeography;
+	public static final field NotEea Ldev/avinya/ads/ConsentDebugGeography;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/ConsentDebugGeography;
+	public static fun values ()[Ldev/avinya/ads/ConsentDebugGeography;
+}
+
+public final class dev/avinya/ads/ConsentMode : java/lang/Enum {
+	public static final field GatherBeforeInitialize Ldev/avinya/ads/ConsentMode;
+	public static final field InitializeOnlyIfAlreadyAllowed Ldev/avinya/ads/ConsentMode;
+	public static final field SkipConsent Ldev/avinya/ads/ConsentMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/ConsentMode;
+	public static fun values ()[Ldev/avinya/ads/ConsentMode;
+}
+
+public abstract interface class dev/avinya/ads/ConsentStatus {
+}
+
+public final class dev/avinya/ads/ConsentStatus$Failed : dev/avinya/ads/ConsentStatus {
+	public fun <init> (Ldev/avinya/ads/AdError;)V
+	public final fun component1 ()Ldev/avinya/ads/AdError;
+	public final fun copy (Ldev/avinya/ads/AdError;)Ldev/avinya/ads/ConsentStatus$Failed;
+	public static synthetic fun copy$default (Ldev/avinya/ads/ConsentStatus$Failed;Ldev/avinya/ads/AdError;ILjava/lang/Object;)Ldev/avinya/ads/ConsentStatus$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ldev/avinya/ads/AdError;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/ConsentStatus$NotRequired : dev/avinya/ads/ConsentStatus {
+	public static final field INSTANCE Ldev/avinya/ads/ConsentStatus$NotRequired;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/ConsentStatus$Obtained : dev/avinya/ads/ConsentStatus {
+	public static final field INSTANCE Ldev/avinya/ads/ConsentStatus$Obtained;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/ConsentStatus$Required : dev/avinya/ads/ConsentStatus {
+	public static final field INSTANCE Ldev/avinya/ads/ConsentStatus$Required;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/ConsentStatus$Unknown : dev/avinya/ads/ConsentStatus {
+	public static final field INSTANCE Ldev/avinya/ads/ConsentStatus$Unknown;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class dev/avinya/ads/FullScreenAdController {
+	public abstract fun availability ()Ldev/avinya/ads/AdAvailability;
+	public abstract fun clear ()V
+	public abstract fun getEvents ()Lkotlinx/coroutines/flow/SharedFlow;
+	public abstract fun getLoadState ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getPlacement ()Ldev/avinya/ads/AdPlacement;
+	public fun isReady ()Z
+	public abstract fun load (Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun load$default (Ldev/avinya/ads/FullScreenAdController;Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public fun preload (Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun preload$default (Ldev/avinya/ads/FullScreenAdController;Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun show (Ldev/avinya/ads/FullScreenAdOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun show$default (Ldev/avinya/ads/FullScreenAdController;Ldev/avinya/ads/FullScreenAdOptions;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class dev/avinya/ads/FullScreenAdController$DefaultImpls {
+	public static fun isReady (Ldev/avinya/ads/FullScreenAdController;)Z
+	public static synthetic fun load$default (Ldev/avinya/ads/FullScreenAdController;Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static fun preload (Ldev/avinya/ads/FullScreenAdController;Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun preload$default (Ldev/avinya/ads/FullScreenAdController;Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun show$default (Ldev/avinya/ads/FullScreenAdController;Ldev/avinya/ads/FullScreenAdOptions;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class dev/avinya/ads/FullScreenAdOptions {
+	public fun <init> ()V
+	public fun <init> (ZLdev/avinya/ads/ServerSideVerificationOptions;Ljava/lang/Boolean;Ljava/lang/Float;)V
+	public synthetic fun <init> (ZLdev/avinya/ads/ServerSideVerificationOptions;Ljava/lang/Boolean;Ljava/lang/Float;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Ldev/avinya/ads/ServerSideVerificationOptions;
+	public final fun component3 ()Ljava/lang/Boolean;
+	public final fun component4 ()Ljava/lang/Float;
+	public final fun copy (ZLdev/avinya/ads/ServerSideVerificationOptions;Ljava/lang/Boolean;Ljava/lang/Float;)Ldev/avinya/ads/FullScreenAdOptions;
+	public static synthetic fun copy$default (Ldev/avinya/ads/FullScreenAdOptions;ZLdev/avinya/ads/ServerSideVerificationOptions;Ljava/lang/Boolean;Ljava/lang/Float;ILjava/lang/Object;)Ldev/avinya/ads/FullScreenAdOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAudioMuted ()Ljava/lang/Boolean;
+	public final fun getAudioVolume ()Ljava/lang/Float;
+	public final fun getImmersiveMode ()Z
+	public final fun getServerSideVerification ()Ldev/avinya/ads/ServerSideVerificationOptions;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/GlobalRequestConfiguration {
+	public fun <init> ()V
+	public fun <init> (Ljava/util/List;Ldev/avinya/ads/MaxAdContentRating;Ldev/avinya/ads/AgeRestrictedTreatment;Ldev/avinya/ads/PublisherPrivacyPersonalizationState;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Float;)V
+	public synthetic fun <init> (Ljava/util/List;Ldev/avinya/ads/MaxAdContentRating;Ldev/avinya/ads/AgeRestrictedTreatment;Ldev/avinya/ads/PublisherPrivacyPersonalizationState;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Float;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun component2 ()Ldev/avinya/ads/MaxAdContentRating;
+	public final fun component3 ()Ldev/avinya/ads/AgeRestrictedTreatment;
+	public final fun component4 ()Ldev/avinya/ads/PublisherPrivacyPersonalizationState;
+	public final fun component5 ()Ljava/lang/Boolean;
+	public final fun component6 ()Ljava/lang/Boolean;
+	public final fun component7 ()Ljava/lang/Float;
+	public final fun copy (Ljava/util/List;Ldev/avinya/ads/MaxAdContentRating;Ldev/avinya/ads/AgeRestrictedTreatment;Ldev/avinya/ads/PublisherPrivacyPersonalizationState;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Float;)Ldev/avinya/ads/GlobalRequestConfiguration;
+	public static synthetic fun copy$default (Ldev/avinya/ads/GlobalRequestConfiguration;Ljava/util/List;Ldev/avinya/ads/MaxAdContentRating;Ldev/avinya/ads/AgeRestrictedTreatment;Ldev/avinya/ads/PublisherPrivacyPersonalizationState;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Float;ILjava/lang/Object;)Ldev/avinya/ads/GlobalRequestConfiguration;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAgeRestrictedTreatment ()Ldev/avinya/ads/AgeRestrictedTreatment;
+	public final fun getAppMuted ()Ljava/lang/Boolean;
+	public final fun getAppVolume ()Ljava/lang/Float;
+	public final fun getMaxAdContentRating ()Ldev/avinya/ads/MaxAdContentRating;
+	public final fun getPublisherFirstPartyIdEnabled ()Ljava/lang/Boolean;
+	public final fun getPublisherPrivacyPersonalizationState ()Ldev/avinya/ads/PublisherPrivacyPersonalizationState;
+	public final fun getTestDeviceIds ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface annotation class dev/avinya/ads/InternalAdMobCmpApi : java/lang/annotation/Annotation {
+}
+
+public abstract interface class dev/avinya/ads/InterstitialAdController : dev/avinya/ads/FullScreenAdController {
+}
+
+public final class dev/avinya/ads/InterstitialAdController$DefaultImpls {
+	public static fun isReady (Ldev/avinya/ads/InterstitialAdController;)Z
+	public static fun preload (Ldev/avinya/ads/InterstitialAdController;Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class dev/avinya/ads/MaxAdContentRating : java/lang/Enum {
+	public static final field General Ldev/avinya/ads/MaxAdContentRating;
+	public static final field MatureAudience Ldev/avinya/ads/MaxAdContentRating;
+	public static final field ParentalGuidance Ldev/avinya/ads/MaxAdContentRating;
+	public static final field Teen Ldev/avinya/ads/MaxAdContentRating;
+	public static final field Unspecified Ldev/avinya/ads/MaxAdContentRating;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/MaxAdContentRating;
+	public static fun values ()[Ldev/avinya/ads/MaxAdContentRating;
+}
+
+public final class dev/avinya/ads/NoOpAdManager : dev/avinya/ads/AdManager {
+	public static final field INSTANCE Ldev/avinya/ads/NoOpAdManager;
+	public fun appOpen (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/AppOpenAdController;
+	public fun banner (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/BannerAdController;
+	public fun getConsent ()Ldev/avinya/ads/ConsentController;
+	public fun getDiagnostics ()Ldev/avinya/ads/AdDiagnostics;
+	public fun getEvents ()Lkotlinx/coroutines/flow/SharedFlow;
+	public fun getNativeAds ()Ldev/avinya/ads/nativead/NativeAdManager;
+	public fun getStatus ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun getTracking ()Ldev/avinya/ads/AdTrackingController;
+	public fun initialize (Ldev/avinya/ads/AdConfig;Ldev/avinya/ads/ConsentMode;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun interstitial (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/InterstitialAdController;
+	public fun rewarded (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/RewardedAdController;
+	public fun rewardedInterstitial (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/RewardedInterstitialAdController;
+}
+
+public final class dev/avinya/ads/PaidEvent {
+	public fun <init> (Ljava/lang/String;Ldev/avinya/ads/AdValue;Ldev/avinya/ads/AdResponseInfo;)V
+	public synthetic fun <init> (Ljava/lang/String;Ldev/avinya/ads/AdValue;Ldev/avinya/ads/AdResponseInfo;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ldev/avinya/ads/AdValue;
+	public final fun component3 ()Ldev/avinya/ads/AdResponseInfo;
+	public final fun copy (Ljava/lang/String;Ldev/avinya/ads/AdValue;Ldev/avinya/ads/AdResponseInfo;)Ldev/avinya/ads/PaidEvent;
+	public static synthetic fun copy$default (Ldev/avinya/ads/PaidEvent;Ljava/lang/String;Ldev/avinya/ads/AdValue;Ldev/avinya/ads/AdResponseInfo;ILjava/lang/Object;)Ldev/avinya/ads/PaidEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPlacementId ()Ljava/lang/String;
+	public final fun getResponseInfo ()Ldev/avinya/ads/AdResponseInfo;
+	public final fun getValue ()Ldev/avinya/ads/AdValue;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/PrivacyOptionsRequirementStatus : java/lang/Enum {
+	public static final field NotRequired Ldev/avinya/ads/PrivacyOptionsRequirementStatus;
+	public static final field Required Ldev/avinya/ads/PrivacyOptionsRequirementStatus;
+	public static final field Unknown Ldev/avinya/ads/PrivacyOptionsRequirementStatus;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/PrivacyOptionsRequirementStatus;
+	public static fun values ()[Ldev/avinya/ads/PrivacyOptionsRequirementStatus;
+}
+
+public final class dev/avinya/ads/PublisherPrivacyPersonalizationState : java/lang/Enum {
+	public static final field Default Ldev/avinya/ads/PublisherPrivacyPersonalizationState;
+	public static final field Disabled Ldev/avinya/ads/PublisherPrivacyPersonalizationState;
+	public static final field Enabled Ldev/avinya/ads/PublisherPrivacyPersonalizationState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/PublisherPrivacyPersonalizationState;
+	public static fun values ()[Ldev/avinya/ads/PublisherPrivacyPersonalizationState;
+}
+
+public abstract interface class dev/avinya/ads/RewardedAdController : dev/avinya/ads/FullScreenAdController {
+	public abstract fun show (Ldev/avinya/ads/FullScreenAdOptions;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun show$default (Ldev/avinya/ads/RewardedAdController;Ldev/avinya/ads/FullScreenAdOptions;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class dev/avinya/ads/RewardedAdController$DefaultImpls {
+	public static fun isReady (Ldev/avinya/ads/RewardedAdController;)Z
+	public static fun preload (Ldev/avinya/ads/RewardedAdController;Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun show$default (Ldev/avinya/ads/RewardedAdController;Ldev/avinya/ads/FullScreenAdOptions;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract interface class dev/avinya/ads/RewardedInterstitialAdController : dev/avinya/ads/FullScreenAdController {
+	public abstract fun show (Ldev/avinya/ads/FullScreenAdOptions;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun show$default (Ldev/avinya/ads/RewardedInterstitialAdController;Ldev/avinya/ads/FullScreenAdOptions;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class dev/avinya/ads/RewardedInterstitialAdController$DefaultImpls {
+	public static fun isReady (Ldev/avinya/ads/RewardedInterstitialAdController;)Z
+	public static fun preload (Ldev/avinya/ads/RewardedInterstitialAdController;Ldev/avinya/ads/AdRequestOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun show$default (Ldev/avinya/ads/RewardedInterstitialAdController;Ldev/avinya/ads/FullScreenAdOptions;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class dev/avinya/ads/ServerSideVerificationOptions {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Ldev/avinya/ads/ServerSideVerificationOptions;
+	public static synthetic fun copy$default (Ldev/avinya/ads/ServerSideVerificationOptions;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/avinya/ads/ServerSideVerificationOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCustomData ()Ljava/lang/String;
+	public final fun getUserId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/TestAdIds {
+	public static final field ANDROID_APP_ID Ljava/lang/String;
+	public static final field ANDROID_APP_OPEN Ljava/lang/String;
+	public static final field ANDROID_BANNER Ljava/lang/String;
+	public static final field ANDROID_COLLAPSIBLE_BANNER Ljava/lang/String;
+	public static final field ANDROID_INTERSTITIAL Ljava/lang/String;
+	public static final field ANDROID_NATIVE Ljava/lang/String;
+	public static final field ANDROID_REWARDED Ljava/lang/String;
+	public static final field ANDROID_REWARDED_INTERSTITIAL Ljava/lang/String;
+	public static final field INSTANCE Ldev/avinya/ads/TestAdIds;
+	public static final field IOS_APP_ID Ljava/lang/String;
+	public static final field IOS_APP_OPEN Ljava/lang/String;
+	public static final field IOS_BANNER Ljava/lang/String;
+	public static final field IOS_COLLAPSIBLE_BANNER Ljava/lang/String;
+	public static final field IOS_INTERSTITIAL Ljava/lang/String;
+	public static final field IOS_NATIVE Ljava/lang/String;
+	public static final field IOS_REWARDED Ljava/lang/String;
+	public static final field IOS_REWARDED_INTERSTITIAL Ljava/lang/String;
+	public static final field TEST_PUBLISHER_PREFIX Ljava/lang/String;
+	public final fun isTestAdUnitId (Ljava/lang/String;)Z
+}
+
+public final class dev/avinya/ads/TestAdIdsKt {
+	public static final fun getDebugAdConfig ()Ldev/avinya/ads/AdConfig;
+	public static final fun getDebugAdPlacements ()Ljava/util/List;
+}
+
+public final class dev/avinya/ads/appopen/AppOpenAdCoordinator {
+	public fun <init> (Ldev/avinya/ads/AdManager;Ldev/avinya/ads/AppOpenAdController;Ldev/avinya/ads/appopen/AppOpenConfig;)V
+	public synthetic fun <init> (Ldev/avinya/ads/AdManager;Ldev/avinya/ads/AppOpenAdController;Ldev/avinya/ads/appopen/AppOpenConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun isBlocked ()Z
+	public final fun setBlocked (Z)V
+	public final fun start (Lkotlinx/coroutines/CoroutineScope;)V
+	public final fun stop ()V
+}
+
+public final class dev/avinya/ads/appopen/AppOpenConfig {
+	public fun <init> ()V
+	public synthetic fun <init> (ZJJZJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (ZJJZJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2-UwyO8pc ()J
+	public final fun component3-UwyO8pc ()J
+	public final fun component4 ()Z
+	public final fun component5-UwyO8pc ()J
+	public final fun copy-5t7Pxr8 (ZJJZJ)Ldev/avinya/ads/appopen/AppOpenConfig;
+	public static synthetic fun copy-5t7Pxr8$default (Ldev/avinya/ads/appopen/AppOpenConfig;ZJJZJILjava/lang/Object;)Ldev/avinya/ads/appopen/AppOpenConfig;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getColdStartTimeout-UwyO8pc ()J
+	public final fun getCooldownBetweenShows-UwyO8pc ()J
+	public final fun getMinBackgroundDuration-UwyO8pc ()J
+	public final fun getPreloadOnStart ()Z
+	public final fun getShowOnColdStart ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/internal/FullScreenStateLock {
+	public fun <init> ()V
+	public final fun withLock (Lkotlin/jvm/functions/Function0;)Ljava/lang/Object;
+}
+
+public final class dev/avinya/ads/nativead/AdChoicesPlacement : java/lang/Enum {
+	public static final field BottomLeft Ldev/avinya/ads/nativead/AdChoicesPlacement;
+	public static final field BottomRight Ldev/avinya/ads/nativead/AdChoicesPlacement;
+	public static final field TopLeft Ldev/avinya/ads/nativead/AdChoicesPlacement;
+	public static final field TopRight Ldev/avinya/ads/nativead/AdChoicesPlacement;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/nativead/AdChoicesPlacement;
+	public static fun values ()[Ldev/avinya/ads/nativead/AdChoicesPlacement;
+}
+
+public abstract interface class dev/avinya/ads/nativead/AndroidNativeAdRenderLease {
+	public abstract fun getAd ()Lcom/google/android/libraries/ads/mobile/sdk/nativead/NativeAd;
+	public abstract fun getAdInstanceId ()Ljava/lang/String;
+	public abstract fun release ()V
+}
+
+public final class dev/avinya/ads/nativead/AndroidNativeAdRenderLeaseKt {
+	public static final fun acquireAndroidRenderLease (Ldev/avinya/ads/nativead/NativeAdSession;Ljava/lang/String;Ldev/avinya/ads/AdPlacement;Ljava/lang/String;)Ldev/avinya/ads/nativead/AndroidNativeAdRenderLease;
+}
+
+public final class dev/avinya/ads/nativead/NativeAdBatching : java/lang/Enum {
+	public static final field GoogleOnly Ldev/avinya/ads/nativead/NativeAdBatching;
+	public static final field Sequential Ldev/avinya/ads/nativead/NativeAdBatching;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/nativead/NativeAdBatching;
+	public static fun values ()[Ldev/avinya/ads/nativead/NativeAdBatching;
+}
+
+public abstract interface class dev/avinya/ads/nativead/NativeAdManager {
+	public abstract fun clear ()V
+	public abstract fun closeSession (Ljava/lang/String;)V
+	public abstract fun getPolicy ()Ldev/avinya/ads/nativead/NativeAdMemoryPolicy;
+	public abstract fun getState ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun session (Ljava/lang/String;Ldev/avinya/ads/nativead/NativeAdSessionPolicy;)Ldev/avinya/ads/nativead/NativeAdSession;
+	public static synthetic fun session$default (Ldev/avinya/ads/nativead/NativeAdManager;Ljava/lang/String;Ldev/avinya/ads/nativead/NativeAdSessionPolicy;ILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdSession;
+}
+
+public final class dev/avinya/ads/nativead/NativeAdManager$DefaultImpls {
+	public static synthetic fun session$default (Ldev/avinya/ads/nativead/NativeAdManager;Ljava/lang/String;Ldev/avinya/ads/nativead/NativeAdSessionPolicy;ILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdSession;
+}
+
+public final class dev/avinya/ads/nativead/NativeAdManagerState {
+	public fun <init> (IIIII)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun copy (IIIII)Ldev/avinya/ads/nativead/NativeAdManagerState;
+	public static synthetic fun copy$default (Ldev/avinya/ads/nativead/NativeAdManagerState;IIIIIILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdManagerState;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getActiveSessions ()I
+	public final fun getHardLimit ()I
+	public final fun getInactiveSessions ()I
+	public final fun getLoadedAds ()I
+	public final fun getReservedLoads ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/NativeAdMemoryPolicy {
+	public static final field Companion Ldev/avinya/ads/nativead/NativeAdMemoryPolicy$Companion;
+	public static final field DEFAULT_HARD_LIMIT I
+	public static final field DEFAULT_MAX_SESSION_RECORDS I
+	public fun <init> ()V
+	public synthetic fun <init> (IIIIIJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (IIIIIJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun component6-UwyO8pc ()J
+	public final fun copy-17CK4j0 (IIIIIJ)Ldev/avinya/ads/nativead/NativeAdMemoryPolicy;
+	public static synthetic fun copy-17CK4j0$default (Ldev/avinya/ads/nativead/NativeAdMemoryPolicy;IIIIIJILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdMemoryPolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHardLimit ()I
+	public final fun getInactiveSessionLimit ()I
+	public final fun getInactiveSessionTtl-UwyO8pc ()J
+	public final fun getMaxInactiveSessions ()I
+	public final fun getMaxSessionRecords ()I
+	public final fun getSoftLimit ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/NativeAdMemoryPolicy$Companion {
+}
+
+public final class dev/avinya/ads/nativead/NativeAdOptions {
+	public fun <init> ()V
+	public fun <init> (Ldev/avinya/ads/nativead/NativeMediaAspectRatio;ZZLdev/avinya/ads/nativead/AdChoicesPlacement;Ldev/avinya/ads/nativead/NativeVideoOptions;Ldev/avinya/ads/nativead/NativeCustomClickGesture;Ldev/avinya/ads/nativead/NativeAdBatching;)V
+	public synthetic fun <init> (Ldev/avinya/ads/nativead/NativeMediaAspectRatio;ZZLdev/avinya/ads/nativead/AdChoicesPlacement;Ldev/avinya/ads/nativead/NativeVideoOptions;Ldev/avinya/ads/nativead/NativeCustomClickGesture;Ldev/avinya/ads/nativead/NativeAdBatching;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ldev/avinya/ads/nativead/NativeMediaAspectRatio;
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun component4 ()Ldev/avinya/ads/nativead/AdChoicesPlacement;
+	public final fun component5 ()Ldev/avinya/ads/nativead/NativeVideoOptions;
+	public final fun component6 ()Ldev/avinya/ads/nativead/NativeCustomClickGesture;
+	public final fun component7 ()Ldev/avinya/ads/nativead/NativeAdBatching;
+	public final fun copy (Ldev/avinya/ads/nativead/NativeMediaAspectRatio;ZZLdev/avinya/ads/nativead/AdChoicesPlacement;Ldev/avinya/ads/nativead/NativeVideoOptions;Ldev/avinya/ads/nativead/NativeCustomClickGesture;Ldev/avinya/ads/nativead/NativeAdBatching;)Ldev/avinya/ads/nativead/NativeAdOptions;
+	public static synthetic fun copy$default (Ldev/avinya/ads/nativead/NativeAdOptions;Ldev/avinya/ads/nativead/NativeMediaAspectRatio;ZZLdev/avinya/ads/nativead/AdChoicesPlacement;Ldev/avinya/ads/nativead/NativeVideoOptions;Ldev/avinya/ads/nativead/NativeCustomClickGesture;Ldev/avinya/ads/nativead/NativeAdBatching;ILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdChoicesPlacement ()Ldev/avinya/ads/nativead/AdChoicesPlacement;
+	public final fun getBatching ()Ldev/avinya/ads/nativead/NativeAdBatching;
+	public final fun getCustomClickGesture ()Ldev/avinya/ads/nativead/NativeCustomClickGesture;
+	public final fun getDisableImageLoading ()Z
+	public final fun getMediaAspectRatio ()Ldev/avinya/ads/nativead/NativeMediaAspectRatio;
+	public final fun getRequestMultipleImages ()Z
+	public final fun getVideoOptions ()Ldev/avinya/ads/nativead/NativeVideoOptions;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class dev/avinya/ads/nativead/NativeAdSession {
+	public abstract fun close ()V
+	public abstract fun deactivate ()V
+	public abstract fun getKey ()Ljava/lang/String;
+	public abstract fun getPolicy ()Ldev/avinya/ads/nativead/NativeAdSessionPolicy;
+	public abstract fun getState ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun updateWindow (Ldev/avinya/ads/nativead/NativeAdWindow;)V
+}
+
+public final class dev/avinya/ads/nativead/NativeAdSessionPolicy {
+	public fun <init> ()V
+	public fun <init> (III)V
+	public synthetic fun <init> (IIIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun copy (III)Ldev/avinya/ads/nativead/NativeAdSessionPolicy;
+	public static synthetic fun copy$default (Ldev/avinya/ads/nativead/NativeAdSessionPolicy;IIIILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdSessionPolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMaxRetainedAds ()I
+	public final fun getPrefetchAhead ()I
+	public final fun getRetainBehind ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/NativeAdSessionState {
+	public fun <init> (ZLjava/util/Map;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Ljava/util/Map;
+	public final fun copy (ZLjava/util/Map;)Ldev/avinya/ads/nativead/NativeAdSessionState;
+	public static synthetic fun copy$default (Ldev/avinya/ads/nativead/NativeAdSessionState;ZLjava/util/Map;ILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdSessionState;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getActive ()Z
+	public final fun getSlots ()Ljava/util/Map;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/NativeAdSlot {
+	public fun <init> (Ljava/lang/String;Ldev/avinya/ads/AdPlacement;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ldev/avinya/ads/AdPlacement;
+	public final fun copy (Ljava/lang/String;Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/nativead/NativeAdSlot;
+	public static synthetic fun copy$default (Ldev/avinya/ads/nativead/NativeAdSlot;Ljava/lang/String;Ldev/avinya/ads/AdPlacement;ILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdSlot;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKey ()Ljava/lang/String;
+	public final fun getPlacement ()Ldev/avinya/ads/AdPlacement;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class dev/avinya/ads/nativead/NativeAdSlotState {
+}
+
+public final class dev/avinya/ads/nativead/NativeAdSlotState$Empty : dev/avinya/ads/nativead/NativeAdSlotState {
+	public static final field INSTANCE Ldev/avinya/ads/nativead/NativeAdSlotState$Empty;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/NativeAdSlotState$Failed : dev/avinya/ads/nativead/NativeAdSlotState {
+	public fun <init> (Ldev/avinya/ads/AdError;)V
+	public final fun component1 ()Ldev/avinya/ads/AdError;
+	public final fun copy (Ldev/avinya/ads/AdError;)Ldev/avinya/ads/nativead/NativeAdSlotState$Failed;
+	public static synthetic fun copy$default (Ldev/avinya/ads/nativead/NativeAdSlotState$Failed;Ldev/avinya/ads/AdError;ILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdSlotState$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ldev/avinya/ads/AdError;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/NativeAdSlotState$Loading : dev/avinya/ads/nativead/NativeAdSlotState {
+	public static final field INSTANCE Ldev/avinya/ads/nativead/NativeAdSlotState$Loading;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/NativeAdSlotState$Mounted : dev/avinya/ads/nativead/NativeAdSlotState {
+	public fun <init> (Ldev/avinya/ads/nativead/NativeMediaInfo;)V
+	public final fun component1 ()Ldev/avinya/ads/nativead/NativeMediaInfo;
+	public final fun copy (Ldev/avinya/ads/nativead/NativeMediaInfo;)Ldev/avinya/ads/nativead/NativeAdSlotState$Mounted;
+	public static synthetic fun copy$default (Ldev/avinya/ads/nativead/NativeAdSlotState$Mounted;Ldev/avinya/ads/nativead/NativeMediaInfo;ILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdSlotState$Mounted;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMediaInfo ()Ldev/avinya/ads/nativead/NativeMediaInfo;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/NativeAdSlotState$Ready : dev/avinya/ads/nativead/NativeAdSlotState {
+	public fun <init> (Ldev/avinya/ads/nativead/NativeMediaInfo;)V
+	public final fun component1 ()Ldev/avinya/ads/nativead/NativeMediaInfo;
+	public final fun copy (Ldev/avinya/ads/nativead/NativeMediaInfo;)Ldev/avinya/ads/nativead/NativeAdSlotState$Ready;
+	public static synthetic fun copy$default (Ldev/avinya/ads/nativead/NativeAdSlotState$Ready;Ldev/avinya/ads/nativead/NativeMediaInfo;ILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdSlotState$Ready;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMediaInfo ()Ldev/avinya/ads/nativead/NativeMediaInfo;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/NativeAdSlotState$Retained : dev/avinya/ads/nativead/NativeAdSlotState {
+	public fun <init> (Ldev/avinya/ads/nativead/NativeMediaInfo;)V
+	public final fun component1 ()Ldev/avinya/ads/nativead/NativeMediaInfo;
+	public final fun copy (Ldev/avinya/ads/nativead/NativeMediaInfo;)Ldev/avinya/ads/nativead/NativeAdSlotState$Retained;
+	public static synthetic fun copy$default (Ldev/avinya/ads/nativead/NativeAdSlotState$Retained;Ldev/avinya/ads/nativead/NativeMediaInfo;ILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdSlotState$Retained;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMediaInfo ()Ldev/avinya/ads/nativead/NativeMediaInfo;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/NativeAdWindow {
+	public fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun component2 ()Ljava/util/List;
+	public final fun component3 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;Ljava/util/List;Ljava/util/List;)Ldev/avinya/ads/nativead/NativeAdWindow;
+	public static synthetic fun copy$default (Ldev/avinya/ads/nativead/NativeAdWindow;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdWindow;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPrefetchAhead ()Ljava/util/List;
+	public final fun getRetainBehind ()Ljava/util/List;
+	public final fun getVisible ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/NativeCustomClickGesture {
+	public fun <init> (Ldev/avinya/ads/nativead/SwipeGestureDirection;Z)V
+	public final fun component1 ()Ldev/avinya/ads/nativead/SwipeGestureDirection;
+	public final fun component2 ()Z
+	public final fun copy (Ldev/avinya/ads/nativead/SwipeGestureDirection;Z)Ldev/avinya/ads/nativead/NativeCustomClickGesture;
+	public static synthetic fun copy$default (Ldev/avinya/ads/nativead/NativeCustomClickGesture;Ldev/avinya/ads/nativead/SwipeGestureDirection;ZILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeCustomClickGesture;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDirection ()Ldev/avinya/ads/nativead/SwipeGestureDirection;
+	public final fun getTapsAllowed ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/NativeMediaAspectRatio : java/lang/Enum {
+	public static final field Any Ldev/avinya/ads/nativead/NativeMediaAspectRatio;
+	public static final field Landscape Ldev/avinya/ads/nativead/NativeMediaAspectRatio;
+	public static final field Portrait Ldev/avinya/ads/nativead/NativeMediaAspectRatio;
+	public static final field Square Ldev/avinya/ads/nativead/NativeMediaAspectRatio;
+	public static final field Unknown Ldev/avinya/ads/nativead/NativeMediaAspectRatio;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/nativead/NativeMediaAspectRatio;
+	public static fun values ()[Ldev/avinya/ads/nativead/NativeMediaAspectRatio;
+}
+
+public final class dev/avinya/ads/nativead/NativeMediaInfo {
+	public fun <init> (Ljava/lang/Float;ZLjava/lang/Double;)V
+	public final fun component1 ()Ljava/lang/Float;
+	public final fun component2 ()Z
+	public final fun component3 ()Ljava/lang/Double;
+	public final fun copy (Ljava/lang/Float;ZLjava/lang/Double;)Ldev/avinya/ads/nativead/NativeMediaInfo;
+	public static synthetic fun copy$default (Ldev/avinya/ads/nativead/NativeMediaInfo;Ljava/lang/Float;ZLjava/lang/Double;ILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeMediaInfo;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAspectRatio ()Ljava/lang/Float;
+	public final fun getDurationSeconds ()Ljava/lang/Double;
+	public final fun getHasVideoContent ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/NativeVideoOptions {
+	public fun <init> ()V
+	public fun <init> (ZZZ)V
+	public synthetic fun <init> (ZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun copy (ZZZ)Ldev/avinya/ads/nativead/NativeVideoOptions;
+	public static synthetic fun copy$default (Ldev/avinya/ads/nativead/NativeVideoOptions;ZZZILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeVideoOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getClickToExpandRequested ()Z
+	public final fun getCustomControlsRequested ()Z
+	public final fun getStartMuted ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/nativead/SwipeGestureDirection : java/lang/Enum {
+	public static final field Down Ldev/avinya/ads/nativead/SwipeGestureDirection;
+	public static final field Left Ldev/avinya/ads/nativead/SwipeGestureDirection;
+	public static final field Right Ldev/avinya/ads/nativead/SwipeGestureDirection;
+	public static final field Up Ldev/avinya/ads/nativead/SwipeGestureDirection;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/avinya/ads/nativead/SwipeGestureDirection;
+	public static fun values ()[Ldev/avinya/ads/nativead/SwipeGestureDirection;
+}
+
