@@ -9,6 +9,7 @@ import dev.avinya.ads.internal.FullScreenPresentationArbiter
 import dev.avinya.ads.internal.FullScreenPresentationHandle
 import dev.avinya.ads.internal.FullScreenSlotCore
 import dev.avinya.ads.internal.RewardDelivery
+import dev.avinya.ads.internal.tryResumeOnce
 import com.google.android.libraries.ads.mobile.sdk.MobileAds
 import com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd
 import com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAdEventCallback
@@ -24,7 +25,6 @@ import com.google.android.libraries.ads.mobile.sdk.rewarded.RewardedAd
 import com.google.android.libraries.ads.mobile.sdk.rewarded.RewardedAdEventCallback
 import com.google.android.libraries.ads.mobile.sdk.rewardedinterstitial.RewardedInterstitialAd
 import com.google.android.libraries.ads.mobile.sdk.rewardedinterstitial.RewardedInterstitialAdEventCallback
-import kotlin.coroutines.resume
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.CancellableContinuation
@@ -124,7 +124,7 @@ internal class AndroidInterstitialSlot(
                         continuation.resumeLoadedAd(ad)
                     }
                     override fun onAdFailedToLoad(adError: LoadAdError) {
-                        if (continuation.isActive) continuation.resume(AdAttemptResult.Failure(adError.toAdError()))
+                        continuation.tryResumeOnce(AdAttemptResult.Failure(adError.toAdError()))
                     }
                 })
             }
@@ -198,7 +198,7 @@ internal class AndroidRewardedSlot(
                         continuation.resumeLoadedAd(ad)
                     }
                     override fun onAdFailedToLoad(adError: LoadAdError) {
-                        if (continuation.isActive) continuation.resume(AdAttemptResult.Failure(adError.toAdError()))
+                        continuation.tryResumeOnce(AdAttemptResult.Failure(adError.toAdError()))
                     }
                 })
             }
@@ -258,7 +258,7 @@ internal class AndroidRewardedInterstitialSlot(
                         continuation.resumeLoadedAd(ad)
                     }
                     override fun onAdFailedToLoad(adError: LoadAdError) {
-                        if (continuation.isActive) continuation.resume(AdAttemptResult.Failure(adError.toAdError()))
+                        continuation.tryResumeOnce(AdAttemptResult.Failure(adError.toAdError()))
                     }
                 })
             }
@@ -314,7 +314,7 @@ internal class AndroidAppOpenSlot(
                         continuation.resumeLoadedAd(ad)
                     }
                     override fun onAdFailedToLoad(adError: LoadAdError) {
-                        if (continuation.isActive) continuation.resume(AdAttemptResult.Failure(adError.toAdError()))
+                        continuation.tryResumeOnce(AdAttemptResult.Failure(adError.toAdError()))
                     }
                 })
             }
@@ -399,14 +399,14 @@ private suspend fun <T : Ad> FullScreenSlotCore<T>.presentSimpleFullScreenAd(
             onDismissed = {
                 if (presentation.close(wasShown = true)) {
                     emit(AdEvent.ClosedFullScreen(placement.id))
-                    if (continuation.isActive) continuation.resume(AdShowResult.Shown)
+                    continuation.tryResumeOnce(AdShowResult.Shown)
                 }
             },
             onFailedToShow = { error ->
                 val adError = error.toAdError()
                 if (presentation.close(wasShown = false)) {
                     emit(AdEvent.ShowFailed(placement.id, adError))
-                    if (continuation.isActive) continuation.resume(AdShowResult.Failed(adError))
+                    continuation.tryResumeOnce(AdShowResult.Failed(adError))
                 }
             }
         )
@@ -438,16 +438,14 @@ private suspend fun <T : Ad> FullScreenSlotCore<T>.showRewarded(
             override fun onAdDismissedFullScreenContent() {
                 if (presentation.close(wasShown = true)) {
                     emit(AdEvent.ClosedFullScreen(placement.id))
-                    if (continuation.isActive) {
-                        continuation.resume(AdShowResult.Shown)
-                    }
+                    continuation.tryResumeOnce(AdShowResult.Shown)
                 }
             }
             override fun onAdFailedToShowFullScreenContent(error: FullScreenContentError) {
                 val adError = error.toAdError()
                 if (presentation.close(wasShown = false)) {
                     emit(AdEvent.ShowFailed(placement.id, adError))
-                    if (continuation.isActive) continuation.resume(AdShowResult.Failed(adError))
+                    continuation.tryResumeOnce(AdShowResult.Failed(adError))
                 }
             }
         }
@@ -502,12 +500,14 @@ private fun Ad.destroyOnMain() {
 }
 
 private fun <T : Ad> CancellableContinuation<AdAttemptResult<T>>.resumeLoadedAd(ad: T) {
-    if (!isActive) {
-        ad.destroyOnMain()
-        return
-    }
-    resume(
+    val delivered = tryResumeOnce(
         AdAttemptResult.Success(ad),
         onCancellation = { _, _, _ -> ad.destroyOnMain() }
     )
+    // Atomic single-shot: the loser of a concurrent terminal-callback race gets `false` instead
+    // of an `IllegalStateException` on the SDK's thread. `tryResume` does not run `onCancellation`
+    // for an already-resumed or already-cancelled continuation, so the loser must free the ad
+    // itself — this is the only cleanup on that path, and the ad is destroyed exactly once
+    // (a resume that won and was cancelled in flight is handled by `onCancellation` above).
+    if (!delivered) ad.destroyOnMain()
 }

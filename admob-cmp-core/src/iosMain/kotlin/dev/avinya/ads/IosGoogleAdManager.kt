@@ -14,10 +14,10 @@ import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeAdManagerImpl
 import dev.avinya.ads.internal.awaitNativeCallback
 import dev.avinya.ads.internal.emitOrLogDrop
+import dev.avinya.ads.internal.tryResumeOnce
 import dev.avinya.ads.nativead.IosNativeAdPlatform
 import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
-import kotlin.coroutines.resume
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -135,7 +135,7 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
                             AdLogger.d("iOS adapter '${name}'")
                         }
                     }
-                    if (continuation.isActive) continuation.resume(Unit)
+                    continuation.tryResumeOnce(Unit)
                 }
             }
         }

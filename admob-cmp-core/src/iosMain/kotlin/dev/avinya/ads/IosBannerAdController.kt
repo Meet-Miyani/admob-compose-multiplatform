@@ -7,6 +7,7 @@ import GoogleMobileAds.GADBannerView
 import GoogleMobileAds.GADBannerViewDelegateProtocol
 import dev.avinya.ads.internal.BannerCore
 import dev.avinya.ads.internal.BannerPlatform
+import dev.avinya.ads.internal.tryResumeOnce
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -14,7 +15,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.cinterop.CValue
@@ -122,21 +122,19 @@ internal class IosBannerAdController internal constructor(
                 lateinit var bannerDelegate: BannerDelegate
                 bannerDelegate = BannerDelegate(
                     onLoaded = {
-                        if (continuation.isActive) {
-                            // Capture response info HERE, on Main. GADBannerView is a UIView, and
-                            // BannerCore resumes on whatever dispatcher its caller used — reading
-                            // `.responseInfo` there was a UIKit property access off the main
-                            // thread (CLAUDE.md invariant #5). It is fixed once loaded, so
-                            // snapshotting it loses nothing.
-                            continuation.resume(
-                                AdAttemptResult.Success(
-                                    IosLoadedBanner(banner, bannerDelegate, banner.responseInfo?.toCommon())
-                                )
+                        // Capture response info HERE, on Main. GADBannerView is a UIView, and
+                        // BannerCore resumes on whatever dispatcher its caller used — reading
+                        // `.responseInfo` there was a UIKit property access off the main
+                        // thread (CLAUDE.md invariant #5). It is fixed once loaded, so
+                        // snapshotting it loses nothing.
+                        continuation.tryResumeOnce(
+                            AdAttemptResult.Success(
+                                IosLoadedBanner(banner, bannerDelegate, banner.responseInfo?.toCommon())
                             )
-                        }
+                        )
                     },
                     onFailedToLoad = { error ->
-                        if (continuation.isActive) continuation.resume(AdAttemptResult.Failure(error.toAdError()))
+                        continuation.tryResumeOnce(AdAttemptResult.Failure(error.toAdError()))
                     },
                     onImpression = { emit(AdEvent.Impression(placement.id)) },
                     onClicked = { emit(AdEvent.Clicked(placement.id)) }
@@ -168,7 +166,7 @@ internal class IosBannerAdController internal constructor(
                     banner.loadRequest(requestOptions.withCollapsible(sizePolicy).toGADRequest())
                 } else {
                     teardownBanner(banner)
-                    continuation.resume(AdAttemptResult.Failure(AdError.message("Banner load was cleared.")))
+                    continuation.tryResumeOnce(AdAttemptResult.Failure(AdError.message("Banner load was cleared.")))
                 }
             }
             if (result is AdAttemptResult.Failure) {

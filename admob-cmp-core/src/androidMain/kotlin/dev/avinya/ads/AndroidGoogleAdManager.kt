@@ -8,12 +8,12 @@ import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeAdManagerImpl
 import dev.avinya.ads.internal.awaitNativeCallback
 import dev.avinya.ads.internal.emitOrLogDrop
+import dev.avinya.ads.internal.tryResumeOnce
 import dev.avinya.ads.nativead.AndroidNativeAdPlatform
 import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
 import com.google.android.libraries.ads.mobile.sdk.MobileAds
 import com.google.android.libraries.ads.mobile.sdk.initialization.InitializationConfig
-import kotlin.coroutines.resume
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -137,7 +137,7 @@ internal class AndroidGoogleAdManager(
             ) {
                 suspendCancellableCoroutine { continuation ->
                     MobileAds.initialize(appContext, initializationConfig) {
-                        if (continuation.isActive) continuation.resume(Unit)
+                        continuation.tryResumeOnce(Unit)
                     }
                 }
             }

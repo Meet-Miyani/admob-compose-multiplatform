@@ -4,7 +4,7 @@ import android.app.Activity
 import com.google.android.libraries.ads.mobile.sdk.MobileAds
 import com.google.android.libraries.ads.mobile.sdk.common.OnAdInspectorClosedListener
 import com.google.android.libraries.ads.mobile.sdk.initialization.AdapterStatus
-import kotlin.coroutines.resume
+import dev.avinya.ads.internal.tryResumeOnce
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -46,7 +46,7 @@ internal class AndroidAdDiagnostics(
             MobileAds.openAdInspector(
                 object : OnAdInspectorClosedListener {
                     override fun onAdInspectorClosed(error: com.google.android.libraries.ads.mobile.sdk.common.AdInspectorError?) {
-                        continuation.resume(error == null)
+                        continuation.tryResumeOnce(error == null)
                     }
                 }
             )
