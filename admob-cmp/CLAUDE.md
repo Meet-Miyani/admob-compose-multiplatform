@@ -47,6 +47,10 @@ AGENTS.md, not this file.
    implement only `loadAd` / `presentAd` / `destroyAd` / `canPresent` /
    `getResponseInfo`. Put load/show/cache/retry/consent logic in the core, not
    in platform slots — keep the fix at the shared altitude.
+   `scheduleReload` replays `lastRequestOptions` — what the last requesting
+   `load()` resolved — and must never rebuild from `placement.requestOptions`;
+   that snapshot is recorded only after the early returns, so a cache-full or
+   consent-blocked call cannot clobber it.
 2. **`presentAd` suspends until the ad is dismissed.** Destroy a presented ad
    only on *normal* return, never on cancellation (cancelling mid-show means the
    ad is still on screen). See the `catch (CancellationException)` in

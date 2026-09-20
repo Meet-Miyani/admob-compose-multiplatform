@@ -1102,4 +1102,70 @@ class FullScreenSlotCoreTest {
         advanceUntilIdle()
         assertIs<AdShowResult.Shown>(slot.show())
     }
+
+    @Test
+    fun `reloadAfterShow replays per-load request options instead of placement defaults`() = runSlotTest {
+        val reloading = testPlacement.copy(cachePolicy = AdCachePolicy(reloadAfterShow = true))
+        val slot = FakeFullScreenSlot(reloading, testGlobalEvents(), unblockedAdRequestError(), tickClock())
+        val custom = AdRequestOptions(customTargeting = mapOf("sport" to listOf("football")))
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.enqueueLoadResult(AdAttemptResult.Success("reload-ad"))
+
+        slot.load(custom)
+        assertIs<AdShowResult.Shown>(slot.show())
+        advanceUntilIdle()
+
+        assertEquals(2, slot.loadCalls.size, "initial load plus one automatic reload")
+        assertEquals(custom.customTargeting, slot.loadCalls[1].customTargeting)
+    }
+
+    @Test
+    fun `cache-full load does not clobber the replay snapshot`() = runSlotTest {
+        val reloading = testPlacement.copy(cachePolicy = AdCachePolicy(reloadAfterShow = true))
+        val slot = FakeFullScreenSlot(reloading, testGlobalEvents(), unblockedAdRequestError(), tickClock())
+        val custom = AdRequestOptions(customTargeting = mapOf("sport" to listOf("football")))
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.enqueueLoadResult(AdAttemptResult.Success("reload-ad"))
+
+        slot.load(custom)
+        // Cache is full (maxSize 1): returns Loaded immediately without issuing a request.
+        val second = slot.load()
+        assertIs<AdLoadState.Loaded>(second)
+        assertEquals(1, slot.loadCalls.size, "cache-full load must not reach the platform")
+
+        assertIs<AdShowResult.Shown>(slot.show())
+        advanceUntilIdle()
+
+        assertEquals(2, slot.loadCalls.size, "initial load plus one automatic reload")
+        assertEquals(custom.customTargeting, slot.loadCalls[1].customTargeting)
+    }
+
+    /**
+     * Deliberately NOT a test of `clear()` resetting the replay snapshot. That reset has no
+     * reachable failure path: a reload needs a show, a show needs a cached ad, and any load
+     * that fills the cache stores its own options — so the snapshot is always overwritten
+     * before it could be replayed. Verified by deleting the reset and watching this suite stay
+     * green. What this DOES pin is the sequence a host actually hits: the reload replays the
+     * options of the load that last issued a request, not the ones from before the clear.
+     */
+    @Test
+    fun `a post-clear load reloads with its own options rather than the cleared load's`() = runSlotTest {
+        val reloading = testPlacement.copy(cachePolicy = AdCachePolicy(reloadAfterShow = true))
+        val slot = FakeFullScreenSlot(reloading, testGlobalEvents(), unblockedAdRequestError(), tickClock())
+        val custom = AdRequestOptions(customTargeting = mapOf("sport" to listOf("football")))
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad2"))
+        slot.enqueueLoadResult(AdAttemptResult.Success("reload-ad"))
+
+        slot.load(custom)
+        slot.clear()
+        // Cache was cleared, so this bare load is not a no-op: it issues a real request and
+        // becomes the snapshot the reload below replays.
+        slot.load()
+        assertIs<AdShowResult.Shown>(slot.show())
+        advanceUntilIdle()
+
+        assertEquals(3, slot.loadCalls.size, "custom load, post-clear load, plus one automatic reload")
+        assertEquals(emptyMap(), slot.loadCalls[2].customTargeting)
+    }
 }
