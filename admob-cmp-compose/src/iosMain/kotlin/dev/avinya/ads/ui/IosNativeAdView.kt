@@ -114,12 +114,21 @@ public actual fun NativeAdView(
                     // A root that asks to fill takes the host's height rather than measuring its
                     // own: see `IosNativeAdHostView.fillsHost`.
                     val rootFillsHost = layout.root.modifier.height == AdLayoutSize.Match && minHeightPoints > 0.0
+                    // Screen scale only, never the whole Density. On iOS `fontScale` tracks
+                    // Dynamic Type, and rebuilding for that would fight ObserveContentSizeCategory
+                    // below: the labels already set `adjustsFontForContentSizeCategory`, so the
+                    // built tree re-renders itself and only needs re-measuring. Keying on it would
+                    // instead destroy the host and register a FRESH GADNativeAdView against the
+                    // same GADNativeAd on every text-size change — a flicker, and an impression
+                    // GMA may well count twice. Nothing the tree is built from reads fontScale;
+                    // IosComposeFontResolverTest.variableWeightIsInvariantToFontScale pins that.
                     val prepared = remember(
                         mountedLease.adInstanceId,
                         layout.identity,
                         resolvedComposeFonts,
                         widthPoints,
                         rootFillsHost,
+                        density.density,
                     ) {
                         prepareNativeAd(
                             placementId = placement.id,

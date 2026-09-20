@@ -14,12 +14,19 @@ import dev.avinya.ads.nativead.NativeAdSession
 import dev.avinya.ads.nativead.NativeAdSessionPolicy
 import dev.avinya.ads.nativead.NativeAdSlot
 import dev.avinya.ads.nativead.NativeAdWindow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * Obtains a named native-ad session and keeps it synchronized with [listState]'s measured
  * viewport. Leaving composition only deactivates the session, allowing its bounded inactive
  * anchor to survive a tab switch; the logical feed owner closes it when it is genuinely done.
+ *
+ * [slotAt] is invoked inside a Compose snapshot observer, so any snapshot state it reads —
+ * the backing list, a `LazyPagingItems`, a remote slot config — is tracked. A feed whose
+ * contents change without changing [itemCount], such as a pull-to-refresh, therefore still
+ * republishes the window. It is called only for measured indexes and for a bounded range on
+ * either side of them, never across the whole feed, so it must stay cheap and side-effect free.
  */
 @Composable
 public fun rememberNativeAdFeedSession(
@@ -48,6 +55,12 @@ public fun rememberNativeAdFeedSession(
 /**
  * Obtains a named native-ad session and keeps it synchronized with [gridState]'s measured
  * viewport. Grid items use the same bounded native-slot scanning and session lifecycle as lists.
+ *
+ * [slotAt] is invoked inside a Compose snapshot observer, so any snapshot state it reads —
+ * the backing list, a `LazyPagingItems`, a remote slot config — is tracked. A feed whose
+ * contents change without changing [itemCount], such as a pull-to-refresh, therefore still
+ * republishes the window. It is called only for measured indexes and for a bounded range on
+ * either side of them, never across the whole feed, so it must stay cheap and side-effect free.
  */
 @Composable
 public fun rememberNativeAdFeedSession(
@@ -89,26 +102,12 @@ private fun <S : Any> rememberNativeAdFeedSessionForViewport(
 
     LaunchedEffect(session, viewportState) {
         val binding = NativeAdViewportSessionBinding(session, policy)
-        snapshotFlow {
-            val viewport = viewportState.measuredViewport()
-            NativeAdViewportInput(
-                indexes = viewport.indexes,
-                firstIndex = viewport.firstIndex,
-                firstOffset = viewport.firstOffset,
-                itemCount = currentItemCount,
-                slotAt = currentSlotAt,
-            )
-        }
-            .distinctUntilChanged()
-            .collect { input ->
-                binding.update(
-                    visibleIndexes = input.indexes,
-                    firstVisibleIndex = input.firstIndex,
-                    firstVisibleOffset = input.firstOffset,
-                    itemCount = input.itemCount,
-                    slotAt = input.slotAt,
-                )
-            }
+        nativeAdViewportInputs(
+            policy = policy,
+            measure = { viewportState.measuredViewport() },
+            itemCount = { currentItemCount },
+            slotAt = { currentSlotAt },
+        ).collect(binding::update)
     }
 
     DisposableEffect(session) {
@@ -153,6 +152,37 @@ internal class NativeAdSlotSessionBinding(private val session: NativeAdSession) 
     }
 }
 
+/**
+ * The measured-viewport pipeline, extracted from the composable so it can be driven by a test.
+ *
+ * Everything happens inside ONE snapshot observer, and that is the whole point.
+ * [slotAt] is host code that reads the feed's own Compose state; performing those reads here,
+ * rather than in the collector, is what makes a content change with an unchanged item count —
+ * a pull-to-refresh, an async slot config resolving — reach the session at all. Resolve the
+ * mapping outside this block and the window silently follows scroll geometry and nothing else.
+ *
+ * [itemCount] and [slotAt] are read through lambdas for the same reason: they come from
+ * `rememberUpdatedState`, and the read has to land inside the observer to be tracked.
+ */
+internal fun nativeAdViewportInputs(
+    policy: NativeAdSessionPolicy,
+    measure: () -> NativeAdViewportMeasurement,
+    itemCount: () -> Int,
+    slotAt: () -> (Int) -> NativeAdSlot?,
+): Flow<NativeAdViewportInput> = snapshotFlow {
+    val viewport = measure()
+    NativeAdViewportInput(
+        slots = resolveNativeAdViewport(
+            visibleIndexes = viewport.indexes,
+            itemCount = itemCount(),
+            policy = policy,
+            slotAt = slotAt(),
+        ),
+        firstIndex = viewport.firstIndex,
+        firstOffset = viewport.firstOffset,
+    )
+}.distinctUntilChanged()
+
 internal class NativeAdViewportSessionBinding(
     private val session: NativeAdSession,
     private val policy: NativeAdSessionPolicy,
@@ -161,53 +191,42 @@ internal class NativeAdViewportSessionBinding(
     private var previousFirstOffset: Int? = null
     private var previousViewport: MeasuredNativeAdViewport? = null
 
-    fun update(
-        visibleIndexes: List<Int>,
-        firstVisibleIndex: Int,
-        firstVisibleOffset: Int,
-        itemCount: Int,
-        slotAt: (Int) -> NativeAdSlot?,
-    ) {
+    fun update(input: NativeAdViewportInput) {
         val direction = when {
             previousFirstIndex == null -> NativeAdScrollDirection.Forward
-            firstVisibleIndex > previousFirstIndex!! ||
-                (firstVisibleIndex == previousFirstIndex && firstVisibleOffset > previousFirstOffset!!) ->
+            input.firstIndex > previousFirstIndex!! ||
+                (input.firstIndex == previousFirstIndex && input.firstOffset > previousFirstOffset!!) ->
                 NativeAdScrollDirection.Forward
             else -> NativeAdScrollDirection.Reverse
         }
-        previousFirstIndex = firstVisibleIndex
-        previousFirstOffset = firstVisibleOffset
+        previousFirstIndex = input.firstIndex
+        previousFirstOffset = input.firstOffset
 
-        val viewport = MeasuredNativeAdViewport(visibleIndexes, itemCount, slotAt, direction)
+        // Scroll offset is deliberately NOT part of this key: dragging within one row moves the
+        // offset without changing a single band, and republishing there would churn the session
+        // for nothing. The resolved slots ARE part of it, so a feed whose contents changed under
+        // a stationary viewport still gets through.
+        val viewport = MeasuredNativeAdViewport(input.slots, direction)
         if (viewport == previousViewport) return
         previousViewport = viewport
-        nativeAdWindowForViewport(
-            visibleIndexes = viewport.indexes,
-            itemCount = viewport.itemCount,
-            direction = viewport.direction,
-            policy = policy,
-            slotAt = viewport.slotAt,
-        )?.let(session::updateWindow)
+        nativeAdWindowForViewport(viewport.slots, viewport.direction, policy)?.let(session::updateWindow)
     }
 }
 
+/** One measured frame: the resolved slot mapping plus the geometry the direction machine reads. */
+internal data class NativeAdViewportInput(
+    val slots: ResolvedNativeAdViewport,
+    val firstIndex: Int,
+    val firstOffset: Int,
+)
+
 private data class MeasuredNativeAdViewport(
-    val indexes: List<Int>,
-    val itemCount: Int,
-    val slotAt: (Int) -> NativeAdSlot?,
+    val slots: ResolvedNativeAdViewport,
     val direction: NativeAdScrollDirection,
 )
 
-private data class NativeAdViewportMeasurement(
+internal data class NativeAdViewportMeasurement(
     val indexes: List<Int>,
     val firstIndex: Int,
     val firstOffset: Int,
-)
-
-private data class NativeAdViewportInput(
-    val indexes: List<Int>,
-    val firstIndex: Int,
-    val firstOffset: Int,
-    val itemCount: Int,
-    val slotAt: (Int) -> NativeAdSlot?,
 )

@@ -184,6 +184,9 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     private val reloadJob = AtomicReference<Job?>(null)
     private val reloadScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val orphanedAds = mutableListOf<AdT>()
+    // Last resolved per-load options, mirroring BannerCore.replayRequest. scheduleReload
+    // must replay what load() resolved, never rebuild from placement.requestOptions.
+    private val lastRequestOptions = AtomicReference<AdRequestOptions?>(null)
 
     override val loadState: StateFlow<AdLoadState> = LoadStateFlow(slotState)
     override val events: SharedFlow<AdEvent> = _events
@@ -259,6 +262,10 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         }
         destroyAds(preparation.retiredAds)
         preparation.immediateResult?.let { return@withLock it }
+        // Record only a call that actually proceeds to a request. A cache-full /
+        // consent-blocked / stale-generation early return above issues no request, so it
+        // must not clobber the snapshot scheduleReload replays.
+        lastRequestOptions.store(requestOptions.ownedSnapshot())
 
         var lastError: AdError? = null
         var acceptedAny = false
@@ -505,6 +512,12 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             result
         }
         reloadJob.exchange(null)?.cancel()
+        // Defensive, and deliberately untested: no public sequence can observe it. A reload
+        // needs a show, a show needs a cached ad, and every load that fills the cache stores
+        // its own options first — so a snapshot surviving clear() is always overwritten before
+        // it could be replayed. Kept so the field cannot outlive the state it describes, and
+        // so this mirrors BannerCore.clearLocked() as the comment on the field claims.
+        lastRequestOptions.store(null)
         destroyAds(retiredAds)
     }
 
@@ -756,7 +769,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             // Load state needs no repair: loadForGeneration runs finishCancelledLoad() before it
             // rethrows, so the slot is already in a terminal state and a later manual load works.
             try {
-                loadForGeneration(placement.requestOptions, requiredGeneration = generation)
+                loadForGeneration(lastRequestOptions.load() ?: placement.requestOptions, requiredGeneration = generation)
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {

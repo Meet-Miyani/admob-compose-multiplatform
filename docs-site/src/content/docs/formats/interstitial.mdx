@@ -153,7 +153,9 @@ reload after each `show()`, so the next break has warm inventory.
 The cost is the same as a regular `load()` — the next impression
 incurred the network cost of a request — but the timing is
 guaranteed, and the user never sees a "loading" state because no
-ad is currently being shown.
+ad is currently being shown. That background reload replays the
+`AdRequestOptions` of the most recent `load()` that issued a
+request, so per-session targeting survives it.
 
 ## Non-reentrancy of show()
 

@@ -197,3 +197,13 @@ requests; for a placement that fires twice a day, that is two.
 The math favours `reloadAfterShow = true` whenever the
 placement is in a hot path, and `false` when the placement is
 shown at a moment the user is unlikely to reach twice.
+
+The automatic reload replays the `AdRequestOptions` from the most
+recent `load()` that actually issued a request. It previously
+rebuilt them from `placement.requestOptions`, silently dropping any
+custom options the original `load()` was given — so a placement
+loaded with per-session targeting reloaded without it. This matches
+what `refresh()` already does for banners. A `load()` that returns
+early without requesting — because the cache is already full, or
+because consent has not been granted yet — is not a request, so it
+leaves the previous options in place rather than replacing them.

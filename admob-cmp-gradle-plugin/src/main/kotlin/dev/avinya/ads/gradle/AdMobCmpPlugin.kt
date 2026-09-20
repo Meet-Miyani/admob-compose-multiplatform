@@ -101,7 +101,12 @@ public abstract class AdMobCmpPlugin : Plugin<Project> {
  * Returns empty off macOS so Linux CI can still configure the build.
  */
 private fun testLinkerOpts(project: Project, targetName: String, frameworksDir: File): List<String> {
-    if (!org.gradle.internal.os.OperatingSystem.current().isMacOsX) return emptyList()
+    // Host check via a tracked provider; never use org.gradle.internal.os.OperatingSystem here —
+    // internal APIs break across the consumer's Gradle version, and this plugin runs on arbitrary
+    // wrappers. isMacOsHost covers the same aliases that class does, because dropping the linker
+    // options on a Mac surfaces only as an undefined-symbol link failure much later.
+    val osName = project.providers.systemProperty("os.name").getOrElse("")
+    if (!isMacOsHost(osName)) return emptyList()
     val swiftPlatform = when (targetName) {
         "iosArm64" -> "iphoneos"
         "iosSimulatorArm64" -> "iphonesimulator"
@@ -123,6 +128,19 @@ private fun testLinkerOpts(project: Project, targetName: String, frameworksDir: 
         "-framework", "JavaScriptCore",
         "-L$swiftCompatLibDir",
     )
+}
+
+/**
+ * Whether [osName] (a raw `os.name`) identifies a macOS host.
+ *
+ * Covers the same aliases as Gradle's own `OperatingSystem.forName` — `darwin` and `osx` as well
+ * as the `Mac OS X` string the JVM still reports — plus a modernised `macOS`. Matching that set
+ * matters: this is a fail-silent check, and a name it fails to recognise drops the GoogleMobileAds
+ * linker options on a machine that needed them.
+ */
+internal fun isMacOsHost(osName: String): Boolean {
+    val name = osName.lowercase()
+    return name.startsWith("mac") || name.contains("darwin") || name.contains("osx")
 }
 
 private fun frameworkDir(baseDir: File, baseName: String, targetName: String): File {

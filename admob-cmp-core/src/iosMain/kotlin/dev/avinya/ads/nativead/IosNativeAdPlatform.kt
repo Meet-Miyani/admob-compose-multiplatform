@@ -316,7 +316,15 @@ private object IosNativeAdOwners {
         val native = SessionNativeDelegate(placementId, instanceId, emit)
         val retained = mutableListOf<NSObject>(native)
         loaded.ad.delegate = native
-        loaded.ad.paidEventHandler = { value -> value?.toCommon()?.let { emit(AdEvent.Paid(placementId, PaidEvent(placementId, it, loaded.responseInfo), instanceId)) } }
+        // Snapshot the already-common responseInfo outside the block so the handler
+        // captures no ObjC object: capturing `loaded` would retain the GADNativeAd
+        // through its own paidEventHandler (ad -> block -> loaded -> ad).
+        val responseInfo = loaded.responseInfo
+        loaded.ad.paidEventHandler = { value ->
+            value?.toCommon()?.let {
+                emit(AdEvent.Paid(placementId, PaidEvent(placementId, it, responseInfo), instanceId))
+            }
+        }
         loaded.ad.mediaContent?.takeIf { it.hasVideoContent }?.let { media ->
             SessionVideoDelegate(placementId, instanceId, emit).also { video -> media.videoController.delegate = video; retained += video }
         }

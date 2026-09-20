@@ -60,7 +60,11 @@ scope.launch {
 ```
 
 Multi-ad caching: `cachePolicy = AdCachePolicy(maxSize = 3, reloadAfterShow = true)`
-on the placement. FIFO show, TTL eviction (1h; app-open 4h).
+on the placement. FIFO show, TTL eviction (1h; app-open 4h). The `reloadAfterShow`
+reload replays the request options of the most recent `load()` that issued a
+request — it previously rebuilt them from `placement.requestOptions`, dropping any
+custom `AdRequestOptions`. A cache-full or consent-blocked `load()` issues no
+request, so it does not become the replayed snapshot.
 
 `show()` is not reentrant per controller: a second `show()` call while the
 first is still on screen for the *same* controller returns `NotReady`

@@ -75,15 +75,13 @@ class NativeAdViewportBindingTest {
 
     @Test
     fun `first unmeasured layout does not emit a destructive empty window`() {
-        assertNull(
-            nativeAdWindowForViewport(
-                visibleIndexes = emptyList(),
-                itemCount = 10,
-                direction = NativeAdScrollDirection.Forward,
-                policy = NativeAdSessionPolicy(),
-                slotAt = slotsAt(2),
-            )
-        )
+        assertNull(windowFor(
+            visibleIndexes = emptyList(),
+            itemCount = 10,
+            direction = NativeAdScrollDirection.Forward,
+            policy = NativeAdSessionPolicy(),
+            slotAt = slotsAt(2),
+        ))
     }
 
     @Test
@@ -96,7 +94,7 @@ class NativeAdViewportBindingTest {
             slotAt = slotsAt(2),
         )
 
-        val emptied = nativeAdWindowForViewport(
+        val emptied = windowFor(
             visibleIndexes = emptyList(),
             itemCount = 0,
             direction = NativeAdScrollDirection.Forward,
@@ -159,7 +157,7 @@ class NativeAdViewportBindingTest {
     @Test
     fun `conflicting placement for one slot key fails closed`() {
         assertFailsWith<IllegalArgumentException> {
-            nativeAdWindowForViewport(
+            windowFor(
                 visibleIndexes = listOf(4, 5),
                 itemCount = 10,
                 direction = NativeAdScrollDirection.Forward,
@@ -196,11 +194,27 @@ class NativeAdViewportBindingTest {
     private fun slot(key: String): NativeAdSlot = NativeAdSlot(key, firstPlacement)
     private fun List<NativeAdSlot>.keys(): List<String> = map(NativeAdSlot::key)
 
+    /**
+     * Runs the real two-stage pipeline: resolve the host mapping, then rank it. Tests drive both
+     * halves together so a change that moves work between them cannot pass unnoticed.
+     */
+    private fun windowFor(
+        visibleIndexes: List<Int>,
+        itemCount: Int,
+        direction: NativeAdScrollDirection,
+        policy: NativeAdSessionPolicy,
+        slotAt: (Int) -> NativeAdSlot?,
+    ) = nativeAdWindowForViewport(
+        resolveNativeAdViewport(visibleIndexes, itemCount, policy, slotAt),
+        direction,
+        policy,
+    )
+
     private fun measuredViewport(
         visibleIndexes: List<Int>,
         itemCount: Int,
         direction: NativeAdScrollDirection,
         policy: NativeAdSessionPolicy,
         slotAt: (Int) -> NativeAdSlot?,
-    ) = requireNotNull(nativeAdWindowForViewport(visibleIndexes, itemCount, direction, policy, slotAt))
+    ) = requireNotNull(windowFor(visibleIndexes, itemCount, direction, policy, slotAt))
 }

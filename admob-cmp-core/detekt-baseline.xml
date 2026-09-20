@@ -40,7 +40,6 @@
     <ID>MaxLineLength:IosNativeAdPlatform.kt$GmaIosNativeAdLoaderFacade$add(GADNativeAdViewAdOptions().apply { preferredAdChoicesPosition = placement.nativeOptions.adChoicesPlacement.toGADAdChoicesPosition() })</ID>
     <ID>MaxLineLength:IosNativeAdPlatform.kt$GmaIosNativeAdLoaderFacade$add(GADVideoOptions().apply { startMuted = placement.nativeOptions.videoOptions.startMuted; customControlsRequested = placement.nativeOptions.videoOptions.customControlsRequested; clickToExpandRequested = placement.nativeOptions.videoOptions.clickToExpandRequested })</ID>
     <ID>MaxLineLength:IosNativeAdPlatform.kt$GmaIosNativeAdLoaderFacade$override</ID>
-    <ID>MaxLineLength:IosNativeAdPlatform.kt$IosNativeAdOwners$loaded.ad.paidEventHandler = { value -> value?.toCommon()?.let { emit(AdEvent.Paid(placementId, PaidEvent(placementId, it, loaded.responseInfo), instanceId)) } }</ID>
     <ID>MaxLineLength:IosNativeAdPlatform.kt$IosNativeAdOwners$teardownScope.launch { loaded.ad.paidEventHandler = null; loaded.ad.delegate = null; loaded.ad.mediaContent?.videoController?.delegate = null }</ID>
     <ID>MaxLineLength:IosNativeAdPlatform.kt$IosNativeAdPlatform$override suspend</ID>
     <ID>MaxLineLength:IosNativeAdPlatform.kt$SessionNativeDelegate$private</ID>
