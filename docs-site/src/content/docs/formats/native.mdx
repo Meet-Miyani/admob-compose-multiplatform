@@ -94,6 +94,13 @@ LazyVerticalGrid(columns = GridCells.Adaptive(180.dp), state = gridState) {
 }
 ```
 
+`slotAt` is invoked inside a Compose snapshot observer, so any snapshot state it reads — the
+backing list, a `LazyPagingItems`, a remote slot config — is tracked. A feed that changes without
+changing `itemCount`, such as a pull-to-refresh returning the same number of rows, therefore still
+republishes the window; you do not need to change `sessionKey` to force it. Keep the lambda cheap
+and free of side effects: it is called for the measured indexes and for a bounded range on either
+side of them, never across the whole feed.
+
 The lazy item key and `NativeAdSlot.key` should come from the same stable model identity. Stable
 Compose keys preserve lazy-item identity, but they do not own or retain native platform objects;
 the named session does. `NativeAdSession.state` reports each slot as `Empty`, `Loading`, `Ready`,
