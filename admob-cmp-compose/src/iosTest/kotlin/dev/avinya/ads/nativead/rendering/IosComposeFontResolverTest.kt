@@ -80,6 +80,31 @@ class IosComposeFontResolverTest {
     }
 
     @Test
+    fun variableWeightIsInvariantToFontScale() {
+        // IosNativeAdView keys its prepared UIKit tree on density.density and deliberately NOT on
+        // fontScale, which on iOS tracks Dynamic Type. Dynamic Type is handled in place — every
+        // label sets adjustsFontForContentSizeCategory and ObserveContentSizeCategory re-measures
+        // the height — so rebuilding the tree for it would double-handle the change AND re-register
+        // the GADNativeAd with a fresh view. That key is only sound while nothing the tree is built
+        // from reads fontScale, and font resolution is the one path that could.
+        val explicit = loaded(
+            identity = "variable",
+            weight = 400,
+            settings = FontVariation.Settings(FontVariation.weight(625)),
+        )
+        val withoutWeight = loaded(
+            identity = "variable-default",
+            weight = 400,
+            settings = FontVariation.Settings(),
+        )
+
+        assertEquals(625f, explicit.resolvedVariableWeight(FontWeight.Medium, Density(2f, fontScale = 1f)))
+        assertEquals(625f, explicit.resolvedVariableWeight(FontWeight.Medium, Density(2f, fontScale = 1.6f)))
+        assertEquals(700f, withoutWeight.resolvedVariableWeight(FontWeight.Bold, Density(2f, fontScale = 1f)))
+        assertEquals(700f, withoutWeight.resolvedVariableWeight(FontWeight.Bold, Density(2f, fontScale = 1.6f)))
+    }
+
+    @Test
     fun duplicateCoreTextRegistrationIsAcceptedWhenUIKitCanResolveTheName() {
         assertTrue(registrationSucceeded(registered = false) { true })
     }
