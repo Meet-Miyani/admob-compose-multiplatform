@@ -16,11 +16,11 @@ import kotlinx.coroutines.InternalCoroutinesApi
  * `IllegalStateException: Already resumed, but proposed with update ...` on the SDK's own
  * background thread, where no caller-side `try/catch` can reach it. The process dies.
  *
- * Observed on a real device (crash buffer, Pixel-class PKR110, 2026-09-18 21:42:04):
+ * Observed on a real consumer device (crash buffer, an Android phone, 2026-09-18):
  *
  * ```
  * FATAL EXCEPTION: GMA(BG) 7
- * Process: com.touchspan.kmp, PID: 8585
+ * Process: <consumer app id>, PID: <pid>
  * java.lang.IllegalStateException: Already resumed, but proposed with update
  *   Failure(error=AdError(code=NO_FILL, message=No fill., ...))
  *     at dev.avinya.ads.AndroidBannerAdController$loadBanner$2$1$2.onAdFailedToLoad(AndroidBannerAdController.kt:148)

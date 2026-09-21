@@ -26,8 +26,8 @@ import kotlinx.coroutines.withContext
  * Regression tests for [tryResumeOnce] — the atomic single-shot resume every native/SDK callback
  * in this library now goes through.
  *
- * The defect these pin down comes from a real device crash (`FATAL EXCEPTION: GMA(BG) 7`, PKR110,
- * 2026-09-18 21:42:04): the previous check-then-act shape
+ * The defect these pin down comes from a real device crash (`FATAL EXCEPTION: GMA(BG) 7`,
+ * 2026-09-18): the previous check-then-act shape
  * `if (continuation.isActive) { continuation.resume(value) }` is not atomic. Two AdMob terminal
  * callbacks arriving on two threads both pass the
  * `isActive` check, both call `resume()`, and the second one throws
@@ -73,7 +73,7 @@ class ContinuationResumeTest {
     }
 
     @Test
-    fun `eight threads racing, exactly one call wins and none throws`() = runTest {
+    fun `eight threads racing - exactly one call wins and none throws`() = runTest {
         val (continuation, result) = captured<Int>()
 
         // A genuine multi-thread race: Dispatchers.Default runs these on its own worker threads

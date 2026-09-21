@@ -24,8 +24,8 @@ import kotlinx.coroutines.CancellableContinuation
  * `IllegalStateException: Already resumed, but proposed with update ...` on the SDK's own
  * callback thread, where no caller-side `try/catch` can reach it — the process dies.
  *
- * That is not hypothetical: it was observed on a real device as `FATAL EXCEPTION: GMA(BG) 7`,
- * PKR110, 2026-09-18 21:42:04, thrown from a concurrent second terminal callback in
+ * That is not hypothetical: it was observed on a real consumer device as
+ * `FATAL EXCEPTION: GMA(BG) 7` on 2026-09-18, thrown from a concurrent second terminal callback in
  * `AndroidBannerAdController`'s `onAdFailedToLoad` while the ad unit answered `NO_FILL`. An
  * `isActive` read is a snapshot; only `tryResume` makes a claim, and it makes it atomically.
  * See [tryResumeOnce] for the full trace and the correct invariant.

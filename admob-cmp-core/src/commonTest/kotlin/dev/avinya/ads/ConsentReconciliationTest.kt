@@ -91,7 +91,7 @@ class ConsentReconciliationTest {
     // second terminal callback is not a cancellation: whichever of the two calls loses that race
     // throws `IllegalStateException: Already resumed, but proposed with update ...` on the SDK's
     // own callback thread, where no caller-side try/catch can reach it, killing the process. That
-    // is a real, on-device crash (FATAL EXCEPTION: GMA(BG) 7, PKR110, 2026-09-18 21:42:04, thrown
+    // is a real, on-device crash (FATAL EXCEPTION: GMA(BG) 7, 2026-09-18, thrown
     // from AndroidBannerAdController's onAdFailedToLoad while the ad unit answered NO_FILL).
     //
     // Therefore: `if (continuation.isActive) { continuation.resume(value) }` is NOT race-safe,

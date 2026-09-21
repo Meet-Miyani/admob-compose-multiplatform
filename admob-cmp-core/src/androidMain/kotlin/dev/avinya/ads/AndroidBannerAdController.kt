@@ -139,7 +139,9 @@ internal class AndroidBannerAdController internal constructor(
                     // Atomic single-shot resume. GMA can deliver its terminal callbacks on two
                     // threads at once; a bare `if (isActive) resume(...)` lets both through and the
                     // loser throws `IllegalStateException: Already resumed` on the SDK's thread,
-                    // killing the process (this line is where that crash was reported).
+                    // killing the process. The reported crash came from this same callback's
+                    // `onAdFailedToLoad` branch below, which likewise claims the continuation
+                    // instead of reading `isActive` first.
                     if (!continuation.tryResumeOnce(AdAttemptResult.Success(loaded)) { _, _, _ -> loaded.destroy() }) {
                         // Lost the race. `tryResume` does not run onCancellation for an
                         // already-resumed or already-cancelled continuation, so nothing else will
