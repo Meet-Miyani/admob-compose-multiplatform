@@ -29,6 +29,7 @@ import platform.CoreGraphics.CGSizeMake
 import platform.UIKit.UIColor
 import platform.UIKit.UIFont
 import platform.UIKit.UIFontDescriptorSystemDesignMonospaced
+import platform.UIKit.UIFontMetrics
 import platform.UIKit.UIFontDescriptorSystemDesignSerif
 import platform.UIKit.UIFontWeightBold
 import platform.UIKit.UIFontWeightMedium
@@ -825,7 +826,28 @@ internal class IosNativeAdRenderer(
         }
     }
 
-    private fun font(style: AdTextStyle): UIFont {
+    /**
+     * The font for [style], scaled for the user's text-size setting.
+     *
+     * Every branch below builds a font at a FIXED point size, and Apple is explicit that
+     * `adjustsFontForContentSizeCategory` only rescales a font obtained from
+     * `preferredFont(forTextStyle:)` or scaled through `UIFontMetrics` — so setting that flag
+     * on a plain `systemFont(ofSize:)` did nothing at all. iOS users with larger text saw ad
+     * copy pinned at its base size while the surrounding app grew, and the Android renderer
+     * scaled correctly the whole time because it assigns `textSize` in `sp`, which the
+     * platform scales for it. The field is named `fontSizeSp`, so scaling is the behaviour it
+     * already promises on both platforms.
+     *
+     * Scaling once, here, keeps every branch — including the Compose-font path, whose
+     * resolver stays deliberately scale-free — consistent, and leaves the labels' own
+     * `adjustsFontForContentSizeCategory` able to do its job for live changes.
+     */
+    private fun font(style: AdTextStyle): UIFont = scaledForContentSize(baseFont(style))
+
+    private fun scaledForContentSize(base: UIFont): UIFont =
+        UIFontMetrics.defaultMetrics.scaledFontForFont(base)
+
+    private fun baseFont(style: AdTextStyle): UIFont {
         val size = style.fontSizeSp.toDouble()
         val weight = when (style.fontWeight) {
             AdFontWeight.Bold -> UIFontWeightBold

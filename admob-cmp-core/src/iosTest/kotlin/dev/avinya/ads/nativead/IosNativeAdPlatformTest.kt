@@ -6,6 +6,8 @@ import dev.avinya.ads.AdFormat
 import dev.avinya.ads.AdPlacement
 import dev.avinya.ads.AdUnitIds
 import dev.avinya.ads.internal.NativeMemoryPressure
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -30,6 +32,53 @@ class IosNativeAdPlatformTest {
     }
     @Test fun `destroy gate runs teardown once without retaining an ad registry`() { val gate=IosNativeDestroyGate();var calls=0;gate.destroyOnce{calls++};gate.destroyOnce{calls++};assertEquals(1,calls) }
     @Test fun `memory warning emits critical and observer removal is idempotent`() { val f=Warnings();val got=mutableListOf<NativeMemoryPressure>();val s=IosNativeMemorySignal(f){got+=it};f.fire();s.close();s.close();assertEquals(listOf(NativeMemoryPressure.Critical),got);assertEquals(1,f.removed) }
+
+    // --- Cancelling the AWAITING COROUTINE, which is what production actually does ------
+    // The cancellation tests above cancel the Deferred itself. `IosNativeAdPlatform.load`
+    // never does that: it awaits inside a coroutine the coordinator cancels. Cancelling a
+    // coroutine that awaits a Deferred does NOT cancel the Deferred (kotlinx documents the
+    // two as distinct), so those tests could pass while the real path leaked.
+
+    @Test
+    fun `cancelling the awaiting coroutine invalidates the flight and stops sequential chaining`() = runTest {
+        val f = Fake<String>()
+        val m = IosNativeLoadMachine(f)
+        val waiter = async { m.awaitLoad(placement(NativeAdBatching.Sequential), 3, 1) }
+        runCurrent()
+
+        f.ad("a")
+        f.finish() // first of three completes; the chain issues request two
+        runCurrent()
+        assertEquals(2, f.finishes.let { f.multiple.size }, "precondition: the chain moved on")
+
+        waiter.cancel()
+        runCurrent()
+
+        // The ad already accepted must be destroyed, and the flight must stop requesting.
+        assertEquals(listOf("a"), f.destroyed, "an accepted ad with no owner must be torn down")
+        val requestsAfterCancel = f.multiple.size
+        f.ad("late")
+        assertEquals(listOf("a", "late"), f.destroyed, "an invalidated flight tears down late ads")
+        f.finish()
+        runCurrent()
+        assertEquals(requestsAfterCancel, f.multiple.size, "a cancelled flight must not chain further requests")
+        assertEquals(0, m.activeLoadCount, "the load slot must be released")
+    }
+
+    @Test
+    fun `a batch that completes as its waiter is cancelled is destroyed`() = runTest {
+        val f = Fake<String>()
+        val m = IosNativeLoadMachine(f)
+        val waiter = async { m.awaitLoad(placement(NativeAdBatching.GoogleOnly), 1, 1) }
+        runCurrent()
+
+        f.ad("produced")
+        f.finish()          // the batch is complete...
+        waiter.cancel()     // ...but nobody will ever receive it
+        runCurrent()
+
+        assertEquals(listOf("produced"), f.destroyed, "a completed but unconsumed batch must not leak")
+    }
 
     // --- NATIVE-03: a facade that throws synchronously ---------------------------------
     // facade.start() can throw while constructing GADAdLoader, resolving the top view

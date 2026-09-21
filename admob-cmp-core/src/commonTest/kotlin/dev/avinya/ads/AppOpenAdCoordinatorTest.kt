@@ -10,10 +10,12 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -414,6 +416,61 @@ class AppOpenAdCoordinatorTest {
 
         assertTrue(shows <= 1, "a stale child from the previous lifecycle acted after restart")
     }
+
+    @Test
+    fun `stop between admission and the show child's first run leaves the arbiter free`() =
+        runTest(StandardTestDispatcher()) {
+            val controller = FakeAppOpenAdController()
+            val manager = FakeAdManager()
+            val scope = CoroutineScope(StandardTestDispatcher(testScheduler))
+            var now = Instant.fromEpochSeconds(1000)
+            var stopped = false
+            lateinit var coordinator: AppOpenAdCoordinator
+
+            // onForeground() runs inline inside this emission, so the show child is only
+            // QUEUED on the test dispatcher when stop() lands. A DEFAULT-start coroutine
+            // cancelled before its first dispatch never runs its body, so the releasing
+            // `finally` never executes — the exact window that stranded the token.
+            val foreground = flow {
+                emit(false)
+                now = Instant.fromEpochSeconds(1005)
+                emit(true)
+                if (!stopped) {
+                    stopped = true
+                    coordinator.stop()
+                }
+                awaitCancellation()
+            }
+
+            coordinator = AppOpenAdCoordinator(
+                manager = manager,
+                controller = controller,
+                config = AppOpenConfig(preloadOnStart = false),
+                foregroundEvents = foreground,
+                clock = { now },
+            )
+            coordinator.start(scope)
+            advanceUntilIdle()
+
+            assertTrue(stopped, "precondition: the coordinator must have been stopped mid-transition")
+            assertFalse(
+                controller.showCalled,
+                "precondition: the show child was cancelled before it ran",
+            )
+            assertFalse(
+                manager.fullScreenArbiter.isHeld,
+                "a cancelled show child must not strand the process-wide full-screen token",
+            )
+
+            // The real cost of stranding it: every other full-screen format is blocked for the
+            // rest of the process. The arbiter has no timeout and start() does not reset it.
+            val otherFormat = manager.fullScreenArbiter.tryAcquire("interstitial", AdFormat.Interstitial)
+            assertTrue(
+                otherFormat != null,
+                "a stranded app-open token blocks interstitial/rewarded for the process lifetime",
+            )
+            manager.fullScreenArbiter.release(otherFormat)
+        }
 
     @Test
     fun `cancelling the host scope stops the coordinator`() = runTest(StandardTestDispatcher()) {

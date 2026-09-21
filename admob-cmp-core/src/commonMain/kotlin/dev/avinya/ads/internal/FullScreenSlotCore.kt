@@ -24,6 +24,7 @@ import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Clock
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 import kotlinx.coroutines.CancellationException
@@ -149,6 +150,19 @@ internal class FullScreenPresentationHandle(
     }
 }
 
+/** A shown ad kept past dismissal for a possible late reward callback. */
+private data class OrphanedAd<AdT : Any>(val ad: AdT, val orphanedAt: Instant)
+
+/**
+ * How long a shown rewarded ad outlives its dismissal before an ordinary load may retire it.
+ *
+ * Internal and deliberately not configurable: it is a workaround for third-party adapters that
+ * deliver a reward after dismissal, not a policy a publisher should be tuning. Long enough to
+ * cover a slow adapter callback, short enough that a rewarded ad is not pinned in memory for a
+ * meaningful part of a session. `clear()` ignores it entirely.
+ */
+private val LATE_REWARD_GRACE: Duration = 30.seconds
+
 @OptIn(ExperimentalTime::class, ExperimentalAtomicApi::class)
 internal abstract class FullScreenSlotCore<AdT : Any>(
     override val placement: AdPlacement,
@@ -183,7 +197,18 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     private val activePresentation = AtomicReference<FullScreenPresentationHandle?>(null)
     private val reloadJob = AtomicReference<Job?>(null)
     private val reloadScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val orphanedAds = mutableListOf<AdT>()
+    /**
+     * Ads kept alive after dismissal so a late reward callback still has its ad.
+     *
+     * Timestamped, because "the next load started" is not evidence that reward processing
+     * finished. `reloadAfterShow` schedules that load immediately after dismissal, and
+     * `prepareLoad` used to drain every orphan unconditionally — so the two documented
+     * behaviours combined to destroy the rewarded ad within milliseconds of the dismissal it
+     * was retained for. Google's iOS guidance is that the reward normally precedes dismissal,
+     * but states that a mediation adapter decides its own ordering, which is exactly the case
+     * this retention exists to cover.
+     */
+    private val orphanedAds = mutableListOf<OrphanedAd<AdT>>()
     // Last resolved per-load options, mirroring BannerCore.replayRequest. scheduleReload
     // must replay what load() resolved, never rebuild from placement.requestOptions.
     private val lastRequestOptions = AtomicReference<AdRequestOptions?>(null)
@@ -257,18 +282,29 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     ): AdLoadState = loadMutex.withLock {
         val initialNow = clock()
         val cacheTtl = ttl()
+        // Snapshot OUTSIDE the lock (it allocates), store INSIDE it. The store has to be part
+        // of the same critical section that decides this load proceeds, so it is ordered
+        // against clear()'s generation bump under one lock — see clear().
+        val ownedOptions = requestOptions.ownedSnapshot()
         val preparation = publicationLock.withLock {
-            prepareLoad(requiredGeneration, initialNow, cacheTtl)
+            prepareLoad(requiredGeneration, initialNow, cacheTtl).also { prepared ->
+                // Record only a call that actually proceeds to a request. A cache-full /
+                // consent-blocked / stale-generation early return issues no request, so it
+                // must not clobber the snapshot scheduleReload replays.
+                if (prepared.immediateResult == null) lastRequestOptions.store(ownedOptions)
+            }
         }
         destroyAds(preparation.retiredAds)
         preparation.immediateResult?.let { return@withLock it }
-        // Record only a call that actually proceeds to a request. A cache-full /
-        // consent-blocked / stale-generation early return above issues no request, so it
-        // must not clobber the snapshot scheduleReload replays.
-        lastRequestOptions.store(requestOptions.ownedSnapshot())
 
         var lastError: AdError? = null
         var acceptedAny = false
+        // Declared outside every cancellable boundary below, which is the only way to keep a
+        // loaded ad reachable if one of them drops it. See UndeliveredLoad: withTimeoutOrNull
+        // returns null when it is cancelled as the block completes, and withContext discards
+        // its result if the caller was cancelled during the dispatch back — both silently, and
+        // both after SingleShotContinuation.onUndelivered has already run.
+        val undelivered = UndeliveredLoad<AdT>()
         try {
             // Repeat count only — no per-iteration index is needed, each iteration fills one
             // more cache slot independently. A `while` loop (not `for`/`repeat`) because the
@@ -285,7 +321,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 val result = withTimeoutOrNull(placement.timeoutPolicy.loadTimeout) {
                     retryAdLoad(placement.retryPolicy, { it.isRetryableLoadFailure() }) {
                         if (isCurrentGeneration(requiredGeneration)) {
-                            loadAd(requestOptions)
+                            undelivered.capture(loadAd(requestOptions))
                         } else {
                             AdAttemptResult.Failure(AdError.message("Full-screen load was cleared."))
                         }
@@ -299,6 +335,8 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 when (result) {
                     is AdAttemptResult.Success -> {
                         val loadedAd = result.value
+                        // Delivered: this frame owns it now, so the finally must not free it.
+                        undelivered.take()
                         val entry = try {
                             onAdLoaded(loadedAd, requestOptions)
                             CachedAd(
@@ -341,6 +379,12 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             // second rule.
             finishCancelledLoad(requiredGeneration)
             throw t
+        } finally {
+            // Whatever is still held here was produced by the SDK and accepted by nobody:
+            // either a boundary dropped it, or this frame is unwinding. Destroying it is the
+            // only remaining reference. safelyDestroyAd swallows platform throws, which
+            // matters in a finally that may already be unwinding a cancellation.
+            undelivered.take()?.let(::safelyDestroyAd)
         }
 
         val completion = publicationLock.withLock {
@@ -494,8 +538,21 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     }
 
     override fun clear() {
-        val retiredAds: List<AdT> = publicationLock.withLock {
+        val (retiredAds, staleReload) = publicationLock.withLock {
             var result = emptyList<AdT>()
+            // Retire the snapshot BEFORE publishing the new generation, and inside the same
+            // lock that publishes it. Ordered the other way — the store ran after the lock was
+            // released — a load for the NEW generation could store its own options in between
+            // and have them wiped by this clear, so reload-after-show silently replayed
+            // placement.requestOptions instead of what that load resolved (dropping its
+            // targeting and reporting overrides).
+            //
+            // This is reachable on one thread: publicationLock is reentrant on both platforms,
+            // and a loadState observer on Main.immediate/Unconfined is resumed inline by the
+            // compareAndSet below, so its load() can run to this point while clear() is still
+            // inside its critical section. The old comment claimed no public sequence could
+            // observe it; the regression test in FullScreenSlotCoreTest is that sequence.
+            lastRequestOptions.store(null)
             while (true) {
                 val current = slotState.value
                 val cleared = SlotState<AdT>(
@@ -504,20 +561,20 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                     cache = emptyList()
                 )
                 if (slotState.compareAndSet(current, cleared)) {
-                    val retiredOrphans = orphanedAds.toList().also { orphanedAds.clear() }
+                    // clear() drains EVERY orphan regardless of age: the host has explicitly
+                    // discarded this slot's inventory, so there is no presentation left whose
+                    // reward callback could still be expected.
+                    val retiredOrphans = orphanedAds.map { it.ad }.also { orphanedAds.clear() }
                     result = current.cache.map { it.ad } + retiredOrphans
                     break
                 }
             }
-            result
+            // Taken under the lock for the same reason, cancelled outside it: cancel() can
+            // resume the reload's continuation inline, and that must not happen while this
+            // lock is held.
+            result to reloadJob.exchange(null)
         }
-        reloadJob.exchange(null)?.cancel()
-        // Defensive, and deliberately untested: no public sequence can observe it. A reload
-        // needs a show, a show needs a cached ad, and every load that fills the cache stores
-        // its own options first — so a snapshot surviving clear() is always overwritten before
-        // it could be replayed. Kept so the field cannot outlive the state it describes, and
-        // so this mirrors BannerCore.clearLocked() as the comment on the field claims.
-        lastRequestOptions.store(null)
+        staleReload?.cancel()
         destroyAds(retiredAds)
     }
 
@@ -555,7 +612,14 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             // load fall through into the load loop on iOS. Equality against the data
             // object is compiled correctly on both backends.
             val isLoading = nextLoadState == AdLoadState.Loading
-            val retiredOrphans = orphanedAds.toList().also { orphanedAds.clear() }
+            // Only orphans whose grace period has elapsed. An ordinary load — including the
+            // automatic reload scheduled by reloadAfterShow, which starts within
+            // milliseconds of the dismissal — is not evidence that a mediated reward callback
+            // has finished, so it must not be what decides the ad's lifetime.
+            val graceCutoff = now - LATE_REWARD_GRACE
+            val expiredOrphans = orphanedAds.filter { it.orphanedAt <= graceCutoff }
+            orphanedAds.removeAll(expiredOrphans)
+            val retiredOrphans = expiredOrphans.map { it.ad }
             return LoadPreparation(
                 immediateResult = if (isLoading) null else nextLoadState,
                 slotsToLoad = if (isLoading) placement.cachePolicy.maxSize - fresh.size else 0,
@@ -737,7 +801,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 safelyDestroyAd(ad)
             } else {
                 publicationLock.withLock {
-                    orphanedAds.add(ad)
+                    orphanedAds.add(OrphanedAd(ad, clock()))
                 }
             }
             if (wasShown && placement.cachePolicy.reloadAfterShow) scheduleReload(generation)

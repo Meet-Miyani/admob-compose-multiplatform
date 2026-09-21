@@ -158,6 +158,65 @@ class NativeAdSessionCoreTest {
         assertEquals(NativeAdRecordId(3), core.recordIdFor("c"))
     }
 
+    /**
+     * Retention must not depend on whether the renderer is released before or after
+     * `deactivate()`.
+     *
+     * `Out` means two different things: for an active session, "this slot left the viewport",
+     * where a detaching renderer is the last reason to keep the record; for an inactive one,
+     * deactivate() also marks its RETAINED anchors `Out`. Un-mounting took the retire branch
+     * on both, so releasing the renderer after deactivating destroyed the very ad deactivation
+     * had just chosen to keep — and the showcase's own Deactivate button produces that order
+     * deterministically. The symptom is quiet: the retention optimisation simply stops working
+     * and the next visit re-requests an ad that should have been warm.
+     */
+    @Test fun `releasing a renderer after deactivate keeps the retained anchor`() {
+        val core = session()
+        val loads = core.updateWindow(window("a"))
+        admit(core, "a", loads, 1)
+        core.setMounted("a", NativeAdRecordId(1), true)
+
+        core.deactivate()
+        val afterRelease = core.setMounted("a", NativeAdRecordId(1), false)
+
+        assertTrue(
+            afterRelease.retireRecordIds.isEmpty(),
+            "releasing a renderer must not retire the anchor deactivation retained; got " +
+                "${afterRelease.retireRecordIds}",
+        )
+        assertEquals(NativeAdRecordId(1), core.recordIdFor("a"))
+    }
+
+    /** The opposite order already worked, and must keep working. */
+    @Test fun `releasing a renderer before deactivate also keeps the anchor`() {
+        val core = session()
+        val loads = core.updateWindow(window("a"))
+        admit(core, "a", loads, 1)
+        core.setMounted("a", NativeAdRecordId(1), true)
+
+        core.setMounted("a", NativeAdRecordId(1), false)
+        core.deactivate()
+
+        assertEquals(NativeAdRecordId(1), core.recordIdFor("a"))
+    }
+
+    /** An ACTIVE session must still retire an out-of-window slot when its renderer detaches. */
+    @Test fun `an active session still retires an out-of-window slot on detach`() {
+        val core = session()
+        val loads = core.updateWindow(window("a"))
+        admit(core, "a", loads, 1)
+        core.setMounted("a", NativeAdRecordId(1), true)
+        core.updateWindow(window("b"))
+
+        val detached = core.setMounted("a", NativeAdRecordId(1), false)
+
+        assertEquals(
+            listOf(NativeAdRecordId(1)),
+            detached.retireRecordIds,
+            "a mounted record held past its window is released as soon as the renderer detaches",
+        )
+    }
+
     @Test fun `deactivate invalidates every non-anchor in-flight generation`() {
         val core = session()
         val loads = core.updateWindow(window("a", "b", "c")); admit(core, "c", loads, 3)

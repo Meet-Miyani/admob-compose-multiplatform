@@ -65,7 +65,7 @@ public fun AdLayoutPreview(
     data: AdLayoutPreviewData = AdLayoutPreviewData.default
 ) {
     RenderAdLayoutPreviewNode(
-        node = layout.root,
+        node = layout.frozenRoot,
         data = data,
         modifier = modifier
     )

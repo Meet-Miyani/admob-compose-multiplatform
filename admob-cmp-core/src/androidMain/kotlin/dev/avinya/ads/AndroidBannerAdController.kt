@@ -2,7 +2,7 @@ package dev.avinya.ads
 
 import dev.avinya.ads.internal.BannerCore
 import dev.avinya.ads.internal.BannerPlatform
-import dev.avinya.ads.internal.tryResumeOnce
+import dev.avinya.ads.internal.suspendSingleShot
 import com.google.android.libraries.ads.mobile.sdk.banner.AdSize
 import com.google.android.libraries.ads.mobile.sdk.banner.AdView
 import com.google.android.libraries.ads.mobile.sdk.banner.BannerAd
@@ -14,8 +14,30 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+
+/**
+ * Creates and drives the `AdView` for one load, so host tests can pin the terminal-callback
+ * ownership rules without a real `Activity`.
+ *
+ * `AdView` is a final `FrameLayout` from the GMA aar: it cannot be constructed off-device and
+ * cannot be subclassed. The seam mirrors [dev.avinya.ads.nativead.AndroidNativeAdLoaderFacade],
+ * which exists for the same reason on the native side.
+ */
+internal interface AndroidBannerAdViewFacade {
+    fun create(activity: android.app.Activity): AdView
+    fun loadAd(adView: AdView, request: BannerAdRequest, callback: AdLoadCallback<BannerAd>)
+    fun unregisterBannerAd(adView: AdView): BannerAd?
+    fun destroy(adView: AdView)
+}
+
+internal object GmaAndroidBannerAdViewFacade : AndroidBannerAdViewFacade {
+    override fun create(activity: android.app.Activity): AdView = AdView(activity)
+    override fun loadAd(adView: AdView, request: BannerAdRequest, callback: AdLoadCallback<BannerAd>): Unit =
+        adView.loadAd(request, callback)
+    override fun unregisterBannerAd(adView: AdView): BannerAd? = adView.unregisterBannerAd()
+    override fun destroy(adView: AdView): Unit = adView.destroy()
+}
 
 /**
  * Android banner controller. All policy — generation, attachment refcounting, the load
@@ -27,7 +49,13 @@ internal class AndroidBannerAdController internal constructor(
     override val placement: AdPlacement,
     globalEvents: MutableSharedFlow<AdEvent>,
     private val adRequestBlockedError: () -> AdError?,
-    private val activityProvider: () -> android.app.Activity? = { null }
+    private val activityProvider: () -> android.app.Activity? = { null },
+    private val adViews: AndroidBannerAdViewFacade = GmaAndroidBannerAdViewFacade,
+    // Every view-touching statement in a GMA terminal callback goes through this. Default is
+    // the real Main hop; host tests substitute a queue they step by hand, because the Android
+    // stubs in a JVM test make `myLooper() == getMainLooper()` trivially true and would hide
+    // the very dispatch this exists to prove.
+    private val runOnMain: (() -> Unit) -> Unit = ::defaultRunOnMain
 ) : BannerAdController, BannerPlatform<AndroidLoadedBanner, AdSize> {
 
     private val stateLock = Any()
@@ -87,25 +115,36 @@ internal class AndroidBannerAdController internal constructor(
         requestOptions: AdRequestOptions,
         requiredGeneration: Long
     ): AdAttemptResult<AndroidLoadedBanner> = withContext(Dispatchers.Main.immediate) {
-        suspendCancellableCoroutine { continuation ->
+        suspendSingleShot { continuation ->
             val activity = activityProvider()
             if (activity == null) {
-                continuation.tryResumeOnce(
+                continuation.resume(
                     AdAttemptResult.Failure(AdError.message("No current Android Activity."))
                 )
-                return@suspendCancellableCoroutine
+                return@suspendSingleShot
             }
             val mergedOptions = requestOptions.withCollapsible(sizePolicy)
             val request = BannerAdRequest.Builder(placement.androidAdUnitId, size)
                 .applyOptions(mergedOptions)
                 .build()
-            val adView = AdView(activity)
-            continuation.invokeOnCancellation { adView.destroyOnMain() }
-            adView.loadAd(request, object : AdLoadCallback<BannerAd> {
-                override fun onAdLoaded(ad: BannerAd) {
+            val adView = adViews.create(activity)
+            // Exactly one terminal callback owns this AdView. GMA delivers its callbacks on a
+            // background pool and can deliver TWO terminal callbacks for one request (#45), so
+            // both the claim and every view call it guards have to happen on one thread —
+            // claiming on the callback thread and then hopping would let a second callback
+            // observe an unclaimed view and reach the same statements. Main is that thread, so
+            // the whole settle transaction is posted rather than just its cleanup.
+            val ownership = BannerLoadOwnership(adView, adViews)
+            continuation.invokeOnCancellation { runOnMain { ownership.destroyIfUnclaimed() } }
+            adViews.loadAd(adView, request, object : AdLoadCallback<BannerAd> {
+                override fun onAdLoaded(ad: BannerAd) = runOnMain {
+                    // Main-confined from here. A second onAdLoaded, or a failure arriving after
+                    // this one won, finds the view claimed and must not touch it: it is the live
+                    // banner BannerCore owns by then.
+                    if (!ownership.claim()) return@runOnMain
                     if (!continuation.isActive) {
-                        adView.destroy()
-                        return
+                        ownership.destroyClaimed()
+                        return@runOnMain
                     }
                     ad.adEventCallback = object : BannerAdEventCallback {
                         override fun onAdImpression() {
@@ -130,32 +169,74 @@ internal class AndroidBannerAdController internal constructor(
                     // AdView.loadAd automatically registers before this callback. Detach the
                     // loaded ad immediately so the SDK's server-driven refresh loop is cancelled;
                     // BannerCore remains the single owner of refresh/load-once semantics.
-                    val detachedAd = adView.unregisterBannerAd() ?: ad
-                    // Capture response info HERE, on Main. This callback is Main-confined, but
-                    // BannerCore resumes on whatever dispatcher its caller used, so reading it
-                    // there put a GMA access on an arbitrary thread (CLAUDE.md invariant #5).
-                    // Response info is fixed once the ad is loaded, so a snapshot loses nothing.
-                    val loaded = AndroidLoadedBanner(adView, detachedAd, detachedAd.getResponseInfo().toCommon())
-                    // Atomic single-shot resume. GMA can deliver its terminal callbacks on two
-                    // threads at once; a bare `if (isActive) resume(...)` lets both through and the
-                    // loser throws `IllegalStateException: Already resumed` on the SDK's thread,
-                    // killing the process. The reported crash came from this same callback's
-                    // `onAdFailedToLoad` branch below, which likewise claims the continuation
-                    // instead of reading `isActive` first.
-                    if (!continuation.tryResumeOnce(AdAttemptResult.Success(loaded)) { _, _, _ -> loaded.destroy() }) {
-                        // Lost the race. `tryResume` does not run onCancellation for an
-                        // already-resumed or already-cancelled continuation, so nothing else will
-                        // release this banner's AdView/native ad.
-                        loaded.destroy()
-                    }
+                    // unregisterBannerAd() and destroy() are both @MainThread in the Next-Gen
+                    // reference, which is why this whole block is posted rather than run inline.
+                    val detachedAd = adViews.unregisterBannerAd(adView) ?: ad
+                    // Capture response info HERE, on Main, because BannerCore resumes on whatever
+                    // dispatcher its caller used and reading it there put a GMA access on an
+                    // arbitrary thread (CLAUDE.md invariant #5). Response info is fixed once the
+                    // ad is loaded, so a snapshot loses nothing.
+                    val loaded = AndroidLoadedBanner(
+                        adView,
+                        detachedAd,
+                        detachedAd.getResponseInfo().toCommon(),
+                        adViews,
+                        runOnMain,
+                    )
+                    // resume() hands ownership to BannerCore; onUndelivered covers the waiter
+                    // being cancelled while this value is in flight. The claim above is what
+                    // makes this single-shot: GMA can deliver terminal callbacks on two threads
+                    // at once, and the loser of a bare `if (isActive) resume(...)` throws
+                    // `Already resumed` on the SDK's own thread, killing the process (#45).
+                    continuation.resume(AdAttemptResult.Success(loaded)) { loaded.destroy() }
                 }
 
-                override fun onAdFailedToLoad(adError: LoadAdError) {
-                    adView.destroy()
-                    continuation.tryResumeOnce(AdAttemptResult.Failure(adError.toAdError()))
+                override fun onAdFailedToLoad(adError: LoadAdError) = runOnMain {
+                    // Destroy only as the callback that claimed this load. If onAdLoaded already
+                    // won, this AdView is the live banner BannerCore now owns; if the load was
+                    // cancelled, invokeOnCancellation destroyed it.
+                    if (!ownership.claim()) return@runOnMain
+                    continuation.resume(AdAttemptResult.Failure(adError.toAdError()))
+                    ownership.destroyClaimed()
                 }
             })
         }
+    }
+}
+
+/**
+ * Single-owner gate over one load's `AdView`.
+ *
+ * Not an atomic: every call is already confined to Main by the `runOnMain` hop around each
+ * terminal callback, and confinement is what makes the claim and the view calls it guards
+ * indivisible. An atomic would make the claim safe and still leave the statements after it
+ * racing a second callback.
+ */
+private class BannerLoadOwnership(
+    private val adView: AdView,
+    private val adViews: AndroidBannerAdViewFacade,
+) {
+    private var claimed = false
+    private var destroyed = false
+
+    /** True only for the first caller; every later terminal callback must return. */
+    fun claim(): Boolean {
+        if (claimed) return false
+        claimed = true
+        return true
+    }
+
+    /** Destroys the view only if no terminal callback took it — the cancellation path. */
+    fun destroyIfUnclaimed() {
+        if (claimed) return
+        claimed = true
+        destroyClaimed()
+    }
+
+    fun destroyClaimed() {
+        if (destroyed) return
+        destroyed = true
+        adViews.destroy(adView)
     }
 }
 
@@ -164,26 +245,29 @@ internal data class AndroidLoadedBanner(
     val ad: BannerAd,
     /** Snapshotted on Main at load time — see the capture site in `loadBanner`. */
     val responseInfo: AdResponseInfo?,
+    private val adViews: AndroidBannerAdViewFacade = GmaAndroidBannerAdViewFacade,
+    private val runOnMain: (() -> Unit) -> Unit = ::defaultRunOnMain,
 ) {
     fun destroy() {
-        val cleanup = {
-            view.unregisterBannerAd()
-            view.destroy()
+        runOnMain {
+            adViews.unregisterBannerAd(view)
+            adViews.destroy(view)
             ad.destroy()
-        }
-        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-            cleanup()
-        } else {
-            android.os.Handler(android.os.Looper.getMainLooper()).post(cleanup)
         }
     }
 }
 
-private fun AdView.destroyOnMain() {
+/**
+ * Runs [block] on Main: inline when already there, posted otherwise.
+ *
+ * Inline matters beyond convention. `BannerCore` swaps banners on Main, so a plain `post` from a
+ * Main caller would let the swap complete before the old ad's teardown ran.
+ */
+private fun defaultRunOnMain(block: () -> Unit) {
     if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-        destroy()
+        block()
     } else {
-        android.os.Handler(android.os.Looper.getMainLooper()).post(::destroy)
+        android.os.Handler(android.os.Looper.getMainLooper()).post(block)
     }
 }
 

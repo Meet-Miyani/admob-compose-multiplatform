@@ -1,6 +1,8 @@
 package dev.avinya.ads
 
+import dev.avinya.ads.internal.SingleShotContinuation
 import dev.avinya.ads.internal.reconcileThenResumeIfActive
+import dev.avinya.ads.internal.suspendSingleShot
 import kotlin.coroutines.resume
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -21,19 +23,19 @@ import kotlinx.coroutines.test.runTest
  * dismissed) must always reconcile the SDK's own consent state, even if the coroutine that
  * originally awaited it was cancelled. Only resuming that waiter is conditional.
  *
- * Resuming it is also *atomic*: the helper claims the continuation through `tryResume` /
- * `completeResume` (see `internal/AtomicContinuationResume.kt`) rather than through a racy
- * `isActive` read, so a second concurrent callback cannot make it throw. That contract, and the
- * control case proving the old shape really does throw, live in [ContinuationResumeTest].
+ * Resuming it is also *atomic*: the helper claims the continuation through
+ * [dev.avinya.ads.internal.SingleShotContinuation] rather than through a racy `isActive` read,
+ * so a second concurrent callback cannot make it throw. That contract, and the control case
+ * proving the old shape really does throw, live in [SingleShotContinuationTest].
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConsentReconciliationTest {
 
     @Test
     fun `reconciles and resumes an active waiter with the given value`() = runTest {
-        val captured = CompletableDeferred<CancellableContinuation<String>>()
+        val captured = CompletableDeferred<SingleShotContinuation<String>>()
         val result = async {
-            suspendCancellableCoroutine<String> { continuation -> captured.complete(continuation) }
+            suspendSingleShot<String> { continuation -> captured.complete(continuation) }
         }
         val continuation = captured.await()
         var reconciled = false
@@ -46,9 +48,9 @@ class ConsentReconciliationTest {
 
     @Test
     fun `still reconciles when the waiter was already cancelled without resuming it`() = runTest {
-        val captured = CompletableDeferred<CancellableContinuation<String>>()
+        val captured = CompletableDeferred<SingleShotContinuation<String>>()
         val job = launch {
-            suspendCancellableCoroutine<String> { continuation -> captured.complete(continuation) }
+            suspendSingleShot<String> { continuation -> captured.complete(continuation) }
         }
         val continuation = captured.await()
         job.cancelAndJoin()
@@ -67,9 +69,9 @@ class ConsentReconciliationTest {
 
     @Test
     fun `reconcile runs to completion before the resume attempt`() = runTest {
-        val captured = CompletableDeferred<CancellableContinuation<String>>()
+        val captured = CompletableDeferred<SingleShotContinuation<String>>()
         val result = async {
-            suspendCancellableCoroutine<String> { continuation -> captured.complete(continuation) }
+            suspendSingleShot<String> { continuation -> captured.complete(continuation) }
         }
         val continuation = captured.await()
         val order = mutableListOf<String>()
@@ -97,8 +99,8 @@ class ConsentReconciliationTest {
     // Therefore: `if (continuation.isActive) { continuation.resume(value) }` is NOT race-safe,
     // and it is no longer used anywhere in this library. Every native-callback resume goes
     // through
-    // `tryResumeOnce` (internal/AtomicContinuationResume.kt), which claims the continuation
-    // atomically -- see ContinuationResumeTest for that contract and for a control case proving
+    // `SingleShotContinuation` (internal/SingleShotContinuation.kt), which claims the continuation
+    // atomically -- see SingleShotContinuationTest for that contract and for a control case proving
     // bare double-resume really does throw. Do not read this test as an endorsement of the
     // check-then-act shape at any callback site.
     //

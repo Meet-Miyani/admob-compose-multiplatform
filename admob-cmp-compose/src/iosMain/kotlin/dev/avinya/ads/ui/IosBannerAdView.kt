@@ -47,7 +47,11 @@ public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, width
     val sdk = LocalAdManager.current
     val status by sdk.status.collectAsState()
     val controller = remember(sdk, placement) { sdk.banner(placement) }
-    var bannerView by remember(placement.id, placement.iosAdUnitId, widthDp, placement.bannerSizePolicy) {
+    // Keyed on the controller ALONE, matching the collector below that writes it. Keying this
+    // on widthDp/sizePolicy while the collector was keyed only on `controller` meant a width
+    // change produced a fresh null state while the still-running collector kept writing to the
+    // old one — the banner vanished and never came back.
+    var bannerView by remember(controller) {
         mutableStateOf<GADBannerView?>(null)
     }
     // remember the flow so recomposition doesn't rebuild the callbackFlow and re-register
@@ -144,7 +148,15 @@ public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, width
                 snapshotFlow { isForeground && isVisible }.first { it }
                 // A refresh landing mid-load must NOT be dropped: wait for the in-flight
                 // load to settle, then refresh promptly.
-                snapshotFlow { controller.loadState.value !is AdLoadState.Loading }.first { it }
+                //
+                // Collect the StateFlow directly. `snapshotFlow` re-evaluates only when a
+                // Compose State read inside it changes; `loadState.value` is not snapshot
+                // state, so when the first read said Loading nothing could ever wake this —
+                // the refresh loop stopped for the lifetime of the effect.
+                controller.loadState.first { it !is AdLoadState.Loading }
+                // Re-check admission after the wait: a load can take long enough for the app
+                // to background or the banner to scroll away while we were suspended.
+                snapshotFlow { isForeground && isVisible }.first { it }
                 controller.load(
                     geometry = BannerGeometry(resolvedWidth),
                     sizePolicy = placement.bannerSizePolicy,

@@ -58,9 +58,14 @@ AGENTS.md, not this file.
 3. **Native coordinator owns native objects.** The governor is the sole capacity authority:
    loaded records plus reservations never exceed the hard limit. Reservation tokens map to a
    session generation; every cancellation, stale callback, clear, eviction, or TTL expiry
-   retires exactly once. Use one lock direction (governor before coordinator/session); never
-   call a platform SDK or destroy an ad while holding either lock. Android's batch callback
-   handoff remains synchronized because callbacks and cancellation race.
+   retires exactly once. Use one lock direction: **the coordinator lock is taken first and the
+   governor's inside it** — the coordinator calls `governor.reserve/admit/retire/release` from
+   inside its own `lock.withLock`, and the governor never calls back into the coordinator or a
+   session, which is what keeps that nesting acyclic. (This invariant used to read
+   "governor before coordinator/session", the exact opposite of the code; a contributor who
+   trusted it and made the governor call back would create the cycle.) Never call a platform
+   SDK or destroy an ad while holding either lock — that is what `Effects.run()` is for.
+   Android's batch callback handoff remains synchronized because callbacks and cancellation race.
 4. **iOS ObjC delegates are weak.** Keep a strong Kotlin ref alongside the coordinator-owned ad
    record and renderer fields; capture ads in paid-event
    handlers via `WeakReference` to avoid ARC cycles.
@@ -100,9 +105,13 @@ AGENTS.md, not this file.
     unit id. `AdDebugOptions.testMode` is UMP-only and is NOT a test-ad guarantee — never
     describe it as one.
 
-11. **ATT precedes the first iOS request.** UMP consent, then
+11. **ATT precedes the first iOS request — when the app requests ATT at all.** UMP consent, then
     `tracking.requestAuthorization()`, then `initialize(config, ConsentMode.InitializeOnlyIfAlreadyAllowed)`. Requesting earlier permanently
-    forfeits the IDFA for those requests.
+    forfeits the IDFA for those requests. Two things this does NOT mean: `gatherConsentAndInitialize`
+    does not perform that sequence by itself (it never calls `requestAuthorization()`; UMP can
+    present ATT instead, but only when an IDFA message is configured in the AdMob UI), and a
+    denied or never-requested ATT does not block ad requests — Google's guidance is to keep
+    requesting ads, just without the IDFA.
 
 12. **The public ABI is frozen.** A prior audit of breaking-change candidates against the
     public surface has been taken or explicitly rejected in full. Do not take further

@@ -241,6 +241,11 @@ internal class BannerCore<V : Any, S : Any>(
         // flash on refresh). The old ad is destroyed only after the new ad loads
         // successfully; on failure the old ad stays visible.
         val previous = previousAd.value
+        // Outside every cancellable boundary below — see UndeliveredLoad. withTimeoutOrNull
+        // yields null when it is cancelled as the block completes, and the platform's
+        // withContext discards its result if this caller was cancelled during the dispatch
+        // back; in both cases the banner exists and nothing else references it.
+        val undelivered = UndeliveredLoad<V>()
         try {
             // Bounds the WHOLE attempt sequence including retry backoff, not each
             // attempt: a listener that never calls back would otherwise restart the
@@ -250,11 +255,13 @@ internal class BannerCore<V : Any, S : Any>(
                     if (!isCurrentGeneration(requiredGeneration)) {
                         AdAttemptResult.Failure(AdError.message("Banner load was cleared."))
                     } else {
-                        platform.loadBanner(
-                            resolved.size,
-                            resolved.sizePolicy,
-                            resolved.requestOptions,
-                            requiredGeneration
+                        undelivered.capture(
+                            platform.loadBanner(
+                                resolved.size,
+                                resolved.sizePolicy,
+                                resolved.requestOptions,
+                                requiredGeneration
+                            )
                         )
                     }
                 }
@@ -266,6 +273,8 @@ internal class BannerCore<V : Any, S : Any>(
             )
             when (result) {
                 is AdAttemptResult.Success -> {
+                    // Delivered: this frame owns it now, so the finally must not free it.
+                    undelivered.take()
                     // The handle is UNOWNED until the admission below stores it. responseInfo is
                     // a platform SDK call and can throw — the catch(Throwable) at the bottom of
                     // this try exists precisely because SDK accessors do. Without destroying here
@@ -307,9 +316,11 @@ internal class BannerCore<V : Any, S : Any>(
                 }
             }
         } catch (e: CancellationException) {
-            // Cancelled mid-load: the previously displayed ad (if any) stays as-is. If the
-            // SDK still delivers the in-flight ad, the platform's atomic single-shot resume
-            // (tryResumeOnce) refuses to deliver it and destroys it there, so nothing leaks.
+            // Cancelled mid-load: the previously displayed ad (if any) stays as-is. An ad the
+            // SDK never delivered is destroyed by the platform's own single-shot cleanup; one
+            // it DID deliver, that was then dropped at a coroutine boundary, is destroyed by
+            // the finally below — the platform guard cannot see that case, because from its
+            // side the resume succeeded.
             onCancelled(requiredGeneration)
             throw e
         } catch (t: Throwable) {
@@ -326,6 +337,9 @@ internal class BannerCore<V : Any, S : Any>(
                 AdError.message(t.message ?: "Banner load failed unexpectedly.")
             )
             throw t
+        } finally {
+            // Loaded by the SDK, accepted by nobody. This is the last reference.
+            undelivered.take()?.let(::safelyDestroy)
         }
     }
 

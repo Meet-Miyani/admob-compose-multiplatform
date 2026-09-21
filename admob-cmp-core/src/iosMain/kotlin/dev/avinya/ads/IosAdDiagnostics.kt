@@ -5,12 +5,11 @@ package dev.avinya.ads
 import GoogleMobileAds.GADAdapterInitializationStateReady
 import GoogleMobileAds.GADAdapterStatus
 import GoogleMobileAds.GADMobileAds
-import dev.avinya.ads.internal.tryResumeOnce
+import dev.avinya.ads.internal.suspendSingleShot
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.runCatching
 
@@ -53,10 +52,10 @@ internal class IosAdDiagnostics : AdDiagnostics {
 
     override suspend fun openAdInspector(): Boolean = withContext(Dispatchers.Main.immediate) {
         val rootVC = topViewController() ?: return@withContext false
-        suspendCancellableCoroutine { continuation ->
+        suspendSingleShot { continuation ->
             continuation.invokeOnCancellation { }
             GADMobileAds.sharedInstance.presentAdInspectorFromViewController(rootVC) { error ->
-                continuation.tryResumeOnce(error == null)
+                continuation.resume(error == null)
             }
         }
     }

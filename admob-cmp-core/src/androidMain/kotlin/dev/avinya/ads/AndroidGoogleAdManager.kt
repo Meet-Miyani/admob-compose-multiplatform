@@ -8,15 +8,15 @@ import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeAdManagerImpl
 import dev.avinya.ads.internal.awaitNativeCallback
 import dev.avinya.ads.internal.emitOrLogDrop
-import dev.avinya.ads.internal.tryResumeOnce
+import dev.avinya.ads.internal.suspendSingleShot
 import dev.avinya.ads.nativead.AndroidNativeAdPlatform
+import dev.avinya.ads.nativead.AndroidNativeMemorySignal
 import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
 import com.google.android.libraries.ads.mobile.sdk.MobileAds
 import com.google.android.libraries.ads.mobile.sdk.initialization.InitializationConfig
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
 internal class AndroidGoogleAdManager(
@@ -63,8 +63,33 @@ internal class AndroidGoogleAdManager(
         startAdmissionTracking()
     }
 
+    /**
+     * Registered once, when native ads are first configured — not in the constructor.
+     *
+     * Before this existed, `AndroidNativeMemorySignal` was built and unit-tested but never
+     * constructed outside tests, so the memory-pressure trimming the documentation promises
+     * simply did not happen. Registration is deferred to configuration time because there is
+     * no inventory to trim until a coordinator exists, and because the manager is constructed
+     * with a context that may not yet have an application attached.
+     */
+    private var memorySignal: AndroidNativeMemorySignal? = null
+
     internal override fun configureNativeAdsAfterAcceptedInitialization(config: AdConfig) {
         nativeManager.configure(config.nativeAdMemoryPolicy)
+        if (memorySignal == null) {
+            // `applicationContext` is null on a bare mock in host tests; fall back to the
+            // context itself rather than failing initialization over a diagnostics listener.
+            memorySignal = runCatching {
+                AndroidNativeMemorySignal(appContext) { nativeManager.onMemoryPressure(it) }
+            }.getOrElse { failure ->
+                AdLogger.w(
+                    "Could not observe Android memory pressure; native ad inventory will not be " +
+                        "trimmed when the system asks for memory.",
+                    failure,
+                )
+                null
+            }
+        }
     }
 
     override fun configuredNativePolicyOrNull(): NativeAdMemoryPolicy? = nativeManager.configuredPolicyOrNull()
@@ -135,9 +160,9 @@ internal class AndroidGoogleAdManager(
                 operation = "MobileAds.initialize",
                 timeout = InitializationTimeouts.nativeInitialize
             ) {
-                suspendCancellableCoroutine { continuation ->
+                suspendSingleShot { continuation ->
                     MobileAds.initialize(appContext, initializationConfig) {
-                        continuation.tryResumeOnce(Unit)
+                        continuation.resume(Unit)
                     }
                 }
             }

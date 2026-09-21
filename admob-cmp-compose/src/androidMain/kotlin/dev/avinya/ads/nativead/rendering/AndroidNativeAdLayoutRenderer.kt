@@ -52,10 +52,10 @@ internal class AndroidNativeAdLayoutRenderer(
         nativeAdView.setBackgroundColor(Color.TRANSPARENT)
         renderedMediaView = null
 
-        val content = buildNode(layout.root, nativeAdView)
+        val content = buildNode(layout.frozenRoot, nativeAdView)
         nativeAdView.addView(
-            wrapForMeasurement(content, layout.root.modifier),
-            frameParams(layout.root.modifier, AdAlignment.Box.TopStart)
+            wrapForMeasurement(content, layout.frozenRoot.modifier),
+            frameParams(layout.frozenRoot.modifier, AdAlignment.Box.TopStart)
         )
 
         registerAfterContainedLayout(nativeAdView)

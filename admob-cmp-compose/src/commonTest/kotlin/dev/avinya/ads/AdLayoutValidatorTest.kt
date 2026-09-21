@@ -185,4 +185,39 @@ class AdLayoutValidatorTest {
         assertEquals(15.dp.value, badge.modifier.minWidthDp)
         assertEquals(15.dp.value, badge.modifier.minHeightDp)
     }
+
+    /**
+     * Mutating a list handed to a container cannot change an already-built layout.
+     *
+     * Kotlin's `List` is read-only, not immutable, so passing a `MutableList` where one is
+     * expected compiles silently and is idiomatic. The container kept that exact instance,
+     * while `identity` and `validation` were computed once at construction — so editing the
+     * list afterwards produced a layout whose cached report described a tree that no longer
+     * existed, under an identity that never changed, on a class annotated `@Immutable`.
+     */
+    @Test
+    fun `mutating the caller's child list cannot change a built layout`() {
+        val children = mutableListOf<AdNode>(
+            AdAssetNode.AdBadge(),
+            AdAssetNode.Headline(),
+            AdAssetNode.AdChoices(),
+        )
+        val layout = AdLayout(root = AdContainerNode.Column(AdModifier.empty, children))
+        val identityBefore = layout.identity
+        val warningsBefore = layout.validation.warnings.map { it.code }.toSet()
+
+        children.clear()
+
+        assertEquals(identityBefore, layout.identity, "identity must describe the validated tree")
+        assertEquals(
+            warningsBefore,
+            layout.validation.warnings.map { it.code }.toSet(),
+            "the validation report must keep describing the tree it validated",
+        )
+        assertEquals(
+            3,
+            (layout.frozenRoot as AdContainerNode).children.size,
+            "the rendered tree must not lose its children to a caller-side edit",
+        )
+    }
 }

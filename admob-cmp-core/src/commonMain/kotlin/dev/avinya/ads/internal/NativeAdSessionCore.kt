@@ -140,6 +140,25 @@ internal class NativeAdSessionCore(
         return true
     }
 
+    /**
+     * Re-offers demand for slots that are still wanted but hold neither a record nor a load.
+     *
+     * Called by the coordinator when capacity is freed elsewhere in the process. A slot
+     * deferred because the governor had no permit settles with a null error precisely so it
+     * stays eligible here; a slot that genuinely FAILED keeps its error and is still skipped,
+     * so this cannot become a retry loop against a placement that is not filling.
+     *
+     * Returns an empty mutation for a closed or inactive session, so an inactive session's
+     * retained anchors are never topped up behind the user's back.
+     */
+    fun reconsiderDeferred(): NativeAdSessionMutation {
+        if (closed || !active) return NativeAdSessionMutation()
+        val demands = reconcileDemands()
+        if (demands.isEmpty()) return NativeAdSessionMutation()
+        publish()
+        return NativeAdSessionMutation(demands = demands)
+    }
+
     fun recordDeferred(slotKey: String, generation: Long): Boolean = settle(slotKey, generation, null)
 
     fun recordFailed(slotKey: String, error: AdError, generation: Long): Boolean =
@@ -158,7 +177,14 @@ internal class NativeAdSessionCore(
         if (entry.recordId != recordId) return NativeAdSessionMutation()
         entry.mounted = mounted
         if (mounted) { touch(entry); publish(); return NativeAdSessionMutation() }
-        if (entry.band != NativeAdBand.Out) { publish(); return NativeAdSessionMutation() }
+        // `Out` carries two different meanings, and only one of them means "retire this".
+        // For an ACTIVE session it means the slot left the viewport, so a renderer detaching
+        // from it is the last reason to keep the record. For an INACTIVE one, deactivate()
+        // marks its retained anchors Out as well — so the same branch destroyed the very ad
+        // deactivation had just chosen to keep, purely because the renderer happened to be
+        // released after deactivate() rather than before it. Retention must not depend on
+        // that order; the showcase's own Deactivate button produces it deterministically.
+        if (entry.band != NativeAdBand.Out || !active) { publish(); return NativeAdSessionMutation() }
         slots.remove(slotKey)
         val demands = if (active) reconcileDemands() else emptyList()
         publish()

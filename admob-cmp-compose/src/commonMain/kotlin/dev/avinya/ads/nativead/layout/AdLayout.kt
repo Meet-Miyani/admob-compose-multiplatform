@@ -18,9 +18,31 @@ public annotation class AdLayoutDsl
  */
 @Immutable
 public data class AdLayout(
-    /** The root node of the layout tree. */
+    /**
+     * The root node of the layout tree, as supplied.
+     *
+     * Prefer [frozenRoot] for anything that renders or validates: a caller can hand a
+     * `MutableList` to a container constructor (Kotlin's `List` is read-only, not immutable)
+     * and keep mutating it afterwards, which would otherwise change the tree underneath the
+     * identity and validation cached below.
+     */
     val root: AdNode
 ) {
+    /**
+     * A deep copy taken once, at construction.
+     *
+     * [identity] and [validation] are computed from this, and both renderers consume it, so
+     * every consumer of an `AdLayout` sees exactly the tree that was validated. Without it,
+     * mutating a retained child list left a layout whose cached report described a tree that
+     * no longer existed — and `@Immutable` is a promise to the Compose compiler that the
+     * public properties cannot change after construction, which a caller-owned list breaks as
+     * a matter of type, not merely of use.
+     *
+     * The copy is cheap (layout trees are a handful of nodes, built inside `remember`) and
+     * needs no public API change, which is what keeps the frozen ABI intact.
+     */
+    internal val frozenRoot: AdNode = root.deepCopy()
+
     /**
      * Stable identity string for the layout, used as a recomposition key.
      *
@@ -33,10 +55,10 @@ public data class AdLayout(
      * Computing it here, in the class body, means it is recomputed on EVERY
      * construction — including every `copy()` — so it can never go stale.
      */
-    public val identity: String = root.identity()
+    public val identity: String = frozenRoot.identity()
 
     /** Validation report for this layout, computed at construction. */
-    public val validation: AdLayoutValidationReport = AdLayoutValidator.validate(root)
+    public val validation: AdLayoutValidationReport = AdLayoutValidator.validate(frozenRoot)
 }
 
 /**
@@ -88,6 +110,18 @@ public sealed interface AdContainerNode : AdNode {
         /** Alignment of the content within the box. */
         val contentAlignment: AdAlignment.Box = AdAlignment.Box.TopStart
     ) : AdContainerNode
+}
+
+/**
+ * Copies [this] tree so no caller-owned collection remains reachable from it.
+ *
+ * Only containers hold children, so only they need copying; leaf nodes are already values.
+ */
+internal fun AdNode.deepCopy(): AdNode = when (this) {
+    is AdContainerNode.Row -> copy(children = children.map { it.deepCopy() })
+    is AdContainerNode.Column -> copy(children = children.map { it.deepCopy() })
+    is AdContainerNode.Box -> copy(children = children.map { it.deepCopy() })
+    else -> this
 }
 
 /**

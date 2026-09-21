@@ -14,13 +14,13 @@ import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeAdManagerImpl
 import dev.avinya.ads.internal.awaitNativeCallback
 import dev.avinya.ads.internal.emitOrLogDrop
-import dev.avinya.ads.internal.tryResumeOnce
+import dev.avinya.ads.internal.suspendSingleShot
 import dev.avinya.ads.nativead.IosNativeAdPlatform
+import dev.avinya.ads.nativead.IosNativeMemorySignal
 import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readValue
@@ -69,8 +69,16 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
         startAdmissionTracking()
     }
 
+    /** See the Android counterpart: registered once, at configuration time. */
+    private var memorySignal: IosNativeMemorySignal? = null
+
     internal override fun configureNativeAdsAfterAcceptedInitialization(config: AdConfig) {
         nativeManager.configure(config.nativeAdMemoryPolicy)
+        if (memorySignal == null) {
+            memorySignal = IosNativeMemorySignal(
+                callback = { nativeManager.onMemoryPressure(it) },
+            )
+        }
     }
 
     override fun configuredNativePolicyOrNull(): NativeAdMemoryPolicy? = nativeManager.configuredPolicyOrNull()
@@ -127,7 +135,7 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
             operation = "GADMobileAds.start",
             timeout = InitializationTimeouts.nativeInitialize
         ) {
-            suspendCancellableCoroutine<Unit> { continuation ->
+            suspendSingleShot<Unit> { continuation ->
                 GADMobileAds.sharedInstance.startWithCompletionHandler { status ->
                     val adapterStates = status?.adapterStatusesByClassName
                     if (adapterStates != null) {
@@ -135,13 +143,12 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
                             AdLogger.d("iOS adapter '${name}'")
                         }
                     }
-                    continuation.tryResumeOnce(Unit)
+                    continuation.resume(Unit)
                 }
             }
         }
-        config.globalRequestConfiguration.publisherFirstPartyIdEnabled?.let {
-            AdLogger.d("iOS publisherFirstPartyIdEnabled is Ad Manager only, skipping")
-        }
+        // publisherFirstPartyIdEnabled is applied by applyTo() above, with the rest of the
+        // request configuration and before start(). It used to be logged and dropped here.
         config.globalRequestConfiguration.appMuted?.let {
             GADMobileAds.sharedInstance.applicationMuted = it
         }
@@ -177,11 +184,19 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
         } as AppOpenAdController
 }
 
-internal fun AdSizePolicy.toIOSAdSize(widthDp: Int): CValue<GADAdSize> = when (this) {
-    is AdSizePolicy.LargeAnchoredAdaptive -> GADLargeAnchoredAdaptiveBannerAdSizeWithWidth(widthDp.toDouble())
+/**
+ * Resolves [this] policy against the host-measured [containerWidthDp].
+ *
+ * The parameter is NOT named `widthDp`: that shadowed `AdSizePolicy.Fixed.widthDp`, so the Fixed
+ * branch requested the container width instead of the configured one while `heightDp` stayed
+ * correct. Android's mapper had the identical defect. Keep the names distinct here rather than
+ * relying on `this.` qualification surviving future edits.
+ */
+internal fun AdSizePolicy.toIOSAdSize(containerWidthDp: Int): CValue<GADAdSize> = when (this) {
+    is AdSizePolicy.LargeAnchoredAdaptive -> GADLargeAnchoredAdaptiveBannerAdSizeWithWidth(containerWidthDp.toDouble())
     is AdSizePolicy.InlineAdaptive -> maxHeightDp?.let {
-        GADInlineAdaptiveBannerAdSizeWithWidthAndMaxHeight(widthDp.toDouble(), it.toDouble())
-    } ?: GADCurrentOrientationInlineAdaptiveBannerAdSizeWithWidth(widthDp.toDouble())
+        GADInlineAdaptiveBannerAdSizeWithWidthAndMaxHeight(containerWidthDp.toDouble(), it.toDouble())
+    } ?: GADCurrentOrientationInlineAdaptiveBannerAdSizeWithWidth(containerWidthDp.toDouble())
     is AdSizePolicy.Fixed -> GADAdSizeFromCGSize(CGSizeMake(widthDp.toDouble(), heightDp.toDouble()))
     // GADAdSizeFluid is a C global (a CStructVar lvalue), unlike the functions above which
     // already return CValue<GADAdSize> by value — readValue() is the correct conversion,

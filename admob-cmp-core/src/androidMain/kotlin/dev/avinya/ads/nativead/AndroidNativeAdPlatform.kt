@@ -11,7 +11,7 @@ import dev.avinya.ads.INTERNAL_LOAD_ERROR_CODE
 import dev.avinya.ads.PaidEvent
 import dev.avinya.ads.internal.NativeAdPlatform
 import dev.avinya.ads.internal.NativeAdPlatformBatch
-import dev.avinya.ads.internal.tryResumeOnce
+import dev.avinya.ads.internal.suspendSingleShot
 import dev.avinya.ads.toAdError
 import dev.avinya.ads.toAndroidNativeAdRequest
 import dev.avinya.ads.toCommon
@@ -24,7 +24,6 @@ import java.util.IdentityHashMap
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
 internal data class AndroidLoadedNativeAd(
@@ -69,15 +68,35 @@ internal class AndroidNativeAdPlatform(
         placement: AdPlacement,
         count: Int,
         generation: Long,
-    ): AdAttemptResult<NativeAdPlatformBatch<AndroidLoadedNativeAd>> = withContext(Dispatchers.Main.immediate) {
-        require(count > 0) { "Native-ad load count must be positive." }
-        val request = placement.requestOptions.toAndroidNativeAdRequest(placement.androidAdUnitId, placement.nativeOptions)
-        when (placement.nativeOptions.batching) {
-            NativeAdBatching.Sequential -> loadSequential(placement, request, count)
-            NativeAdBatching.GoogleOnly -> {
-                require(count in 1..5) { "Google-only native-ad batches must request between 1 and 5 ads." }
-                loadRequest(placement, request, count, multiAd = true)
+    ): AdAttemptResult<NativeAdPlatformBatch<AndroidLoadedNativeAd>> {
+        // `produced` and `delivered` are declared OUTSIDE withContext deliberately.
+        //
+        // A sequential batch loads one ad at a time through separately cancellable requests,
+        // and each request's own cancellation handler knows only about its own pending list.
+        // Cancel or time out midway — the coordinator's timeout spans the whole batch, and
+        // Sequential is the default — and every ad already accumulated was neither returned
+        // nor destroyed, while `placementIds` kept a strong reference to each one for the
+        // process lifetime. Holding the list out here also covers the withContext return
+        // itself, which discards its value if this caller was cancelled during the hop back.
+        val produced = mutableListOf<AndroidLoadedNativeAd>()
+        var delivered = false
+        try {
+            val result = withContext(Dispatchers.Main.immediate) {
+                require(count > 0) { "Native-ad load count must be positive." }
+                val request = placement.requestOptions.toAndroidNativeAdRequest(placement.androidAdUnitId, placement.nativeOptions)
+                when (placement.nativeOptions.batching) {
+                    NativeAdBatching.Sequential -> loadSequential(placement, request, count, produced)
+                    NativeAdBatching.GoogleOnly -> {
+                        require(count in 1..5) { "Google-only native-ad batches must request between 1 and 5 ads." }
+                        loadRequest(placement, request, count, multiAd = true)
+                            .also { if (it is AdAttemptResult.Success) produced += it.value.ads }
+                    }
+                }
             }
+            delivered = true
+            return result
+        } finally {
+            if (!delivered) produced.forEach(::destroy)
         }
     }
 
@@ -85,23 +104,24 @@ internal class AndroidNativeAdPlatform(
         placement: AdPlacement,
         request: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdRequest,
         count: Int,
+        /** Caller-owned accumulator, so a cancellation mid-batch can still find these ads. */
+        ads: MutableList<AndroidLoadedNativeAd>,
     ): AdAttemptResult<NativeAdPlatformBatch<AndroidLoadedNativeAd>> {
-        val ads = mutableListOf<AndroidLoadedNativeAd>()
         repeat(count) {
             when (val next = loadRequest(placement, request, 1, multiAd = false)) {
                 is AdAttemptResult.Failure -> {
                     if (ads.isEmpty()) return next
-                    return AdAttemptResult.Success(NativeAdPlatformBatch(ads, next.error))
+                    return AdAttemptResult.Success(NativeAdPlatformBatch(ads.toList(), next.error))
                 }
                 is AdAttemptResult.Success -> {
                     ads += next.value.ads
                     if (next.value.ads.isEmpty() || next.value.unfilledError != null) {
-                        return AdAttemptResult.Success(NativeAdPlatformBatch(ads, next.value.unfilledError))
+                        return AdAttemptResult.Success(NativeAdPlatformBatch(ads.toList(), next.value.unfilledError))
                     }
                 }
             }
         }
-        return AdAttemptResult.Success(NativeAdPlatformBatch(ads, null))
+        return AdAttemptResult.Success(NativeAdPlatformBatch(ads.toList(), null))
     }
 
     private suspend fun loadRequest(
@@ -109,7 +129,7 @@ internal class AndroidNativeAdPlatform(
         request: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdRequest,
         count: Int,
         multiAd: Boolean,
-    ): AdAttemptResult<NativeAdPlatformBatch<AndroidLoadedNativeAd>> = suspendCancellableCoroutine { continuation ->
+    ): AdAttemptResult<NativeAdPlatformBatch<AndroidLoadedNativeAd>> = suspendSingleShot { continuation ->
         val callbackState = Any()
         val pending = mutableListOf<AndroidLoadedNativeAd>()
         var cancelled = false
@@ -179,13 +199,19 @@ internal class AndroidNativeAdPlatform(
                     }
                 }
                 val attempt = result.second
-                if (attempt == null || !continuation.tryResumeOnce(attempt) { _, _, _ -> destroyAll(result.first) }) {
-                    // Nothing was delivered: either this callback already decided not to resume
-                    // (cancelled or terminal), or the resume lost the atomic claim to a concurrent
-                    // terminal callback. `tryResume` does not run `onCancellation` in that case, so
-                    // the batch is released here -- exactly once per accepted ad (destroy() is
-                    // gated by destroyGate).
+                if (attempt == null) {
+                    // This callback decided not to resume at all (cancelled, or a terminal
+                    // callback already settled the load), so nothing else will free the batch.
                     destroyAll(result.first)
+                } else {
+                    // onUndelivered frees the batch on every path where the value does not
+                    // reach the waiter — losing the claim to a concurrent terminal callback, an
+                    // already-cancelled waiter, or a cancellation landing in flight. Do NOT add
+                    // a second `if (!resumed) destroyAll(...)` branch beside it: that was needed
+                    // with tryResumeOnce, whose handler skipped the losing caller, and keeping
+                    // it here would destroy the same batch twice (harmless only because
+                    // destroyGate is idempotent, which is not a guarantee to lean on).
+                    continuation.resume(attempt) { destroyAll(result.first) }
                 }
             }
         }

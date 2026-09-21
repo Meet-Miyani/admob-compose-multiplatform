@@ -87,6 +87,20 @@ public object AdLayoutValidator {
                 }
                 is AdAssetNode -> {
                     if (visible) {
+                        // A badge whose text is blank renders as empty space. Both renderers
+                        // pass node.text straight through and neither substitutes "Ad", so
+                        // counting it as attribution certifies a layout that ships an ad with
+                        // no visible attribution — an AdMob policy violation. The blank check
+                        // mirrors the one AdStaticText already has above; the visibility rules
+                        // (gone, alpha=0, zero size) are handled by `visible`.
+                        val blankBadge = node is AdAssetNode.AdBadge && node.text.isBlank()
+                        if (blankBadge) {
+                            warnings += warning(
+                                "blank_ad_badge",
+                                "Ad attribution badge has blank text, so no attribution is rendered.",
+                                path,
+                            )
+                        }
                         val key = when (node) {
                             is AdAssetNode.Headline -> "headline"
                             is AdAssetNode.Body -> "body"
@@ -100,7 +114,7 @@ public object AdLayoutValidator {
                             is AdAssetNode.AdChoices -> "ad_choices"
                             is AdAssetNode.AdBadge -> "ad_badge"
                         }
-                        assets += key
+                        if (!blankBadge) assets += key
                     } else {
                         warnings += warning("hidden_asset", "Asset ${node::class.simpleName} is hidden (gone, alpha=0, or 0 size).", path)
                     }
@@ -114,7 +128,9 @@ public object AdLayoutValidator {
             val visible = isVisible(node, parentVisible)
             if (!visible) return false
             return when (node) {
-                is AdAssetNode.AdBadge -> true
+                // Blank text renders nothing, so a blank badge cannot satisfy the
+                // attribution-at-top rule either — see the blank_ad_badge warning above.
+                is AdAssetNode.AdBadge -> node.text.isNotBlank()
                 is AdContainerNode -> node.children.any { containsAdBadge(it, visible) }
                 else -> false
             }

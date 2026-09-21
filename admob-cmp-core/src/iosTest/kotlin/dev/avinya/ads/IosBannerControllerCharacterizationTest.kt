@@ -117,9 +117,17 @@ class IosBannerControllerCharacterizationTest {
 
     @Test
     fun `size policies map to the expected GADAdSize widths`() {
-        val fixed = AdSizePolicy.Fixed(widthDp = 320, heightDp = 50).toIOSAdSize(320)
+        // The container width (400) deliberately differs from the configured one (320). Passing
+        // the same number for both — as this test did — cannot tell the two apart, which is how
+        // the Fixed branch shipped returning the CONTAINER width.
+        val fixed = AdSizePolicy.Fixed(widthDp = 320, heightDp = 50).toIOSAdSize(400)
         fixed.useContents {
-            assertEquals(320.0, size.width, absoluteTolerance = 0.01)
+            assertEquals(
+                320.0,
+                size.width,
+                absoluteTolerance = 0.01,
+                message = "a Fixed policy must request its configured width, not the container's",
+            )
             assertEquals(50.0, size.height, absoluteTolerance = 0.01)
         }
 

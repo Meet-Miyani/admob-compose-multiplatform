@@ -21,8 +21,10 @@ public abstract class DownloadIosFramework : DefaultTask() {
     @get:Input
     public abstract val baseUrl: Property<String>
 
-    // Supply-chain integrity: the UMP endpoint is unversioned and neither archive was
-    // checksummed, so the same commit could build against different headers. Fail closed.
+    // Supply-chain integrity: neither archive was checksummed, so the same commit could build
+    // against different headers. Fail closed. For UMP this value is load-bearing twice over —
+    // it also selects the content-addressed download directory, so a wrong digest cannot even
+    // reach a mismatched artifact. See archiveName().
     @get:Input
     public abstract val expectedSha256: Property<String>
 
@@ -51,6 +53,17 @@ public abstract class DownloadIosFramework : DefaultTask() {
     @get:Internal
     public abstract val markerFile: RegularFileProperty
 
+    /**
+     * Gradle's `--offline` flag, captured at configuration time.
+     *
+     * `@Internal`, not `@Input`: switching offline on or off must not invalidate an intact
+     * framework and force a re-download. It is a property rather than a read of
+     * `project.gradle.startParameter` in the action, because a task may not touch `Project`
+     * at execution time under the configuration cache.
+     */
+    @get:Internal
+    public abstract val offline: Property<Boolean>
+
     /** Overridden only by this plugin's own tests, to drive the bounds to small values. */
     @get:Internal
     internal open val limits: ArchiveLimits get() = ArchiveLimits.DEFAULT
@@ -67,7 +80,25 @@ public abstract class DownloadIosFramework : DefaultTask() {
         // deleted simulator slice, a truncated binary, or a changed baseUrl or checksum at an
         // unchanged version all left the damage in place while the task reported success. The
         // failure then surfaced much later, in cinterop or the native link.
-        val zipUrl = URI("${baseUrl.get()}/${archiveName(baseName, version.get())}").toURL()
+        val expectedSha = expectedSha256.get()
+        val zipUrl = URI("${baseUrl.get()}/${archiveName(baseName, version.get(), expectedSha)}").toURL()
+
+        // Reaching this line means Gradle decided the output needs materialising, so the
+        // framework is missing or damaged and only the network can supply it. Under --offline
+        // the build has asked for no network access, so say what is missing and how to get it
+        // rather than opening a connection and letting it time out — a `URLConnection` does
+        // not implement Gradle's offline policy on its own. An intact framework never gets
+        // here: up-to-date checking skips the action entirely, which is the common case.
+        // A file: mirror is still honoured, since that is not network access.
+        if (offline.getOrElse(false) && zipUrl.protocol.startsWith("http")) {
+            throw GradleException(
+                "Cannot download the $baseName ${version.get()} iOS framework in --offline mode, " +
+                    "and no usable copy is cached at ${fwDir.absolutePath}.\n" +
+                    "Run this task once with network access, or point " +
+                    "-PadmobCmp.ios.baseUrl at a local mirror containing " +
+                    "${archiveName(baseName, version.get(), expectedSha)}."
+            )
+        }
         logger.lifecycle("Downloading from $zipUrl...")
 
         // Everything happens inside the task's own temporary directory, so a failure at any point
@@ -82,17 +113,22 @@ public abstract class DownloadIosFramework : DefaultTask() {
             archive.delete()
 
             val actualSha = downloadVerifying(zipUrl, archive, limits)
-            val expectedSha = expectedSha256.get()
             if (actualSha != expectedSha) {
                 throw GradleException(
                     "$baseName iOS header archive checksum mismatch.\n" +
                         "  expected: $expectedSha\n  actual:   $actualSha\n" +
-                        "Refusing to generate bindings from an unverified archive."
+                        "  url:      $zipUrl\n" +
+                        "Refusing to generate bindings from an unverified archive. If Google has " +
+                        "republished this artifact, pin the new digest with " +
+                        "-PadmobCmp.gma.ios.sha256 / -PadmobCmp.ump.ios.sha256, or point " +
+                        "-PadmobCmp.ios.baseUrl at a mirror of the expected bytes."
                 )
             }
 
             workDir.mkdirs()
-            extractArchive(archive, workDir, zipUrl.toString(), limits)
+            // baseName is the framework directory name, which is how extractArchive tells a
+            // version-wrapper archive from one with the .xcframework at its root.
+            extractArchive(archive, workDir, zipUrl.toString(), limits, expectedRoot = baseName)
 
             val staged = File(workDir, baseName)
             validateStaged(staged, baseName)

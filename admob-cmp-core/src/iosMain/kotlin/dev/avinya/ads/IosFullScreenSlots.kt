@@ -16,12 +16,11 @@ import dev.avinya.ads.internal.FullScreenPresentationArbiter
 import dev.avinya.ads.internal.FullScreenPresentationHandle
 import dev.avinya.ads.internal.FullScreenSlotCore
 import dev.avinya.ads.internal.RewardDelivery
-import dev.avinya.ads.internal.tryResumeOnce
+import dev.avinya.ads.internal.suspendSingleShot
 import kotlin.time.Duration
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.native.ref.WeakReference
 import platform.Foundation.NSError
@@ -79,10 +78,10 @@ internal class IosInterstitialSlot(
 
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<GADInterstitialAd> =
         withContext(Dispatchers.Main.immediate) {
-            suspendCancellableCoroutine { continuation ->
+            suspendSingleShot { continuation ->
                 GADInterstitialAd.loadWithAdUnitID(placement.iosAdUnitId, requestOptions.toGADRequest()) { ad, error ->
                     if (error != null) {
-                        continuation.tryResumeOnce(AdAttemptResult.Failure(error.toAdError()))
+                        continuation.resume(AdAttemptResult.Failure(error.toAdError()))
                     } else if (ad != null) {
                         val weakAd = WeakReference(ad)
                         ad.paidEventHandler = { value ->
@@ -92,9 +91,9 @@ internal class IosInterstitialSlot(
                                 emit(AdEvent.Paid(placement.id, PaidEvent(placement.id, adValue, strongAd.responseInfo?.toCommon())))
                             }
                         }
-                        continuation.tryResumeOnce(AdAttemptResult.Success(ad))
+                        continuation.resume(AdAttemptResult.Success(ad))
                     } else {
-                        continuation.tryResumeOnce(AdAttemptResult.Failure(AdError.message("iOS SDK returned no ad and no error.")))
+                        continuation.resume(AdAttemptResult.Failure(AdError.message("iOS SDK returned no ad and no error.")))
                     }
                 }
             }
@@ -144,10 +143,10 @@ internal class IosRewardedSlot(
 
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<GADRewardedAd> =
         withContext(Dispatchers.Main.immediate) {
-            suspendCancellableCoroutine { continuation ->
+            suspendSingleShot { continuation ->
                 GADRewardedAd.loadWithAdUnitID(placement.iosAdUnitId, requestOptions.toGADRequest()) { ad, error ->
                     if (error != null) {
-                        continuation.tryResumeOnce(AdAttemptResult.Failure(error.toAdError()))
+                        continuation.resume(AdAttemptResult.Failure(error.toAdError()))
                     } else if (ad != null) {
                         val weakAd = WeakReference(ad)
                         ad.paidEventHandler = { value ->
@@ -157,9 +156,9 @@ internal class IosRewardedSlot(
                                 emit(AdEvent.Paid(placement.id, PaidEvent(placement.id, adValue, strongAd.responseInfo?.toCommon())))
                             }
                         }
-                        continuation.tryResumeOnce(AdAttemptResult.Success(ad))
+                        continuation.resume(AdAttemptResult.Success(ad))
                     } else {
-                        continuation.tryResumeOnce(AdAttemptResult.Failure(AdError.message("iOS SDK returned no ad and no error.")))
+                        continuation.resume(AdAttemptResult.Failure(AdError.message("iOS SDK returned no ad and no error.")))
                     }
                 }
             }
@@ -227,10 +226,10 @@ internal class IosRewardedInterstitialSlot(
 
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<GADRewardedInterstitialAd> =
         withContext(Dispatchers.Main.immediate) {
-            suspendCancellableCoroutine { continuation ->
+            suspendSingleShot { continuation ->
                 GADRewardedInterstitialAd.loadWithAdUnitID(placement.iosAdUnitId, requestOptions.toGADRequest()) { ad, error ->
                     if (error != null) {
-                        continuation.tryResumeOnce(AdAttemptResult.Failure(error.toAdError()))
+                        continuation.resume(AdAttemptResult.Failure(error.toAdError()))
                     } else if (ad != null) {
                         val weakAd = WeakReference(ad)
                         ad.paidEventHandler = { value ->
@@ -240,9 +239,9 @@ internal class IosRewardedInterstitialSlot(
                                 emit(AdEvent.Paid(placement.id, PaidEvent(placement.id, adValue, strongAd.responseInfo?.toCommon())))
                             }
                         }
-                        continuation.tryResumeOnce(AdAttemptResult.Success(ad))
+                        continuation.resume(AdAttemptResult.Success(ad))
                     } else {
-                        continuation.tryResumeOnce(AdAttemptResult.Failure(AdError.message("iOS SDK returned no ad and no error.")))
+                        continuation.resume(AdAttemptResult.Failure(AdError.message("iOS SDK returned no ad and no error.")))
                     }
                 }
             }
@@ -305,10 +304,10 @@ internal class IosAppOpenSlot(
 
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<GADAppOpenAd> =
         withContext(Dispatchers.Main.immediate) {
-            suspendCancellableCoroutine { continuation ->
+            suspendSingleShot { continuation ->
                 GADAppOpenAd.loadWithAdUnitID(placement.iosAdUnitId, requestOptions.toGADRequest()) { ad, error ->
                     if (error != null) {
-                        continuation.tryResumeOnce(AdAttemptResult.Failure(error.toAdError()))
+                        continuation.resume(AdAttemptResult.Failure(error.toAdError()))
                     } else if (ad != null) {
                         val weakAd = WeakReference(ad)
                         ad.paidEventHandler = { value ->
@@ -318,9 +317,9 @@ internal class IosAppOpenSlot(
                                 emit(AdEvent.Paid(placement.id, PaidEvent(placement.id, adValue, strongAd.responseInfo?.toCommon())))
                             }
                         }
-                        continuation.tryResumeOnce(AdAttemptResult.Success(ad))
+                        continuation.resume(AdAttemptResult.Success(ad))
                     } else {
-                        continuation.tryResumeOnce(AdAttemptResult.Failure(AdError.message("iOS SDK returned no ad and no error.")))
+                        continuation.resume(AdAttemptResult.Failure(AdError.message("iOS SDK returned no ad and no error.")))
                     }
                 }
             }
@@ -368,18 +367,18 @@ internal suspend fun <AdT : Any> FullScreenSlotCore<AdT>.presentFullScreenAd(
 ): AdShowResult = withContext(Dispatchers.Main.immediate) {
     val rootVC = topViewController()
         ?: return@withContext AdShowResult.Failed(AdError.message("No root view controller."))
-    suspendCancellableCoroutine<AdShowResult> { continuation ->
+    suspendSingleShot<AdShowResult> { continuation ->
         // Cancellation closes only while the core still owns presentation. Once hand-off
         // wins, this delegate stays retained until the SDK terminal callback closes it.
         continuation.invokeOnCancellation { presentation.closeIfCoreOwned() }
-        if (!continuation.isActive) return@suspendCancellableCoroutine
+        if (!continuation.isActive) return@suspendSingleShot
         val delegate = FullScreenDelegate(
             onOpened = { emit(AdEvent.OpenedFullScreen(placement.id)) },
             onClosed = {
                 delegates.terminal(loaded) {
                     if (presentation.close(wasShown = true)) {
                         emit(AdEvent.ClosedFullScreen(placement.id))
-                        continuation.tryResumeOnce(AdShowResult.Shown)
+                        continuation.resume(AdShowResult.Shown)
                     }
                 }
             },
@@ -387,7 +386,7 @@ internal suspend fun <AdT : Any> FullScreenSlotCore<AdT>.presentFullScreenAd(
                 delegates.terminal(loaded) {
                     if (presentation.close(wasShown = false)) {
                         emit(AdEvent.ShowFailed(placement.id, error))
-                        continuation.tryResumeOnce(AdShowResult.Failed(error))
+                        continuation.resume(AdShowResult.Failed(error))
                     }
                 }
             },

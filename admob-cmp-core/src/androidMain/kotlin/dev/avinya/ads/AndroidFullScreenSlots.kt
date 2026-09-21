@@ -9,7 +9,8 @@ import dev.avinya.ads.internal.FullScreenPresentationArbiter
 import dev.avinya.ads.internal.FullScreenPresentationHandle
 import dev.avinya.ads.internal.FullScreenSlotCore
 import dev.avinya.ads.internal.RewardDelivery
-import dev.avinya.ads.internal.tryResumeOnce
+import dev.avinya.ads.internal.SingleShotContinuation
+import dev.avinya.ads.internal.suspendSingleShot
 import com.google.android.libraries.ads.mobile.sdk.MobileAds
 import com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd
 import com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAdEventCallback
@@ -27,10 +28,8 @@ import com.google.android.libraries.ads.mobile.sdk.rewardedinterstitial.Rewarded
 import com.google.android.libraries.ads.mobile.sdk.rewardedinterstitial.RewardedInterstitialAdEventCallback
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
-import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
 /**
@@ -118,13 +117,13 @@ internal class AndroidInterstitialSlot(
 
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<InterstitialAd> =
         withContext(Dispatchers.Main.immediate) {
-            suspendCancellableCoroutine { continuation ->
+            suspendSingleShot { continuation ->
                 InterstitialAd.load(requestOptions.toAndroidAdRequest(placement.androidAdUnitId), object : AdLoadCallback<InterstitialAd> {
                     override fun onAdLoaded(ad: InterstitialAd) {
                         continuation.resumeLoadedAd(ad)
                     }
                     override fun onAdFailedToLoad(adError: LoadAdError) {
-                        continuation.tryResumeOnce(AdAttemptResult.Failure(adError.toAdError()))
+                        continuation.resume(AdAttemptResult.Failure(adError.toAdError()))
                     }
                 })
             }
@@ -192,13 +191,13 @@ internal class AndroidRewardedSlot(
 
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<RewardedAd> =
         withContext(Dispatchers.Main.immediate) {
-            suspendCancellableCoroutine { continuation ->
+            suspendSingleShot { continuation ->
                 RewardedAd.load(requestOptions.toAndroidAdRequest(placement.androidAdUnitId), object : AdLoadCallback<RewardedAd> {
                     override fun onAdLoaded(ad: RewardedAd) {
                         continuation.resumeLoadedAd(ad)
                     }
                     override fun onAdFailedToLoad(adError: LoadAdError) {
-                        continuation.tryResumeOnce(AdAttemptResult.Failure(adError.toAdError()))
+                        continuation.resume(AdAttemptResult.Failure(adError.toAdError()))
                     }
                 })
             }
@@ -252,13 +251,13 @@ internal class AndroidRewardedInterstitialSlot(
 
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<RewardedInterstitialAd> =
         withContext(Dispatchers.Main.immediate) {
-            suspendCancellableCoroutine { continuation ->
+            suspendSingleShot { continuation ->
                 RewardedInterstitialAd.load(requestOptions.toAndroidAdRequest(placement.androidAdUnitId), object : AdLoadCallback<RewardedInterstitialAd> {
                     override fun onAdLoaded(ad: RewardedInterstitialAd) {
                         continuation.resumeLoadedAd(ad)
                     }
                     override fun onAdFailedToLoad(adError: LoadAdError) {
-                        continuation.tryResumeOnce(AdAttemptResult.Failure(adError.toAdError()))
+                        continuation.resume(AdAttemptResult.Failure(adError.toAdError()))
                     }
                 })
             }
@@ -308,13 +307,13 @@ internal class AndroidAppOpenSlot(
 
     override suspend fun loadAd(requestOptions: AdRequestOptions): AdAttemptResult<AppOpenAd> =
         withContext(Dispatchers.Main.immediate) {
-            suspendCancellableCoroutine { continuation ->
+            suspendSingleShot { continuation ->
                 AppOpenAd.load(requestOptions.toAndroidAdRequest(placement.androidAdUnitId), object : AdLoadCallback<AppOpenAd> {
                     override fun onAdLoaded(ad: AppOpenAd) {
                         continuation.resumeLoadedAd(ad)
                     }
                     override fun onAdFailedToLoad(adError: LoadAdError) {
-                        continuation.tryResumeOnce(AdAttemptResult.Failure(adError.toAdError()))
+                        continuation.resume(AdAttemptResult.Failure(adError.toAdError()))
                     }
                 })
             }
@@ -385,9 +384,9 @@ private suspend fun <T : Ad> FullScreenSlotCore<T>.presentSimpleFullScreenAd(
     beforeHandOff: () -> Unit = {},
     installCallbackAndShow: (SimpleFullScreenCallback) -> Unit,
 ): AdShowResult = withContext(Dispatchers.Main.immediate) {
-    suspendCancellableCoroutine<AdShowResult> { continuation ->
+    suspendSingleShot<AdShowResult> { continuation ->
         continuation.invokeOnCancellation { presentation.closeIfCoreOwned() }
-        if (!continuation.isActive) return@suspendCancellableCoroutine
+        if (!continuation.isActive) return@suspendSingleShot
         beforeHandOff()
         val callback = SimpleFullScreenCallback(
             onShowed = { emit(AdEvent.OpenedFullScreen(placement.id)) },
@@ -399,14 +398,14 @@ private suspend fun <T : Ad> FullScreenSlotCore<T>.presentSimpleFullScreenAd(
             onDismissed = {
                 if (presentation.close(wasShown = true)) {
                     emit(AdEvent.ClosedFullScreen(placement.id))
-                    continuation.tryResumeOnce(AdShowResult.Shown)
+                    continuation.resume(AdShowResult.Shown)
                 }
             },
             onFailedToShow = { error ->
                 val adError = error.toAdError()
                 if (presentation.close(wasShown = false)) {
                     emit(AdEvent.ShowFailed(placement.id, adError))
-                    continuation.tryResumeOnce(AdShowResult.Failed(adError))
+                    continuation.resume(AdShowResult.Failed(adError))
                 }
             }
         )
@@ -425,9 +424,9 @@ private suspend fun <T : Ad> FullScreenSlotCore<T>.showRewarded(
     rewardDelivery: RewardDelivery?,
     show: (T, OnUserEarnedRewardListener) -> Unit
 ): AdShowResult = withContext(Dispatchers.Main.immediate) {
-    suspendCancellableCoroutine<AdShowResult> { continuation ->
+    suspendSingleShot<AdShowResult> { continuation ->
         continuation.invokeOnCancellation { presentation.closeIfCoreOwned() }
-        if (!continuation.isActive) return@suspendCancellableCoroutine
+        if (!continuation.isActive) return@suspendSingleShot
         val callback = object : RewardedAdEventCallback {
             override fun onAdShowedFullScreenContent() = emit(AdEvent.OpenedFullScreen(placement.id))
             override fun onAdImpression() = emit(AdEvent.Impression(placement.id))
@@ -438,14 +437,14 @@ private suspend fun <T : Ad> FullScreenSlotCore<T>.showRewarded(
             override fun onAdDismissedFullScreenContent() {
                 if (presentation.close(wasShown = true)) {
                     emit(AdEvent.ClosedFullScreen(placement.id))
-                    continuation.tryResumeOnce(AdShowResult.Shown)
+                    continuation.resume(AdShowResult.Shown)
                 }
             }
             override fun onAdFailedToShowFullScreenContent(error: FullScreenContentError) {
                 val adError = error.toAdError()
                 if (presentation.close(wasShown = false)) {
                     emit(AdEvent.ShowFailed(placement.id, adError))
-                    continuation.tryResumeOnce(AdShowResult.Failed(adError))
+                    continuation.resume(AdShowResult.Failed(adError))
                 }
             }
         }
@@ -499,15 +498,12 @@ private fun Ad.destroyOnMain() {
     }
 }
 
-private fun <T : Ad> CancellableContinuation<AdAttemptResult<T>>.resumeLoadedAd(ad: T) {
-    val delivered = tryResumeOnce(
-        AdAttemptResult.Success(ad),
-        onCancellation = { _, _, _ -> ad.destroyOnMain() }
-    )
-    // Atomic single-shot: the loser of a concurrent terminal-callback race gets `false` instead
-    // of an `IllegalStateException` on the SDK's thread. `tryResume` does not run `onCancellation`
-    // for an already-resumed or already-cancelled continuation, so the loser must free the ad
-    // itself — this is the only cleanup on that path, and the ad is destroyed exactly once
-    // (a resume that won and was cancelled in flight is handled by `onCancellation` above).
-    if (!delivered) ad.destroyOnMain()
+private fun <T : Ad> SingleShotContinuation<AdAttemptResult<T>>.resumeLoadedAd(ad: T) {
+    // Cleanup is stated ONCE. onUndelivered runs for every way this ad can fail to reach the
+    // waiter — losing a concurrent terminal-callback race, an already-cancelled waiter, or a
+    // cancellation landing while the value is in flight — so there is no second `if (!delivered)`
+    // branch to keep in step with it. That was the one sharp edge of the tryResume-based helper
+    // this replaced: its onCancellation did NOT run for a losing caller, so every call site had
+    // to remember to free the ad itself.
+    resume(AdAttemptResult.Success(ad)) { ad.destroyOnMain() }
 }

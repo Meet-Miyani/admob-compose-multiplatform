@@ -80,6 +80,7 @@ public actual fun NativeAdView(
             NativeAdRenderLeaseOwner(
                 acquire = { session.acquireIosNativeAdRenderLease(slotKey, placement, rendererId) },
                 release = IosNativeAdRenderLease::release,
+                identityOf = IosNativeAdRenderLease::adInstanceId,
             )
         }
     } else {
@@ -113,14 +114,19 @@ public actual fun NativeAdView(
                     val maxHeightPoints = maxHeight.value.toDouble().takeIf { it.isFinite() && it > 0.0 }
                     // A root that asks to fill takes the host's height rather than measuring its
                     // own: see `IosNativeAdHostView.fillsHost`.
-                    val rootFillsHost = layout.root.modifier.height == AdLayoutSize.Match && minHeightPoints > 0.0
+                    val rootFillsHost = layout.frozenRoot.modifier.height == AdLayoutSize.Match && minHeightPoints > 0.0
                     // Screen scale only, never the whole Density. On iOS `fontScale` tracks
                     // Dynamic Type, and rebuilding for that would fight ObserveContentSizeCategory
-                    // below: the labels already set `adjustsFontForContentSizeCategory`, so the
-                    // built tree re-renders itself and only needs re-measuring. Keying on it would
-                    // instead destroy the host and register a FRESH GADNativeAdView against the
-                    // same GADNativeAd on every text-size change — a flicker, and an impression
-                    // GMA may well count twice. Nothing the tree is built from reads fontScale;
+                    // below: keying on it would destroy the host and register a FRESH
+                    // GADNativeAdView against the same GADNativeAd on every text-size change — a
+                    // flicker, and an impression GMA may well count twice.
+                    //
+                    // Re-rendering in place is only correct because the renderer now builds its
+                    // fonts through UIFontMetrics. This comment used to justify itself with the
+                    // labels' `adjustsFontForContentSizeCategory` flag alone, which Apple
+                    // documents as a no-op for a fixed-size `systemFont(ofSize:)` — so before
+                    // that change the tree did NOT restyle itself and iOS ad copy simply never
+                    // scaled. Nothing the tree is built from reads fontScale;
                     // IosComposeFontResolverTest.variableWeightIsInvariantToFontScale pins that.
                     val prepared = remember(
                         mountedLease.adInstanceId,
@@ -167,7 +173,7 @@ public actual fun NativeAdView(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .then(if (rootFillsHost) Modifier.fillMaxHeight() else Modifier.height(height.dp))
-                                .adRootSurface(layout.root),
+                                .adRootSurface(layout.frozenRoot),
                             properties = UIKitInteropProperties(isInteractive = true, isNativeAccessibilityEnabled = true),
                         )
                     }
@@ -465,7 +471,7 @@ private fun prepareNativeAd(
         nativeAd = nativeAd,
         nativeView = nativeView,
         density = density,
-    ).render(layout.root)
+    ).render(layout.frozenRoot)
     nativeView.addSubview(content)
     content.leadingAnchor.constraintEqualToAnchor(nativeView.leadingAnchor).active = true
     content.trailingAnchor.constraintEqualToAnchor(nativeView.trailingAnchor).active = true
@@ -475,7 +481,7 @@ private fun prepareNativeAd(
         nativeView = nativeView,
         content = content,
         nativeAd = nativeAd,
-        surfaceArgb = resolveNativeAdSurfaceArgb(layout.root),
+        surfaceArgb = resolveNativeAdSurfaceArgb(layout.frozenRoot),
         fillsHost = fillsHost,
     )
     return PreparedNativeAd(host = host, height = host.measureDetachedHeight(width))
