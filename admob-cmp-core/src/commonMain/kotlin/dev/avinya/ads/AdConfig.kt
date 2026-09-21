@@ -2,6 +2,8 @@ package dev.avinya.ads
 
 import dev.avinya.ads.internal.ownedSnapshot
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.withContext
 
 
 /**
@@ -113,9 +115,26 @@ public data class AdConfig(
 public enum class AdInitializationPhase {
     /** Before the UMP consent request. */
     BeforeConsentRequest,
-    /** Before `MobileAds.initialize` (Android) / `GADMobileAds.sharedInstance.start` (iOS). */
+    /**
+     * Before `MobileAds.initialize` (Android) / `GADMobileAds.sharedInstance.start` (iOS).
+     *
+     * The phase for anything that must be in place before the first ad request — mediation
+     * adapter privacy flags, for instance. [AdManager.status] is not `Ready` here and no ad
+     * can be requested yet.
+     */
     BeforeMobileAdsInitialize,
-    /** After the GMA SDK initialization completes. */
+
+    /**
+     * After the GMA SDK initialization completes and [AdManager.status] has been published as
+     * [AdManagerStatus.Ready].
+     *
+     * Ads can therefore be loaded from this hook, and waiting for `Ready` here returns
+     * immediately. The trade-off is the other direction: because the manager is already
+     * `Ready`, an ad request elsewhere in the app may begin while this hook is still running.
+     * Anything that must precede every request belongs in [BeforeMobileAdsInitialize].
+     *
+     * The leading `initialize()` call does not return until these hooks finish.
+     */
     AfterMobileAdsInitialize
 }
 
@@ -123,6 +142,16 @@ public enum class AdInitializationPhase {
  * Hook invoked at each phase of the SDK initialization lifecycle.
  * Implementations can perform side effects (e.g., server-side config fetch,
  * GDPR consent platform integration) at specific [AdInitializationPhase]s.
+ *
+ * Hooks run exactly once per real native initialization attempt. A throwing hook is reported
+ * and isolated: it never makes a successful initialization look unapplied.
+ *
+ * **Do not call [AdManager.initialize] from a hook.** The initialization that is running the
+ * hook cannot complete until the hook returns, so a nested call has nothing to wait for. Such a
+ * call is detected and answered with the manager's current status instead of deadlocking — but
+ * only when it inherits the hook's coroutine context. A nested call dispatched into an
+ * unrelated scope (`GlobalScope`, a scope of your own, a platform callback) is not detectable
+ * and will hang.
  */
 public interface AdInitializationHook {
     /** Called during the given [phase] with the [config] used for initialization. */
@@ -130,7 +159,33 @@ public interface AdInitializationHook {
 }
 
 internal suspend fun AdConfig.dispatchInitializationHooks(phase: AdInitializationPhase) {
-    initializationHooks.forEach { hook -> hook.onPhase(phase, this) }
+    if (initializationHooks.isEmpty()) return
+    // Marked so a re-entrant initialize() from inside a hook can be recognised and answered
+    // instead of joining the very attempt that is waiting for the hook to return. This is the
+    // single funnel for all three phases, including BeforeConsentRequest (dispatched from the
+    // platform consent controllers), so one wrap covers every phase.
+    withContext(InitializationHookMarker()) {
+        initializationHooks.forEach { hook -> hook.onPhase(phase, this@dispatchInitializationHooks) }
+    }
+}
+
+/**
+ * Present in a hook's coroutine context while [AdInitializationHook.onPhase] runs.
+ *
+ * A hook that calls `initialize()` again — directly, or through an "ensure ads are ready"
+ * helper — used to be admitted as a follower of the in-flight attempt and then await its
+ * completion, which cannot happen until the hook returns. That is a permanent self-deadlock
+ * with no timeout anywhere in the path. `AdManager.initialize` checks for this marker first
+ * and returns the current status instead.
+ *
+ * A context element only reaches code that inherits the hook's context, so it does not cover a
+ * hook that dispatches into `GlobalScope`, a separate scope, or a platform callback. Those
+ * remain the publisher's responsibility, and the hook KDoc says so.
+ */
+internal class InitializationHookMarker : CoroutineContext.Element {
+    override val key: CoroutineContext.Key<InitializationHookMarker> get() = Key
+
+    internal object Key : CoroutineContext.Key<InitializationHookMarker>
 }
 
 /**

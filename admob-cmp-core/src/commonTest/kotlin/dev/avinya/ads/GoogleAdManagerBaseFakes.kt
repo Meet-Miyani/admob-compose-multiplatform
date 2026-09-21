@@ -6,7 +6,9 @@ import dev.avinya.ads.internal.awaitNativeCallback
 import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 /**
  * A `GoogleAdManagerBase` with the native boundary replaced by a scriptable lambda.
@@ -25,13 +27,34 @@ internal class FakeGoogleAdManager(
     // detached-publication defects live, and it cannot be scripted with a plain lambda.
     private val failBeforeHandoff: suspend () -> Throwable? = { null },
     private val nativeInitialize: suspend (AdConfig, AdInitializationConfigIdentity) -> Unit = { _, _ -> },
+    /**
+     * A real [NativeAdManagerImpl] instead of the no-op one.
+     *
+     * Needed by any test about the ORDER of native-session configuration against status
+     * publication: with the no-op manager `configureNativeAdsAfterAcceptedInitialization` does
+     * nothing, so nothing can observe the request gate at the wrong moment. The manager's own
+     * `adRequestBlockedError()` is wired in as the gate, exactly as the platform managers do.
+     */
+    nativePlatform: dev.avinya.ads.internal.NativeAdPlatform<String>? = null,
+    nativeScope: CoroutineScope? = null,
 ) : GoogleAdManagerBase() {
 
     override val platformTag: String = "Fake"
     override val nativeInitializationDispatcher: CoroutineDispatcher = Dispatchers.Main.immediate
     override val diagnostics: AdDiagnostics = FakeAdDiagnostics()
     override val tracking: AdTrackingController = NoOpTrackingController
-    override val nativeAds: NativeAdManager get() = NoOpAdManager.nativeAds
+
+    private val realNativeManager: dev.avinya.ads.internal.NativeAdManagerImpl<String>? =
+        nativePlatform?.let { platform ->
+            dev.avinya.ads.internal.NativeAdManagerImpl(
+                policy = null,
+                platform = platform,
+                canRequestAds = { adRequestBlockedError() == null },
+                scope = nativeScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+            )
+        }
+
+    override val nativeAds: NativeAdManager get() = realNativeManager ?: NoOpAdManager.nativeAds
 
     /** Every identity this fake was actually asked to hand to the "native" SDK, in order. */
     val nativeHandoffs = mutableListOf<AdInitializationConfigIdentity>()
@@ -59,8 +82,12 @@ internal class FakeGoogleAdManager(
     init { startAdmissionTracking() }
 
     override fun appId(config: AdConfig): String = config.androidAppId
-    internal override fun configureNativeAdsAfterAcceptedInitialization(config: AdConfig) = Unit
-    override fun configuredNativePolicyOrNull(): NativeAdMemoryPolicy? = null
+    internal override fun configureNativeAdsAfterAcceptedInitialization(config: AdConfig) {
+        realNativeManager?.configure(config.nativeAdMemoryPolicy)
+    }
+
+    override fun configuredNativePolicyOrNull(): NativeAdMemoryPolicy? =
+        realNativeManager?.configuredPolicyOrNull()
     override fun onNativeConsentRevoked() = Unit
     override fun captureDiagnosticsSnapshotOnMain() = Unit
 

@@ -331,11 +331,24 @@ attach a doc comment to in that case.
   initializes once per process: after `appliedConfigIdentity` is set, later
   calls with the *same* identity are no-ops that replay the applied status: a
   call with a *different* identity is ignored with a logged warning, not
-  re-applied. `AdInitializationHook`s (`BeforeConsentRequest`,
-  `BeforeMobileAdsInitialize`, `AfterMobileAdsInitialize`) run exactly once per
-  real native-init attempt, inside the detached `nativeInitializationScope` —
-  never inside an individual caller's cancellable coroutine — so cancelling
-  one `initialize()` caller can never skip or duplicate a hook.
+  re-applied. A follower joining an in-flight attempt is reconciled against the
+  **full** configuration before it returns, including the native memory policy
+  that is deliberately outside the native identity — otherwise a concurrent
+  caller is told `Ready` for a policy that was never installed, while the same
+  call made a moment later is a conflict.
+- `AdInitializationHook`s run exactly once per real native-init attempt.
+  `AfterMobileAdsInitialize` runs inside the detached `nativeInitializationScope`,
+  so cancelling one `initialize()` caller can never skip or duplicate it;
+  `BeforeConsentRequest` and `BeforeMobileAdsInitialize` run in the leading
+  caller's own coroutine (the consent controllers and `initializeMobileAds`
+  dispatch them), so they are cancellable with that caller. Ordering:
+  `status` is published as `Ready` **before** the After hook runs, so a hook may
+  load an ad or await `Ready`; the leading `initialize()` still returns only
+  after the hook finishes. Work that must precede every ad request therefore
+  belongs in `BeforeMobileAdsInitialize`, not `AfterMobileAdsInitialize`.
+  Calling `initialize()` from inside a hook returns the current status instead
+  of deadlocking — detected via a coroutine-context marker, so only for a
+  nested call that inherits the hook's context.
 - Tests: `commonTest` only, hand-written fakes (`Fakes.kt`), injectable
   `clock`/`foregroundEvents` seams. Run `./gradlew :admob-cmp:iosSimulatorArm64Test`
   and `:admob-cmp:testAndroidHostTest`.

@@ -13,6 +13,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 
@@ -380,5 +381,237 @@ class NativeInitializationOwnershipTest {
         assertEquals(AdManagerStatus.Ready, result)
         assertEquals(AdManagerStatus.Ready, manager.status.value)
         assertEquals(listOf("ca-app-pub-B"), manager.handoffMarks.map { it.platformAppId })
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Ordering of status publication against native-session configuration and hooks.
+    // ---------------------------------------------------------------------------------
+
+    /**
+     * A native session whose window was supplied before initialization finished must load.
+     *
+     * Dormant sessions exist precisely so a feed can be built while `initialize()` is still
+     * running. On acceptance the manager materialises them and replays their windows, which
+     * schedules demand immediately — and that demand passes the native request gate, which
+     * requires `status == Ready`. With Ready published only after the After hooks, the gate
+     * refused, the refusal was recorded as a NON-retryable slot error, and `reconcileDemands()`
+     * skips a slot that has one: the slot stayed Failed forever despite a successful
+     * initialization.
+     *
+     * The parked hook is what makes this deterministic rather than dispatcher-dependent: it
+     * holds the operation open across the window where the old order published nothing.
+     */
+    @Test
+    fun `a dormant native session loads once initialization is accepted`() = runSlotTest {
+        val platform = RecordingNativePlatform()
+        val hookEntered = CompletableDeferred<Unit>()
+        val releaseHook = CompletableDeferred<Unit>()
+        val manager = FakeGoogleAdManager(
+            nativePlatform = platform,
+            nativeScope = backgroundScope,
+        )
+        val hookConfig = config("ca-app-pub-A").copy(
+            initializationHooks = listOf(
+                object : AdInitializationHook {
+                    override suspend fun onPhase(phase: AdInitializationPhase, config: AdConfig) {
+                        if (phase != AdInitializationPhase.AfterMobileAdsInitialize) return
+                        hookEntered.complete(Unit)
+                        releaseHook.await()
+                    }
+                }
+            )
+        )
+
+        // The session exists BEFORE initialize() — the supported dormant case.
+        val session = manager.nativeAds.session("feed")
+        session.updateWindow(
+            dev.avinya.ads.nativead.NativeAdWindow(
+                visible = listOf(dev.avinya.ads.nativead.NativeAdSlot("row-0", nativePlacement)),
+            )
+        )
+
+        val init = async { manager.initialize(hookConfig, ConsentMode.SkipConsent) }
+        hookEntered.await()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(
+            AdManagerStatus.Ready,
+            manager.status.value,
+            "Ready must be published before the After hook, or a hook cannot load an ad",
+        )
+        val slotState = session.state.value.slots["row-0"]
+        assertTrue(
+            slotState !is dev.avinya.ads.nativead.NativeAdSlotState.Failed,
+            "a dormant session's window must not be refused by the request gate it was " +
+                "waiting for; got $slotState",
+        )
+        assertTrue(platform.loadCalls > 0, "the parked window must reach the platform")
+
+        releaseHook.complete(Unit)
+        assertEquals(AdManagerStatus.Ready, init.await())
+    }
+
+    /**
+     * An `AfterMobileAdsInitialize` hook may await `Ready` without hanging.
+     *
+     * The virtual-time timeout is the assertion: a deadlock cannot fail an assert, it just
+     * never returns, so the hang has to be converted into a value. `runTest`'s scheduler skips
+     * the delay instantly when nothing is blocked.
+     */
+    @Test
+    fun `an After hook may await Ready`() = runSlotTest {
+        var observedReady: Boolean? = null
+        val manager = FakeGoogleAdManager()
+        val hookConfig = config("ca-app-pub-A").copy(
+            initializationHooks = listOf(
+                object : AdInitializationHook {
+                    override suspend fun onPhase(phase: AdInitializationPhase, config: AdConfig) {
+                        if (phase != AdInitializationPhase.AfterMobileAdsInitialize) return
+                        observedReady = kotlinx.coroutines.withTimeoutOrNull(60.seconds) {
+                            manager.status.first { it == AdManagerStatus.Ready }
+                        } != null
+                    }
+                }
+            )
+        )
+
+        manager.initialize(hookConfig, ConsentMode.SkipConsent)
+
+        assertEquals(true, observedReady, "an After hook that awaits Ready must not hang")
+    }
+
+    /**
+     * A re-entrant `initialize()` from inside a hook returns instead of joining its own attempt.
+     *
+     * The nested call is admitted as a follower of the in-flight attempt and awaits a completion
+     * that cannot arrive until this hook returns. Nothing in that path has a timeout.
+     */
+    @Test
+    fun `initialize from an After hook returns instead of joining its own attempt`() = runSlotTest {
+        var nested: AdManagerStatus? = null
+        val manager = FakeGoogleAdManager()
+        lateinit var hookConfig: AdConfig
+        hookConfig = config("ca-app-pub-A").copy(
+            initializationHooks = listOf(
+                object : AdInitializationHook {
+                    override suspend fun onPhase(phase: AdInitializationPhase, config: AdConfig) {
+                        if (phase != AdInitializationPhase.AfterMobileAdsInitialize) return
+                        nested = kotlinx.coroutines.withTimeoutOrNull(60.seconds) {
+                            manager.initialize(hookConfig, ConsentMode.SkipConsent)
+                        }
+                    }
+                }
+            )
+        )
+
+        val result = manager.initialize(hookConfig, ConsentMode.SkipConsent)
+
+        assertEquals(AdManagerStatus.Ready, result)
+        assertEquals(AdManagerStatus.Ready, nested, "the nested call must return, not deadlock")
+        assertEquals(1, manager.handoffMarks.size, "the nested call must not start a second attempt")
+    }
+
+    /** Same defect from the Before phase, which is dispatched from a different call site. */
+    @Test
+    fun `initialize from a Before hook returns instead of joining its own attempt`() = runSlotTest {
+        var nested: AdManagerStatus? = null
+        val manager = FakeGoogleAdManager()
+        lateinit var hookConfig: AdConfig
+        hookConfig = config("ca-app-pub-A").copy(
+            initializationHooks = listOf(
+                object : AdInitializationHook {
+                    override suspend fun onPhase(phase: AdInitializationPhase, config: AdConfig) {
+                        if (phase != AdInitializationPhase.BeforeMobileAdsInitialize) return
+                        nested = kotlinx.coroutines.withTimeoutOrNull(60.seconds) {
+                            manager.initialize(hookConfig, ConsentMode.SkipConsent)
+                        }
+                    }
+                }
+            )
+        )
+
+        manager.initialize(hookConfig, ConsentMode.SkipConsent)
+
+        assertTrue(nested != null, "the nested call must return, not deadlock")
+        assertEquals(1, manager.handoffMarks.size, "the nested call must not start a second attempt")
+    }
+
+    /**
+     * A follower asking for a different native memory policy gets the same answer whether it
+     * arrived during the leader's attempt or after it finished.
+     *
+     * `equivalentAttempt` compares the native identity and the consent mode, and the memory
+     * policy is deliberately excluded from that identity (changing it needs no GMA re-init).
+     * The follower therefore short-circuited on equality and returned the leader's Ready,
+     * while the leader's policy was the one actually installed — the identical call made a
+     * moment later returned INITIALIZATION_CONFLICT. Same request, different answer, decided
+     * only by timing.
+     */
+    @Test
+    fun `a concurrent follower with a different memory policy gets the sequential conflict`() = runSlotTest {
+        val platform = RecordingNativePlatform()
+        val nativePause = CompletableDeferred<Unit>()
+        val manager = FakeGoogleAdManager(
+            nativePlatform = platform,
+            nativeScope = backgroundScope,
+            nativeInitialize = { _, _ -> nativePause.await() },
+        )
+        val leaderConfig = config("ca-app-pub-A").copy(
+            nativeAdMemoryPolicy = dev.avinya.ads.nativead.NativeAdMemoryPolicy(softLimit = 4, hardLimit = 6),
+        )
+        val followerConfig = config("ca-app-pub-A").copy(
+            nativeAdMemoryPolicy = dev.avinya.ads.nativead.NativeAdMemoryPolicy(softLimit = 1, hardLimit = 2),
+        )
+
+        val leader = async { manager.initialize(leaderConfig, ConsentMode.SkipConsent) }
+        yield()
+        val follower = async { manager.initialize(followerConfig, ConsentMode.SkipConsent) }
+        yield()
+        nativePause.complete(Unit)
+
+        assertEquals(AdManagerStatus.Ready, leader.await())
+        val concurrentResult = follower.await()
+        // The same call, now strictly after initialization settled.
+        val sequentialResult = manager.initialize(followerConfig, ConsentMode.SkipConsent)
+
+        assertEquals(
+            sequentialResult,
+            concurrentResult,
+            "a follower must not be told Ready for a policy that was never installed",
+        )
+        assertIs<AdManagerStatus.Failed>(concurrentResult)
+        assertEquals(AdManagerStatus.Ready, manager.status.value, "the manager itself stays Ready")
+    }
+
+    private val nativePlacement = AdPlacement(
+        id = "native",
+        format = AdFormat.Native,
+        adUnitIds = AdUnitIds("test-android", "test-ios"),
+    )
+
+    /** Minimal native platform: records load calls and returns one ad per requested slot. */
+    private class RecordingNativePlatform : dev.avinya.ads.internal.NativeAdPlatform<String> {
+        var loadCalls = 0
+            private set
+        private var next = 0
+
+        override suspend fun load(
+            placement: AdPlacement,
+            count: Int,
+            generation: Long,
+        ): AdAttemptResult<dev.avinya.ads.internal.NativeAdPlatformBatch<String>> {
+            loadCalls++
+            return AdAttemptResult.Success(
+                dev.avinya.ads.internal.NativeAdPlatformBatch(
+                    ads = List(count) { "ad-${next++}" },
+                    unfilledError = null,
+                )
+            )
+        }
+
+        override suspend fun bindEvents(ad: String, adInstanceId: String, emit: (AdEvent) -> Unit) = Unit
+        override fun destroy(ad: String) = Unit
+        override fun responseInfo(ad: String): AdResponseInfo? = null
+        override fun mediaInfo(ad: String): dev.avinya.ads.nativead.NativeMediaInfo? = null
     }
 }

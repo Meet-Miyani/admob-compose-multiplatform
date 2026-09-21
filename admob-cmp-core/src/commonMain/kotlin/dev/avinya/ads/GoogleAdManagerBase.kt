@@ -336,6 +336,20 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
         config: AdConfig,
         consentMode: ConsentMode
     ): AdManagerStatus {
+        // A re-entrant call from inside an initialization hook cannot be admitted: the attempt
+        // it would join cannot complete until this hook returns, and nothing in that path has a
+        // timeout. Answer with the status the manager holds right now instead of deadlocking.
+        // Both fields are @Volatile, so this takes no mutex — a hook may be running while the
+        // operation still holds mobileAdsInitializationMutex.
+        if (currentCoroutineContext()[InitializationHookMarker.Key] != null) {
+            val current = appliedTerminalStatus ?: _status.value
+            AdLogger.w(
+                "$platformTag initialize() was called from inside an AdInitializationHook. " +
+                    "Returning the current status ($current) instead of waiting for the " +
+                    "initialization that is running this hook. Remove the nested call."
+            )
+            return current
+        }
         val ownedConfig = config.ownedSnapshot()
         val requestedIdentity = ownedConfig.initializationIdentity(appId(ownedConfig))
         while (true) {
@@ -380,10 +394,17 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
                 // An active follower must not inherit the leader's cancellation.
                 continue
             }
-            if (equivalentAttempt) return result
+            // Reconcile the FULL configuration before returning, equivalent attempt or not.
+            // `equivalentAttempt` compares the native identity and the consent mode, and the
+            // native ad memory policy is deliberately not part of that identity — so a follower
+            // that asked for a different policy used to be told Ready while the leader's policy
+            // was the one actually installed. The identical call made after initialization
+            // finished returned INITIALIZATION_CONFLICT. Same request, different answer,
+            // decided by timing. appliedOutcome() is the one place that check lives.
             if (result == AdManagerStatus.Ready) {
-                appliedOutcome(requestedIdentity, config.nativeAdMemoryPolicy)?.let { return it }
+                appliedOutcome(requestedIdentity, ownedConfig.nativeAdMemoryPolicy)?.let { return it }
             }
+            if (equivalentAttempt) return result
             // A distinct request waited for the process-wide slot but the leader
             // did not initialize GMA. Register a new attempt for its own semantics.
         }
@@ -572,8 +593,16 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
             operation = startNativeInitialization(config, requestedIdentity)
         }
 
+        // Never regress a terminal status that has already been published. The detached native
+        // operation now publishes Ready as soon as GMA accepts, so a caller arriving after that
+        // (a follower, or a retry) would otherwise flip a live Ready manager back to
+        // Initializing and close the request gate under ads that are already loading. Kept
+        // rather than deleted: after an abandoned FAILED native attempt this is still what
+        // moves the manager from Failed back to Initializing for the retry.
         val previousStatus = _status.value
-        _status.value = AdManagerStatus.Initializing
+        mobileAdsInitializationMutex.withLock {
+            if (appliedTerminalStatus != AdManagerStatus.Ready) _status.value = AdManagerStatus.Initializing
+        }
         return try {
             when (val nativeResult = operation.completion.await()) {
                 is NativeInitializationResult.Failed -> return initializationFailed(nativeResult.failure)
@@ -608,9 +637,14 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
         // Native acceptance MUST be committed BEFORE the hook runs. Commit it after, and a
         // throwing publisher hook leaves appliedConfigIdentity null while GMA is already
         // initialized, so a retry with a different app ID sails past appliedOutcome() and
-        // tries to reconfigure an immutable process singleton. The tradeoff is that a
-        // concurrent same-identity initialize() may observe Ready while the hook is still
-        // running — strictly better than desynchronizing the wrapper from native reality.
+        // tries to reconfigure an immutable process singleton.
+        //
+        // Ready is now PUBLISHED before the hook too, not merely recorded. An After hook is
+        // documented as running after initialization completes, and publishers reasonably
+        // await Ready or load an ad from one; with publication deferred until after the hook,
+        // both deadlocked. The consequence to know: an ad request can begin while an After
+        // hook is still running. Work that must precede the first request belongs in
+        // BeforeMobileAdsInitialize, which is what mediation privacy flags already use.
         val completion = nativeInitializationScope.async(start = CoroutineStart.LAZY) {
             val result = try {
                 // The platform implementation decides when the mark is taken (via markHandoff):
@@ -625,9 +659,27 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
                 captureDiagnosticsSnapshotOnMain()
                 mobileAdsInitializationMutex.withLock {
                     // Native GMA is initialized at this point and can never be reconfigured, so
-                    // the identity commit below must be unconditional. configureNativeAds can
-                    // throw -- NativeAdManagerImpl.configure has a check(existing == null) -- which
-                    // is the same trap as a throwing hook, one step earlier.
+                    // the identity commit must be unconditional.
+                    appliedConfigIdentity = requestedIdentity
+                    appliedTerminalStatus = AdManagerStatus.Ready
+                    // Publish Ready BEFORE configuring native ads, not after.
+                    //
+                    // configureNativeAdsAfterAcceptedInitialization materialises dormant native
+                    // sessions and replays their windows, which immediately schedules demand on
+                    // the coordinator's own dispatcher. That demand passes through the native
+                    // request gate, which requires status == Ready. Published afterwards, the
+                    // gate refused, the refusal was recorded as a NON-retryable slot error, and
+                    // reconcileDemands() deliberately skips a slot with lastError set — so a
+                    // feed or inline slot created while initialize() was still running stayed
+                    // permanently Failed even though initialization succeeded, until the slot
+                    // left the viewport and came back.
+                    //
+                    // Still inside this lock, so appliedOutcome()'s memory-policy check stays
+                    // serialized against the configure call it describes.
+                    publishAppliedTerminalLocked(AdManagerStatus.Ready)
+                    // configureNativeAds can throw -- NativeAdManagerImpl.configure has a
+                    // check(existing == null) -- which is the same trap as a throwing hook, one
+                    // step earlier.
                     try {
                         configureNativeAdsAfterAcceptedInitialization(config)
                     } catch (t: Throwable) {
@@ -638,8 +690,6 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
                             t
                         )
                     }
-                    appliedConfigIdentity = requestedIdentity
-                    appliedTerminalStatus = AdManagerStatus.Ready
                 }
                 // AFTER the commit, and isolated: a publisher hook is host code, so its failure is
                 // reported but must never make the native singleton look unapplied.

@@ -96,9 +96,21 @@ adapter-specific calls belong in `androidMain`/`iosMain` behind an
 `expect`/`actual` and are invoked from the hook. The three phases
 are `BeforeConsentRequest`, `BeforeMobileAdsInitialize` and
 `AfterMobileAdsInitialize`. And hooks run **exactly once per real
-native initialization attempt**, inside a detached scope, so
-cancelling one `initialize()` caller can never skip or duplicate a
-hook.
+native initialization attempt**.
+
+Network privacy flags belong in `BeforeMobileAdsInitialize`, as above,
+because that phase is guaranteed to complete before any ad can be
+requested. `AfterMobileAdsInitialize` runs once the manager is already
+`Ready`, which is what lets a hook load an ad or await `Ready` without
+hanging — but also means an ad request elsewhere in your app may start
+while that hook is still running.
+
+<Aside type="caution">
+Do not call `initialize()` from inside a hook. The initialization running
+your hook cannot finish until the hook returns. A nested call that inherits
+the hook's coroutine context is detected and answered with the current
+status; one dispatched into an unrelated scope is not, and will hang.
+</Aside>
 
 The `expect`/`actual` pattern is the right shape for adapter
 privacy calls because the network SDKs are themselves
