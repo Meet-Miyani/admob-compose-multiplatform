@@ -5,6 +5,11 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const readRepoFile = (path: string) => readFileSync(`${repoRoot}${path}`, 'utf8');
 
+function unpublishedSuccessorOf(current: string): string {
+  const [major, minor] = current.split('.');
+  return `${major}.${Number(minor) + 1}.0`;
+}
+
 function versionName(): string {
   const match = readRepoFile('gradle.properties').match(/^VERSION_NAME=(.+)$/m);
   if (!match) throw new Error('VERSION_NAME missing from gradle.properties');
@@ -21,6 +26,31 @@ describe('repository discovery metadata', () => {
     expect(readme).toMatch(new RegExp(`admob-cmp\"\\) version \"${version}\"`));
     expect(readme).toMatch(new RegExp(`\\| ${version} \\|`));
     expect(readme).toContain(`Underlying Google SDKs bound by ${currentVersion}:`);
+  });
+
+  // The changelog promoted an unpublished version to "Current" twice in a row
+  // (a "## 2.5.0" section written while VERSION_NAME was still 2.4.0 and no
+  // 2.5.0 existed on Maven Central), telling readers to use a version they
+  // could not resolve. The README was already guarded; the changelog was not.
+  it('never presents an unpublished version as the current release', () => {
+    const changelog = readRepoFile(
+      'docs-site/src/content/docs/reference/changelog.mdx'
+    );
+    const currentVersion = versionName();
+
+    expect(changelog).toContain(`release is **${currentVersion}**.`);
+
+    const currentRows = [...changelog.matchAll(/^\| ([0-9][^|]*?) \| Current \|/gm)].map(
+      (row) => row[1].trim()
+    );
+    expect(currentRows).toEqual([currentVersion]);
+
+    // A version heading in the history means "published". Unreleased work
+    // belongs under "## Unreleased", whatever it is going to be called.
+    const released = [...changelog.matchAll(/^## ([0-9]+\.[0-9]+\.[0-9]+)$/gm)].map(
+      (heading) => heading[1]
+    );
+    expect(released).not.toContain(unpublishedSuccessorOf(currentVersion));
   });
 
   it('does not claim that SDK ABI checks run in CI', () => {

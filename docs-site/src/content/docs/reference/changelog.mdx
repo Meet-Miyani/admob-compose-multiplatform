@@ -12,12 +12,11 @@ import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 All published artifacts live under `dev.avinya.ads` on Maven Central:
 `admob-cmp`, `admob-cmp-core`, `admob-cmp-compose`, and the
 `dev.avinya.ads.admob-cmp.gradle.plugin` marker. The current
-release is **2.5.0**.
+release is **2.4.0**.
 
 | Version | Status | Highlights |
 |---|---|---|
-| 2.5.0 | Current | A native feed refresh that keeps its item count now reaches the session, `reloadAfterShow` replays the options it was loaded with, an iOS native-ad retain cycle is broken, and Dynamic Type no longer rebuilds an iOS native ad |
-| 2.4.0 | Superseded | Kotlin 2.4.20, Compose Multiplatform 1.12.0, GMA Next-Gen 1.4.0 (Android), GMA iOS 13.9.0 — a toolchain and bound-SDK refresh, no public API change |
+| 2.4.0 | Current | Kotlin 2.4.20, Compose Multiplatform 1.12.0, GMA Next-Gen 1.4.0 (Android), GMA iOS 13.9.0 — a toolchain and bound-SDK refresh, no public API change |
 | 2.3.0 | Superseded | Initialization no longer strands a cancelled caller outside `Ready`, 40-second init watchdog, form-slot claimed on entry, released pin after a timed-out info update, platform-qualified consent `AdError.domain`, new `CONSENT_OPERATION_IN_PROGRESS` code |
 | 2.2.0 | Superseded | Non-retryable `initialize()` conflicts, serialized consent operations, bounded startup timeouts, constructor-time configuration validation, configurable `AdLogger` and app ID verification policy |
 | 2.1.0 | Superseded | Native-ad renderer parity across Android, iOS, and preview; themeable templates |
@@ -33,6 +32,9 @@ Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
 
 ## Unreleased
+
+Merged to `master` and not yet published. Nothing below resolves from Maven Central
+yet; the current release is still 2.4.0.
 
 Fixes from an external review of the SDK. Every finding was re-verified against the
 code and the vendors' own documentation before being accepted, and each fix ships with a
@@ -103,12 +105,12 @@ removed.
 
 **`clear()` no longer discards a concurrent load's replay options.** It retired the replay snapshot after releasing the publication lock, so a load for the new generation could store its options in between and have them wiped, leaving `reloadAfterShow` to replay placement defaults instead. The retire now happens inside the same lock, before the new generation is published. The old comment claiming no public sequence could observe this was wrong: the state publication resumes an inline `loadState` observer, which is exactly that sequence.
 
-## 2.5.0
+### Also unreleased: native feed, reload replay, and iOS lifetime fixes
 
-A fix release. No public API change: `admob-cmp-core.klib.api` and
+No public API change in this group: `admob-cmp-core.klib.api` and
 `admob-cmp-compose.klib.api` are byte-identical to 2.4.0.
 
-### Fixes
+#### Fixes
 
 **A native ad feed that changed without changing its item count now republishes its window.** A pull-to-refresh that returned the same number of rows, or a slot mapping that resolved asynchronously, left every ad row holding the pre-refresh slot keys and sitting on its loading placeholder until the reader scrolled far enough to change the measured index set. `slotAt` reads your feed's own Compose state, but it was applied outside the snapshot observer, so nothing tracked those reads — the only thing standing in for them was the lambda's identity, which held or not depending on whether Compose memoized it. The mapping is now resolved inside the observer, so the state it touches is tracked, and the deduplication key compares resolved slots by value instead of comparing lambdas by identity.
 
@@ -124,7 +126,7 @@ That last sentence was wrong when it shipped. The labels set `adjustsFontForCont
 
 **The Gradle plugin recognises every `os.name` a macOS host reports.** Its host check missed `darwin` and `osx`, both of which Gradle's own `OperatingSystem` accepts. A miss dropped the GoogleMobileAds linker options from Kotlin/Native test executables on a machine that needed them, surfacing much later as `Undefined symbols ... _OBJC_CLASS_$_GADBannerView` with nothing pointing back at the check.
 
-### Behaviour changes
+#### Behaviour changes
 
 <Aside type="caution" title="Behaviour changes">
 1. **`slotAt` is now invoked inside a Compose snapshot observer.** Any snapshot state it reads becomes a dependency of the feed's viewport pipeline, which is what makes a same-count refresh republish. Keep the lambda cheap and free of side effects: it is called for the measured indexes and for a bounded range either side of them, never across the whole feed. A lambda that only indexes into your feed model — the documented shape — needs no change.
