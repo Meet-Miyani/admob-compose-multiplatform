@@ -902,6 +902,46 @@ sealed interface dev.avinya.ads/ConsentStatus { // dev.avinya.ads/ConsentStatus|
     }
 }
 
+sealed interface dev.avinya.ads/RequestConfigurationUpdateResult { // dev.avinya.ads/RequestConfigurationUpdateResult|null[0]
+    final class Applied : dev.avinya.ads/RequestConfigurationUpdateResult { // dev.avinya.ads/RequestConfigurationUpdateResult.Applied|null[0]
+        constructor <init>(kotlin/Boolean) // dev.avinya.ads/RequestConfigurationUpdateResult.Applied.<init>|<init>(kotlin.Boolean){}[0]
+
+        final val invalidatedCachedAds // dev.avinya.ads/RequestConfigurationUpdateResult.Applied.invalidatedCachedAds|{}invalidatedCachedAds[0]
+            final fun <get-invalidatedCachedAds>(): kotlin/Boolean // dev.avinya.ads/RequestConfigurationUpdateResult.Applied.invalidatedCachedAds.<get-invalidatedCachedAds>|<get-invalidatedCachedAds>(){}[0]
+
+        final fun component1(): kotlin/Boolean // dev.avinya.ads/RequestConfigurationUpdateResult.Applied.component1|component1(){}[0]
+        final fun copy(kotlin/Boolean = ...): dev.avinya.ads/RequestConfigurationUpdateResult.Applied // dev.avinya.ads/RequestConfigurationUpdateResult.Applied.copy|copy(kotlin.Boolean){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/RequestConfigurationUpdateResult.Applied.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/RequestConfigurationUpdateResult.Applied.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/RequestConfigurationUpdateResult.Applied.toString|toString(){}[0]
+    }
+
+    final class Failed : dev.avinya.ads/RequestConfigurationUpdateResult { // dev.avinya.ads/RequestConfigurationUpdateResult.Failed|null[0]
+        constructor <init>(dev.avinya.ads/AdError) // dev.avinya.ads/RequestConfigurationUpdateResult.Failed.<init>|<init>(dev.avinya.ads.AdError){}[0]
+
+        final val error // dev.avinya.ads/RequestConfigurationUpdateResult.Failed.error|{}error[0]
+            final fun <get-error>(): dev.avinya.ads/AdError // dev.avinya.ads/RequestConfigurationUpdateResult.Failed.error.<get-error>|<get-error>(){}[0]
+
+        final fun component1(): dev.avinya.ads/AdError // dev.avinya.ads/RequestConfigurationUpdateResult.Failed.component1|component1(){}[0]
+        final fun copy(dev.avinya.ads/AdError = ...): dev.avinya.ads/RequestConfigurationUpdateResult.Failed // dev.avinya.ads/RequestConfigurationUpdateResult.Failed.copy|copy(dev.avinya.ads.AdError){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/RequestConfigurationUpdateResult.Failed.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/RequestConfigurationUpdateResult.Failed.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/RequestConfigurationUpdateResult.Failed.toString|toString(){}[0]
+    }
+
+    final object NotInitialized : dev.avinya.ads/RequestConfigurationUpdateResult { // dev.avinya.ads/RequestConfigurationUpdateResult.NotInitialized|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/RequestConfigurationUpdateResult.NotInitialized.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/RequestConfigurationUpdateResult.NotInitialized.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/RequestConfigurationUpdateResult.NotInitialized.toString|toString(){}[0]
+    }
+
+    final object Unsupported : dev.avinya.ads/RequestConfigurationUpdateResult { // dev.avinya.ads/RequestConfigurationUpdateResult.Unsupported|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/RequestConfigurationUpdateResult.Unsupported.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/RequestConfigurationUpdateResult.Unsupported.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/RequestConfigurationUpdateResult.Unsupported.toString|toString(){}[0]
+    }
+}
+
 final class dev.avinya.ads.appopen/AppOpenAdCoordinator { // dev.avinya.ads.appopen/AppOpenAdCoordinator|null[0]
     constructor <init>(dev.avinya.ads/AdManager, dev.avinya.ads/AppOpenAdController, dev.avinya.ads.appopen/AppOpenConfig = ...) // dev.avinya.ads.appopen/AppOpenAdCoordinator.<init>|<init>(dev.avinya.ads.AdManager;dev.avinya.ads.AppOpenAdController;dev.avinya.ads.appopen.AppOpenConfig){}[0]
 
@@ -1802,3 +1842,4 @@ final fun (dev.avinya.ads/BannerAdController).dev.avinya.ads/registerIosBannerGe
 final fun dev.avinya.ads.appopen/iosAppForegroundState(): kotlinx.coroutines.flow/Flow<kotlin/Boolean> // dev.avinya.ads.appopen/iosAppForegroundState|iosAppForegroundState(){}[0]
 final suspend fun (dev.avinya.ads/AdManager).dev.avinya.ads/gatherConsentAndInitialize(dev.avinya.ads/AdConfig): dev.avinya.ads/AdManagerStatus // dev.avinya.ads/gatherConsentAndInitialize|gatherConsentAndInitialize@dev.avinya.ads.AdManager(dev.avinya.ads.AdConfig){}[0]
 final suspend fun (dev.avinya.ads/AdManager).dev.avinya.ads/showPrivacyOptions(): kotlin/Boolean // dev.avinya.ads/showPrivacyOptions|showPrivacyOptions@dev.avinya.ads.AdManager(){}[0]
+final suspend fun (dev.avinya.ads/AdManager).dev.avinya.ads/updateGlobalRequestConfiguration(dev.avinya.ads/GlobalRequestConfiguration): dev.avinya.ads/RequestConfigurationUpdateResult // dev.avinya.ads/updateGlobalRequestConfiguration|updateGlobalRequestConfiguration@dev.avinya.ads.AdManager(dev.avinya.ads.GlobalRequestConfiguration){}[0]

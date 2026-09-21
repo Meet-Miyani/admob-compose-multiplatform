@@ -336,6 +336,17 @@ attach a doc comment to in that case.
   that is deliberately outside the native identity — otherwise a concurrent
   caller is told `Ready` for a policy that was never installed, while the same
   call made a moment later is a conflict.
+- Request configuration is the one part of that identity that CAN change after
+  initialization, through `updateGlobalRequestConfiguration()` — both platform
+  SDKs support it at runtime (`MobileAds.setRequestConfiguration`, and iOS's
+  mutable `requestConfiguration`). It applies on Main under
+  `mobileAdsInitializationMutex`, updates `appliedConfigIdentity` so a later
+  `initialize()` with the new values is equivalent rather than a conflict, and
+  purges cached inventory only when a serving-relevant field changed (content
+  rating, age treatment, personalization, first-party ID — not audio or test
+  devices). It is an extension over the internal `RequestConfigurationUpdater`
+  capability, not an `AdManager` member: adding an abstract member would break
+  every consumer implementing the interface, and the ABI is frozen.
 - `AdInitializationHook`s run exactly once per real native-init attempt.
   `AfterMobileAdsInitialize` runs inside the detached `nativeInitializationScope`,
   so cancelling one `initialize()` caller can never skip or duplicate it;

@@ -36,7 +36,12 @@ Release details and release assets for all versions are published on the
 
 Fixes from an external review of the SDK. Every finding was re-verified against the
 code and the vendors' own documentation before being accepted, and each fix ships with a
-regression test that fails without it. No public API change so far.
+regression test that fails without it. One additive API; nothing existing changed or was
+removed.
+
+### Added
+
+**`AdManager.updateGlobalRequestConfiguration()` — change request configuration at runtime.** `initialize()` treats its entire configuration as process identity, so a second call with a different content rating, age treatment, personalisation state or even ad volume returned `INITIALIZATION_CONFLICT` and told the publisher to restart the process. That is correct for the app ID, which the platform SDK cannot be told twice, but not for request configuration: Android exposes `MobileAds.setRequestConfiguration()` and iOS a mutable `requestConfiguration`, both intended for runtime use. An app switching to a profile that needs different ad treatment now has a supported path. Inventory loaded under the previous policy is dropped when a serving-relevant field changes, and kept when only audio or test devices do; `initialize()` keeps its existing conflict semantics unchanged.
 
 ### Fixes
 

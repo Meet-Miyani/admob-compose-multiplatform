@@ -10,6 +10,8 @@ import dev.avinya.ads.internal.FullScreenStateLock
 import dev.avinya.ads.internal.AppIdVerdict
 import dev.avinya.ads.internal.DeclaredAppId
 import dev.avinya.ads.internal.NativeHandoffDecision
+import dev.avinya.ads.internal.RequestConfigurationUpdater
+import dev.avinya.ads.internal.affectsServedAds
 import dev.avinya.ads.internal.appIdPreflightError
 import dev.avinya.ads.internal.appIdVerdict
 import dev.avinya.ads.internal.appliedConfigurationDecision
@@ -59,7 +61,7 @@ internal data class AdSlotKey(val placementId: String, val format: AdFormat)
  * `IosGoogleAdManager.kt`, that means shared policy has leaked into a platform subclass, not
  * that this class needs a platform-specific branch.
  */
-internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware {
+internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware, RequestConfigurationUpdater {
     /** "Android" or "iOS" — the only textual difference in this class's log messages. */
     protected abstract val platformTag: String
 
@@ -811,5 +813,63 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
             "$platformTag revocation purge complete. banners=${bannersSnapshot.size} " +
                 "fullScreen=${slotsSnapshot.size} nativeSessions=${nativeAds.state.value.activeSessions}"
         )
+    }
+
+    /** Writes [configuration] onto the platform SDK. Called on Main, under the init mutex. */
+    internal abstract suspend fun applyGlobalRequestConfigurationNative(
+        configuration: GlobalRequestConfiguration,
+    )
+
+    /**
+     * Shared implementation of [dev.avinya.ads.updateGlobalRequestConfiguration].
+     *
+     * Under `mobileAdsInitializationMutex` so this cannot interleave with an initialization
+     * attempt: the applied identity is what `appliedOutcome()` compares a later `initialize()`
+     * against, and a half-updated identity would make an equivalent call look like a conflict.
+     */
+    final override suspend fun updateGlobalRequestConfiguration(
+        configuration: GlobalRequestConfiguration,
+    ): RequestConfigurationUpdateResult {
+        val owned = configuration.ownedSnapshot()
+        val outcome = mobileAdsInitializationMutex.withLock {
+            val applied = appliedConfigIdentity
+                ?: return@withLock RequestConfigurationUpdateResult.NotInitialized
+            val previous = applied.globalRequestConfiguration
+            if (previous == owned) {
+                // Nothing to do, and nothing to invalidate. Reported as Applied because the
+                // requested configuration IS in force, which is what the caller asked about.
+                return@withLock RequestConfigurationUpdateResult.Applied(invalidatedCachedAds = false)
+            }
+            try {
+                withContext(Dispatchers.Main.immediate) {
+                    applyGlobalRequestConfigurationNative(owned)
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Throwable) {
+                AdLogger.e("$platformTag failed to update the global request configuration.", failure)
+                return@withLock RequestConfigurationUpdateResult.Failed(
+                    AdError.message(failure.message ?: "Failed to update the request configuration.")
+                )
+            }
+            // Committed only after the platform accepted it, so a failed update leaves the
+            // recorded identity describing what the SDK actually holds. A later initialize()
+            // with the SAME new configuration is then equivalent rather than a conflict, and
+            // Android's audio-restore baseline follows the update too.
+            appliedConfigIdentity = applied.copy(globalRequestConfiguration = owned)
+            RequestConfigurationUpdateResult.Applied(
+                invalidatedCachedAds = previous.affectsServedAds(owned),
+            )
+        }
+        // Outside the mutex: clearing a slot can destroy ads and take per-slot locks, which
+        // must not happen while the initialization mutex is held.
+        if (outcome is RequestConfigurationUpdateResult.Applied && outcome.invalidatedCachedAds) {
+            AdLogger.i(
+                "$platformTag request configuration changed in a way that affects ad serving; " +
+                    "dropping inventory loaded under the previous policy."
+            )
+            purgeOnRevocation()
+        }
+        return outcome
     }
 }

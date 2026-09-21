@@ -178,6 +178,30 @@ internal class AndroidGoogleAdManager(
         }
     }
 
+    /**
+     * Applies a runtime request-configuration change.
+     *
+     * A whole `RequestConfiguration` is passed, built from the complete
+     * [GlobalRequestConfiguration] the caller supplied, so any field they left at its default
+     * is sent as that default rather than being left at a previously applied value. That is
+     * the behaviour this SDK wants regardless of how GMA merges internally: the reference
+     * documents the setter as "the global RequestConfiguration that will be used for every
+     * AdRequest" but does not state replace-versus-merge, and the implementation delegates
+     * into obfuscated internals, so do not assume either without testing on a device.
+     *
+     * The three settings that live outside `RequestConfiguration` — first-party ID and the
+     * two audio controls — are applied the same way `initializeMobileAdsNative` applies them;
+     * all three are documented as runtime-callable.
+     */
+    internal override suspend fun applyGlobalRequestConfigurationNative(
+        configuration: GlobalRequestConfiguration,
+    ) {
+        MobileAds.setRequestConfiguration(configuration.toAndroidRequestConfiguration())
+        configuration.publisherFirstPartyIdEnabled?.let { MobileAds.putPublisherFirstPartyIdEnabled(it) }
+        configuration.appMuted?.let { MobileAds.setUserMutedApp(it) }
+        configuration.appVolume?.let { MobileAds.setUserControlledAppVolume(it.coerceIn(0f, 1f)) }
+    }
+
     override fun banner(placement: AdPlacement): BannerAdController =
         registerBanner(placement) { owned ->
             AdLogger.d("Android banner controller created. placement=${owned.id}")
