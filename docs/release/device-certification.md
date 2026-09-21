@@ -104,3 +104,37 @@ Deviations noted during the run:
 - The showcase logs `AdConfig.testMode is true but no test device IDs are
   configured`. Harmless here (official Google test ad units), but worth wiring
   a test device id before any run against non-test units.
+
+## Run record — 2026-09-21, iOS simulator (partial)
+
+iPhone 16 Pro simulator (iOS 18.6), Xcode 27.0, built from `iosApp.xcodeproj`
+at `e011e537`. No crash reports; the app stayed alive through the whole flow
+including live content-size changes.
+
+**Simulator, not a device.** Per the rule above, this does not certify the iOS
+column. It is recorded because it does cover one thing the Android run could
+not: F-17, which has no unit-test safety net.
+
+| # | Scenario | iOS sim | Evidence |
+|---|---|---|---|
+| 9 | Formats render | PARTIAL | Native rendered via the SDK's `NativeAdView`. Banner, interstitial, rewarded not exercised |
+| 11 | Native ad validator clean | PASS | "No implementation issues found" at default size and at `accessibility-extra-extra-extra-large`; `AdLayoutValidator` reports no findings |
+| 12 | Ordering is UMP -> ATT -> first ad request | PASS | Consent gate, then the real `ATTrackingManager` system dialog, then the feed; the SDK Lab then reported "Ready - ads may load" |
+
+**F-17 (iOS Dynamic Type) — verified working.** With the simulator at
+`accessibility-extra-extra-extra-large`, the ad's SPONSORED attribution
+rendered several times its default size, and returned to normal when the
+category was set back to `large`. The scaling is live and reversible, which is
+what `UIFontMetrics.defaultMetrics.scaledFontForFont` provides and what the
+unfixed renderer could not do. This is the first end-to-end evidence for F-17;
+until now it had neither a unit test nor a device run.
+
+Observed and deliberately not filed as a defect: in the `App: feed` layout this
+creative's media view renders at a tall aspect ratio and fills the card, so the
+headline, body and call to action sit below the fold. It behaves identically at
+`large` and at the maximum accessibility size, so it is not text scaling, and
+Google's validator passes it in both states.
+
+Still untested on iOS: rows 1-8, 10, 13, 14, 15, and every format except
+native. A physical iPhone is still required before the iOS column can be
+signed.
