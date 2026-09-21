@@ -2,7 +2,7 @@ package dev.avinya.ads
 
 import dev.avinya.ads.internal.BannerCore
 import dev.avinya.ads.internal.BannerPlatform
-import dev.avinya.ads.internal.tryResumeOnce
+import dev.avinya.ads.internal.suspendSingleShot
 import com.google.android.libraries.ads.mobile.sdk.banner.AdSize
 import com.google.android.libraries.ads.mobile.sdk.banner.AdView
 import com.google.android.libraries.ads.mobile.sdk.banner.BannerAd
@@ -14,7 +14,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
 /**
@@ -87,13 +86,13 @@ internal class AndroidBannerAdController internal constructor(
         requestOptions: AdRequestOptions,
         requiredGeneration: Long
     ): AdAttemptResult<AndroidLoadedBanner> = withContext(Dispatchers.Main.immediate) {
-        suspendCancellableCoroutine { continuation ->
+        suspendSingleShot { continuation ->
             val activity = activityProvider()
             if (activity == null) {
-                continuation.tryResumeOnce(
+                continuation.resume(
                     AdAttemptResult.Failure(AdError.message("No current Android Activity."))
                 )
-                return@suspendCancellableCoroutine
+                return@suspendSingleShot
             }
             val mergedOptions = requestOptions.withCollapsible(sizePolicy)
             val request = BannerAdRequest.Builder(placement.androidAdUnitId, size)
@@ -142,17 +141,14 @@ internal class AndroidBannerAdController internal constructor(
                     // killing the process. The reported crash came from this same callback's
                     // `onAdFailedToLoad` branch below, which likewise claims the continuation
                     // instead of reading `isActive` first.
-                    if (!continuation.tryResumeOnce(AdAttemptResult.Success(loaded)) { _, _, _ -> loaded.destroy() }) {
-                        // Lost the race. `tryResume` does not run onCancellation for an
-                        // already-resumed or already-cancelled continuation, so nothing else will
-                        // release this banner's AdView/native ad.
-                        loaded.destroy()
-                    }
+                    // Cleanup stated once: onUndelivered covers losing the race, an
+                    // already-cancelled waiter, and a cancellation landing in flight.
+                    continuation.resume(AdAttemptResult.Success(loaded)) { loaded.destroy() }
                 }
 
                 override fun onAdFailedToLoad(adError: LoadAdError) {
                     adView.destroy()
-                    continuation.tryResumeOnce(AdAttemptResult.Failure(adError.toAdError()))
+                    continuation.resume(AdAttemptResult.Failure(adError.toAdError()))
                 }
             })
         }

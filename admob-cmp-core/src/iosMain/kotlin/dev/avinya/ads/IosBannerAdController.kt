@@ -7,14 +7,13 @@ import GoogleMobileAds.GADBannerView
 import GoogleMobileAds.GADBannerViewDelegateProtocol
 import dev.avinya.ads.internal.BannerCore
 import dev.avinya.ads.internal.BannerPlatform
-import dev.avinya.ads.internal.tryResumeOnce
+import dev.avinya.ads.internal.suspendSingleShot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.cinterop.CValue
@@ -108,7 +107,7 @@ internal class IosBannerAdController internal constructor(
     ): AdAttemptResult<IosLoadedBanner> = withContext(Dispatchers.Main.immediate) {
         var attempt: IosBannerLoad? = null
         try {
-            val result = suspendCancellableCoroutine<AdAttemptResult<IosLoadedBanner>> { continuation ->
+            val result = suspendSingleShot<AdAttemptResult<IosLoadedBanner>> { continuation ->
                 val banner = GADBannerView(size)
                 banner.adUnitID = placement.iosAdUnitId
                 val windowScene = UIApplication.sharedApplication.connectedScenes
@@ -127,14 +126,14 @@ internal class IosBannerAdController internal constructor(
                         // `.responseInfo` there was a UIKit property access off the main
                         // thread (CLAUDE.md invariant #5). It is fixed once loaded, so
                         // snapshotting it loses nothing.
-                        continuation.tryResumeOnce(
+                        continuation.resume(
                             AdAttemptResult.Success(
                                 IosLoadedBanner(banner, bannerDelegate, banner.responseInfo?.toCommon())
                             )
                         )
                     },
                     onFailedToLoad = { error ->
-                        continuation.tryResumeOnce(AdAttemptResult.Failure(error.toAdError()))
+                        continuation.resume(AdAttemptResult.Failure(error.toAdError()))
                     },
                     onImpression = { emit(AdEvent.Impression(placement.id)) },
                     onClicked = { emit(AdEvent.Clicked(placement.id)) }
@@ -151,7 +150,7 @@ internal class IosBannerAdController internal constructor(
                     continuation.invokeOnCancellation {
                         retireActiveLoad(load)?.let(::teardownBanner)
                     }
-                    if (!continuation.isActive) return@suspendCancellableCoroutine
+                    if (!continuation.isActive) return@suspendSingleShot
                     // MUST precede loadRequest: GADBannerView.delegate is weak and GMA reads
                     // it during the load (CLAUDE.md invariant #4).
                     banner.delegate = bannerDelegate
@@ -166,7 +165,7 @@ internal class IosBannerAdController internal constructor(
                     banner.loadRequest(requestOptions.withCollapsible(sizePolicy).toGADRequest())
                 } else {
                     teardownBanner(banner)
-                    continuation.tryResumeOnce(AdAttemptResult.Failure(AdError.message("Banner load was cleared.")))
+                    continuation.resume(AdAttemptResult.Failure(AdError.message("Banner load was cleared.")))
                 }
             }
             if (result is AdAttemptResult.Failure) {

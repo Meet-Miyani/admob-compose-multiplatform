@@ -14,13 +14,12 @@ import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeAdManagerImpl
 import dev.avinya.ads.internal.awaitNativeCallback
 import dev.avinya.ads.internal.emitOrLogDrop
-import dev.avinya.ads.internal.tryResumeOnce
+import dev.avinya.ads.internal.suspendSingleShot
 import dev.avinya.ads.nativead.IosNativeAdPlatform
 import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readValue
@@ -127,7 +126,7 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
             operation = "GADMobileAds.start",
             timeout = InitializationTimeouts.nativeInitialize
         ) {
-            suspendCancellableCoroutine<Unit> { continuation ->
+            suspendSingleShot<Unit> { continuation ->
                 GADMobileAds.sharedInstance.startWithCompletionHandler { status ->
                     val adapterStates = status?.adapterStatusesByClassName
                     if (adapterStates != null) {
@@ -135,7 +134,7 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
                             AdLogger.d("iOS adapter '${name}'")
                         }
                     }
-                    continuation.tryResumeOnce(Unit)
+                    continuation.resume(Unit)
                 }
             }
         }

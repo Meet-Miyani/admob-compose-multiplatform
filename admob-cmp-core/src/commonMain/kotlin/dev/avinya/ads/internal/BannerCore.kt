@@ -309,7 +309,7 @@ internal class BannerCore<V : Any, S : Any>(
         } catch (e: CancellationException) {
             // Cancelled mid-load: the previously displayed ad (if any) stays as-is. If the
             // SDK still delivers the in-flight ad, the platform's atomic single-shot resume
-            // (tryResumeOnce) refuses to deliver it and destroys it there, so nothing leaks.
+            // (SingleShotContinuation) refuses to deliver it and destroys it there, so nothing leaks.
             onCancelled(requiredGeneration)
             throw e
         } catch (t: Throwable) {

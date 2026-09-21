@@ -16,6 +16,7 @@ import UserMessagingPlatform.UMPPrivacyOptionsRequirementStatus
 import UserMessagingPlatform.UMPPrivacyOptionsRequirementStatusNotRequired
 import UserMessagingPlatform.UMPPrivacyOptionsRequirementStatusRequired
 import UserMessagingPlatform.UMPRequestParameters
+import dev.avinya.ads.internal.suspendSingleShot
 import dev.avinya.ads.internal.ConsentInfoUpdateOutcome
 import dev.avinya.ads.internal.ConsentStateHolder
 import dev.avinya.ads.internal.InitializationTimeouts
@@ -33,7 +34,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
 internal class IosConsentController(
@@ -105,7 +105,7 @@ internal class IosConsentController(
                 operation = "UMP requestConsentInfoUpdate",
                 timeout = InitializationTimeouts.consentInfoUpdate
             ) {
-                suspendCancellableCoroutine<Unit> { continuation ->
+                suspendSingleShot<Unit> { continuation ->
                     // Kept deliberately, matching IosAdDiagnostics.openAdInspector: these continuations are captured
                     // by UMP ObjC completion blocks, and installing a cancellation handler is the established idiom
                     // here for that shape. Removing it is not a change this fix set needs to make -- if it is provably
@@ -194,7 +194,7 @@ internal class IosConsentController(
                 // line UMP owns the form, and cancelling this coroutine no longer means the screen
                 // is free. Released in the callback below, not by this coroutine's fate.
                 state.markFormPresented(generation)
-                val formStatus = suspendCancellableCoroutine<ConsentStatus?> { continuation ->
+                val formStatus = suspendSingleShot<ConsentStatus?> { continuation ->
                     continuation.invokeOnCancellation { }
                     UMPConsentForm.loadAndPresentIfRequiredFromViewController(rootVC) { error ->
                         val errorStatus = if (error != null) {
@@ -248,7 +248,7 @@ internal class IosConsentController(
                 val consentInformation = UMPConsentInformation.sharedInstance
                 // See gatherConsent: the pin belongs to UMP from here, not to this coroutine.
                 state.markFormPresented(generation)
-                suspendCancellableCoroutine { continuation ->
+                suspendSingleShot { continuation ->
                     continuation.invokeOnCancellation { }
                     UMPConsentForm.presentPrivacyOptionsFormFromViewController(rootVC) { error ->
                         // The user may have changed their choices; refresh exposed state so

@@ -2,6 +2,7 @@ package dev.avinya.ads
 
 import android.app.Activity
 import android.content.Context
+import dev.avinya.ads.internal.suspendSingleShot
 import dev.avinya.ads.internal.ANDROID_UMP_ERROR_DOMAIN
 import dev.avinya.ads.internal.ConsentInfoUpdateOutcome
 import dev.avinya.ads.internal.ConsentStateHolder
@@ -23,7 +24,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
 internal class AndroidConsentController(
@@ -119,7 +119,7 @@ internal class AndroidConsentController(
                 operation = "UMP requestConsentInfoUpdate",
                 timeout = InitializationTimeouts.consentInfoUpdate
             ) {
-                suspendCancellableCoroutine<Unit> { continuation ->
+                suspendSingleShot<Unit> { continuation ->
                     consentInformation.requestConsentInfoUpdate(
                         activity,
                         params,
@@ -204,7 +204,7 @@ internal class AndroidConsentController(
                 // line UMP owns the form, and cancelling this coroutine no longer means the screen
                 // is free. Released in the callback below, not by this coroutine's fate.
                 state.markFormPresented(generation)
-                val formStatus = suspendCancellableCoroutine<ConsentStatus?> { continuation ->
+                val formStatus = suspendSingleShot<ConsentStatus?> { continuation ->
                     UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
                         val errorStatus = if (formError != null) {
                             AdLogger.w("UMP consent form load/show failed: code=${formError.errorCode} message=${formError.message}")
@@ -260,7 +260,7 @@ internal class AndroidConsentController(
                 val consentInformation = UserMessagingPlatform.getConsentInformation(appContext)
                 // See gatherConsent: the pin belongs to UMP from here, not to this coroutine.
                 state.markFormPresented(generation)
-                suspendCancellableCoroutine { continuation ->
+                suspendSingleShot { continuation ->
                     UserMessagingPlatform.showPrivacyOptionsForm(activity) { formError ->
                         // The user may have changed their choices in the form; refresh exposed
                         // state so consumers don't read stale consent / canRequestAds values.
