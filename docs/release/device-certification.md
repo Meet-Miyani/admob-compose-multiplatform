@@ -62,3 +62,45 @@ native layout sizing.
 
 The release owner signs this. A release that changes native behaviour without a
 signed matrix is not certified, regardless of what the local test suite reports.
+
+## Run record — 2026-09-21, post-#47/#48 (Android only)
+
+Android device: Samsung SM-S911B (Galaxy S23), Android 16, font scale 1.08,
+private DNS off. Build: `:androidApp:installDebug` at `77f6a3c8`. Zero entries
+in the crash buffer for `dev.avinya` across the whole session.
+
+**This run does not certify a release.** It covers one Android device and no
+iOS hardware, so rows 1, 2, 3, 4, 6, 13, 14 and the entire iOS column are
+untested. It is evidence that the #47/#48 changes behave on device, not a
+signed matrix.
+
+| # | Scenario | Android | Evidence |
+|---|---|---|---|
+| 5 | Background/foreground, no stuck state | PASS | Home → relaunch; feed resumed, full-screen slots still loadable afterwards |
+| 7 | Rotation → geometry survives | PASS | Landscape: native re-bound (`renderInto` → `registered after containment. hasMediaView=true`), validator `violations=[]` at the new width |
+| 8 | Offline → typed error, retry works | PASS | Cold rewarded slot offline → `failed: java.net.UnknownHostException … googleads.g.doubleclick.net`, Show stayed disabled; after restore, retry → `ready · cached 1` |
+| 9 | Formats render | PARTIAL | Banner (adaptive/fixed/collapsible), interstitial, rewarded, native all rendered. Rewarded-interstitial and app-open not exercised |
+| 10 | Reward exactly once | PASS | "Reward granted" → dismiss → `Grants this session: 1`, balance 10 coins; survived rotation and backgrounding |
+| 11 | Native ad validator clean | PASS | Green "No implementation issues found"; `violations=[]` on feed and in landscape; `AdLayoutValidator` "No findings" on all five lab layouts |
+
+Findings-specific checks, on device:
+
+- **F-06** — feed native slots filled on a normal cold start
+  (`renderInto` → `registered after containment`). Pre-fix these stayed
+  permanently `Failed`.
+- **F-16** — Native lab → Deactivate leaves `slot: Retained`, `active: false`,
+  `tracked slots: 1`, ad still rendered. The anchor survives renderer release.
+- **F-24** — `Fixed(320,50)` renders ~900px wide at 450dpi (scale 2.8125) =
+  **320dp exactly**, inset within a 1080px container rather than filling it.
+- **F-18** — every layout shows real attribution (`Ad` chip, or "SPONSORED" on
+  `App: inline`); validator counts it, so the badge is non-blank in practice.
+- **F-01 / X-1** — banner paid event reached the app (`Last event: Paid`) with
+  all view work on Main; no crash across repeated banner screen entry.
+
+Deviations noted during the run:
+
+- The device is in a **non-EEA** geography (`Consent: NotRequired`,
+  `Ads can load: Yes`), so rows 1, 2, 13 and 15 need EEA debug geography.
+- The showcase logs `AdConfig.testMode is true but no test device IDs are
+  configured`. Harmless here (official Google test ad units), but worth wiring
+  a test device id before any run against non-test units.
