@@ -38,6 +38,27 @@ internal object ArchiveFixtures {
         file("$ROOT/GoogleMobileAdsPlaceholder.swift", "// placeholder")
     }
 
+    /**
+     * The layout of Google's versioned, SwiftPM-published artifact: the `.xcframework` sits at
+     * the archive ROOT, with no version wrapper around it.
+     *
+     * Verified against the real `googleusermessagingplatformios-spm-3.1.0.zip`, whose only
+     * top-level entry is `UserMessagingPlatform.xcframework/` and whose slices are the same two
+     * this fixture uses.
+     */
+    fun rootFrameworkArchive(frameworkName: String = FRAMEWORK): ByteArray {
+        val baseName = frameworkName.removeSuffix(".xcframework")
+        return zip {
+            dir("$frameworkName/")
+            file("$frameworkName/Info.plist", "<plist/>")
+            REQUIRED_SLICES.forEach { slice ->
+                dir("$frameworkName/$slice/")
+                dir("$frameworkName/$slice/$baseName.framework/")
+                file("$frameworkName/$slice/$baseName.framework/$baseName", "binary-$slice")
+            }
+        }
+    }
+
     /** Missing the simulator slice — a device-only cache that must be rejected. */
     fun missingSimulatorSlice(): ByteArray = zip {
         dir("$ROOT/")

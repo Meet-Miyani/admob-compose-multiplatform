@@ -83,6 +83,67 @@ class IosFrameworkArchiveTest {
 
     // --- extraction bounds and containment ----------------------------------------------
 
+    // --- the two archive layouts Google actually publishes -------------------------------
+
+    @Test
+    fun `UMP resolves to the versioned artifact, not the rolling one`() {
+        val sha = "90fe6bf3b0f4ce0d0199628c0871de58b6f673375148b98d52348aecc86db231"
+
+        val ump = archiveName("UserMessagingPlatform.xcframework", "3.1.0", sha)
+
+        // The rolling googleusermessagingplatform.zip always serves the CURRENT release, so a
+        // pinned checksum stopped matching the moment Google refreshed it — breaking every
+        // fresh consumer of an already-published plugin version. Google's own Package.swift
+        // pins this content-addressed path, whose directory is the digest's first 16 chars.
+        assertEquals("90fe6bf3b0f4ce0d/googleusermessagingplatformios-spm-3.1.0.zip", ump)
+        assertTrue("3.1.0" in ump, "the UMP URL must carry its version")
+    }
+
+    @Test
+    fun `GMA keeps its versioned archive name`() {
+        assertEquals(
+            "googlemobileadssdkios-13.9.0.zip",
+            archiveName("GoogleMobileAds.xcframework", "13.9.0", "irrelevant"),
+        )
+    }
+
+    @Test
+    fun `an archive whose root IS the framework keeps that directory`() {
+        val into = dir("into-root")
+        // Google's SwiftPM artifact has no version wrapper: stripping the first path segment
+        // unconditionally would consume the .xcframework itself and stage nothing.
+        extractArchive(
+            writeFixture(ArchiveFixtures.rootFrameworkArchive()),
+            into,
+            "test",
+            small,
+            expectedRoot = ArchiveFixtures.FRAMEWORK,
+        )
+
+        val framework = File(into, ArchiveFixtures.FRAMEWORK)
+        assertTrue(framework.isDirectory, "the framework directory must survive extraction")
+        REQUIRED_SLICES.forEach { slice ->
+            assertTrue(File(framework, slice).isDirectory, "missing slice $slice")
+        }
+    }
+
+    @Test
+    fun `a version-wrapped archive still has its wrapper stripped when a root is expected`() {
+        val into = dir("into-wrapped")
+        // Same expectedRoot, the other layout: the wrapper is not the framework, so it goes.
+        extractArchive(
+            writeFixture(ArchiveFixtures.validArchive()),
+            into,
+            "test",
+            small,
+            expectedRoot = ArchiveFixtures.FRAMEWORK,
+        )
+
+        assertTrue(File(into, ArchiveFixtures.FRAMEWORK).isDirectory)
+    }
+
+    // --- extraction bounds and containment ----------------------------------------------
+
     @Test
     fun `a valid archive expands with its version prefix stripped`() {
         val into = dir("into")

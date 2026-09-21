@@ -48,6 +48,9 @@ class DownloadIosFrameworkTaskTest {
                 baseUrl.set("$baseUrl")
                 version.set("$version")
                 expectedSha256.set("$sha")
+                // Wired exactly as AdMobCmpPlugin does: read at configuration time, because a
+                // task may not touch Project at execution time under the configuration cache.
+                offline.set(gradle.startParameter.isOffline)
                 frameworkDir.set(layout.buildDirectory.dir("frameworks/${ArchiveFixtures.FRAMEWORK}"))
                 markerFile.set(frameworkDir.file(".gma_downloaded"))
             }
@@ -84,6 +87,45 @@ class DownloadIosFrameworkTaskTest {
         result.task(":downloadFixture")?.outcome
 
     // --- the happy path and up-to-date behaviour ----------------------------------------
+
+    /**
+     * `--offline` with a cold cache fails immediately and contacts nothing.
+     *
+     * Gradle's offline mode means "perform the build without accessing network resources". A
+     * custom `URLConnection` does not implement that policy on its own, so the task used to
+     * dial out anyway and the consumer waited on connect/read timeouts before seeing an error
+     * that never mentioned offline mode or how to prepare the cache.
+     */
+    @Test
+    fun `offline mode fails fast without contacting the origin`() {
+        val bytes = ArchiveFixtures.validArchive()
+        FixtureServer(bytes).use { server ->
+            writeBuild(server.baseUrl, ArchiveFixtures.sha256(bytes))
+
+            val result = runAndFail("--offline")
+
+            assertEquals(0, server.requestCount, "offline mode must not open a connection")
+            val output = result.output
+            assertTrue("--offline" in output, "the failure must name offline mode: $output")
+            assertTrue(
+                "admobCmp.ios.baseUrl" in output,
+                "the failure must name the escape hatch: $output",
+            )
+        }
+    }
+
+    /** An intact framework is up to date, so `--offline` is a no-op rather than a failure. */
+    @Test
+    fun `offline mode succeeds when the framework is already cached`() {
+        val bytes = ArchiveFixtures.validArchive()
+        FixtureServer(bytes).use { server ->
+            writeBuild(server.baseUrl, ArchiveFixtures.sha256(bytes))
+            assertEquals(TaskOutcome.SUCCESS, outcome(run()))
+
+            // Second run, offline: Gradle's up-to-date check skips the action entirely.
+            assertEquals(TaskOutcome.UP_TO_DATE, outcome(run("--offline")))
+        }
+    }
 
     @Test
     fun `a valid archive materialises only the framework`() {

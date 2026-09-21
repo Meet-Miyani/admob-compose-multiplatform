@@ -37,13 +37,31 @@ internal data class ArchiveLimits(
     }
 }
 
-/** The archive Google publishes for [baseName]. */
-internal fun archiveName(baseName: String, version: String): String = when {
+/**
+ * The archive Google publishes for [baseName], as a path under the download base.
+ *
+ * UMP resolves to the **versioned, content-addressed** artifact Google publishes for its Swift
+ * package, not the rolling `googleusermessagingplatform.zip` this used to fetch. The rolling
+ * endpoint always serves the current release, so the pinned SHA-256 stopped matching the day
+ * Google refreshed it — and it failed for every fresh consumer of an already-published plugin
+ * version, on a machine whose only mistake was having a cold cache. Google's own
+ * `Package.swift` for UMP pins this exact URL and checksum, so there is no reason to depend on
+ * a mutable one. The directory segment is the first 16 hex characters of the archive's own
+ * SHA-256, which is why it is derived from [expectedSha256] rather than hardcoded twice.
+ *
+ * The two archives also differ inside: the rolling one wraps everything in a
+ * `UserMessagingPlatformSdkIos-<version>/` directory, the versioned one has the
+ * `.xcframework` at its root. [extractArchive] handles both.
+ */
+internal fun archiveName(baseName: String, version: String, expectedSha256: String): String = when {
     baseName.startsWith("GoogleMobileAds") -> "googlemobileadssdkios-$version.zip"
-    // Not version-pinned by Google; the marker records the catalog version that fetched it.
-    baseName.startsWith("UserMessagingPlatform") -> "googleusermessagingplatform.zip"
+    baseName.startsWith("UserMessagingPlatform") ->
+        "${expectedSha256.take(CONTENT_ADDRESSED_PREFIX_LENGTH)}/googleusermessagingplatformios-spm-$version.zip"
     else -> error("Unknown framework: $baseName")
 }
+
+/** Google's content-addressed download directories use the first 16 hex chars of the digest. */
+private const val CONTENT_ADDRESSED_PREFIX_LENGTH = 16
 
 /**
  * Streams [url] to [target], hashing as it goes, and returns the hex SHA-256.
@@ -70,11 +88,26 @@ internal fun downloadVerifying(url: URL, target: File, limits: ArchiveLimits): S
 /**
  * Expands [archive] into [into], enforcing entry, size and containment limits.
  *
- * Google ships exactly one top-level directory per archive, carrying the SDK version. It is
- * stripped so the extracted path stays stable across version bumps, and a second top-level entry is
- * rejected rather than merged.
+ * Both of Google's layouts have exactly one top-level entry, and a second is still rejected
+ * rather than merged — but that entry is not always the same kind of thing:
+ *
+ *  - the GMA archive and the rolling UMP archive wrap everything in a versioned directory
+ *    (`GoogleMobileAdsSdkiOS-13.9.0/`), which is stripped so the extracted path stays stable
+ *    across version bumps;
+ *  - the versioned UMP artifact, published for Swift Package Manager, has
+ *    `UserMessagingPlatform.xcframework/` at its root, because that is what SwiftPM expects.
+ *
+ * Stripping the first segment unconditionally would have consumed the `.xcframework` itself
+ * and left nothing for [validateStaged] to find. [expectedRoot] is the framework directory
+ * name, so the two cases can be told apart by inspection rather than guessed at.
  */
-internal fun extractArchive(archive: File, into: File, source: String, limits: ArchiveLimits) {
+internal fun extractArchive(
+    archive: File,
+    into: File,
+    source: String,
+    limits: ArchiveLimits,
+    expectedRoot: String? = null,
+) {
     val root = into.canonicalFile.toPath()
     var entries = 0
     var expanded = 0L
@@ -96,7 +129,10 @@ internal fun extractArchive(archive: File, into: File, source: String, limits: A
                             "(${archiveRoots.sorted().joinToString()}); expected exactly one."
                     )
                 }
-                expanded += writeEntry(zis, entry, into, root, source, expanded, limits)
+                // Keep the top-level directory when it IS the framework; strip it when it is a
+                // version wrapper around the framework.
+                val stripRoot = expectedRoot == null || archiveRoots.single() != expectedRoot
+                expanded += writeEntry(zis, entry, into, root, source, expanded, limits, stripRoot)
                 zis.closeEntry()
                 entry = zis.nextEntry ?: break
             }
@@ -114,8 +150,13 @@ private fun writeEntry(
     source: String,
     expandedSoFar: Long,
     limits: ArchiveLimits,
+    stripRoot: Boolean,
 ): Long {
-    val relative = entry.name.removePrefix(entry.name.substringBefore('/') + "/")
+    val relative = if (stripRoot) {
+        entry.name.removePrefix(entry.name.substringBefore('/') + "/")
+    } else {
+        entry.name
+    }
     if (relative.isEmpty()) {
         if (entry.isDirectory) return 0L
         throw GradleException("Archive from $source has a file at its root: ${entry.name}")
