@@ -3,6 +3,7 @@ package dev.avinya.ads
 import dev.avinya.ads.internal.NativeAdCoordinatorCore
 import dev.avinya.ads.internal.NativeAdPlatform
 import dev.avinya.ads.internal.NativeAdPlatformBatch
+import dev.avinya.ads.internal.NativeMemoryPressure
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
 import dev.avinya.ads.nativead.NativeAdBatching
 import dev.avinya.ads.nativead.NativeAdOptions
@@ -28,6 +29,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NativeAdCoordinatorCoreTest {
@@ -774,6 +776,182 @@ class NativeAdCoordinatorCoreTest {
             "the surviving sibling must be filled from the original load; was ${session.state.value.slots["b"]}"
         )
         assertEquals(0, coord.managerState().reservedLoads, "no reservation may be left dangling")
+    }
+
+    // --- Lifecycle settlement -------------------------------------------------
+
+    /**
+     * A load job cancelled before its first dispatch must still settle the placement.
+     *
+     * `cancelSlotLocked` cancels the in-flight job when nothing it was loading is wanted any
+     * more, and on a queued dispatcher that can land before the job body has run at all. A
+     * DEFAULT-start coroutine cancelled at that point never runs its body, so `handleCancelled`
+     * never executed and `currentJob` stayed non-null forever — after which `submit`,
+     * `processNextOrCleanupLocked` and `isIdleLocked` all considered the placement busy and
+     * every later demand for it sat at Loading for the rest of the process.
+     */
+    @Test fun `a load cancelled before its job starts does not wedge the placement`() = runTest(dispatcher) {
+        val platform = fakePlatform { _, count, _ ->
+            AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map(::FakeAd), null))
+        }
+        val coord = coordinator(platform = platform)
+        val session = coord.session("s")
+
+        // No runCurrent() between these two: the job is submitted and then cancelled while it
+        // is still only queued.
+        coord.updateWindow("s", windowWith("a"))
+        coord.updateWindow("s", NativeAdWindow(visible = emptyList()))
+        advanceUntilIdle()
+
+        coord.updateWindow("s", windowWith("a"))
+        advanceUntilIdle()
+
+        assertTrue(
+            session.state.value.slots["a"] is NativeAdSlotState.Ready,
+            "a placement wedged by a never-started job can never serve again; was " +
+                "${session.state.value.slots["a"]}",
+        )
+    }
+
+    /**
+     * Memory pressure during an in-flight load must settle the slot, not strand it.
+     *
+     * `runCurrent()` rather than `advanceUntilIdle()` is the whole point: the load has to be
+     * still IN FLIGHT (a reservation, not yet a record) when the trim arrives. The existing
+     * memory-pressure test drains first, so it only ever exercised the record path.
+     */
+    @Test fun `memory pressure during an in-flight load settles the slot`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        val platform = fakePlatform { _, count, _ ->
+            gate.await()
+            AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map(::FakeAd), null))
+        }
+        val coord = coordinator(platform = platform)
+        val session = coord.session("s")
+
+        coord.updateWindow("s", windowWith("a"))
+        runCurrent()
+        assertTrue(session.state.value.slots["a"] is NativeAdSlotState.Loading, "precondition: in flight")
+
+        coord.onMemoryPressure(NativeMemoryPressure.Critical)
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(
+            session.state.value.slots["a"] !is NativeAdSlotState.Loading,
+            "a trimmed reservation must settle; a slot stuck Loading is skipped by every later " +
+                "reconciliation. Was ${session.state.value.slots["a"]}",
+        )
+        assertEquals(0, coord.managerState().reservedLoads, "the trimmed reservation must be released")
+    }
+
+    /**
+     * A generation-scoped close must not close a replacement session.
+     *
+     * The clock hook re-enters the coordinator from inside `tickLocked`, which the lock allows
+     * (it is reentrant on both platforms). That is a deterministic stand-in for the real race:
+     * the old overload checked the generation, released the lock, then closed by key alone, so
+     * whatever occupied the key by then was destroyed — including a session the consumer had
+     * just created and still holds.
+     */
+    @Test fun `a generation-scoped close cannot close the replacement session`() = runTest(dispatcher) {
+        val platform = fakePlatform { _, count, _ ->
+            AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map(::FakeAd), null))
+        }
+        var reenter: (() -> Unit)? = null
+        val coord = NativeAdCoordinatorCore(
+            memoryPolicy = NativeAdMemoryPolicy(),
+            platform = platform,
+            scope = scope,
+            clock = {
+                reenter?.let { hook -> reenter = null; hook() }
+                Instant.fromEpochSeconds(1000)
+            },
+        )
+        coord.session("feed")
+        val staleGeneration = coord.sessionGeneration("feed")!!
+
+        // While the stale close is inside the coordinator, the key is closed and re-created.
+        reenter = {
+            coord.closeSession("feed")
+            coord.session("feed")
+        }
+        coord.closeSession("feed", staleGeneration)
+        advanceUntilIdle()
+
+        assertTrue(
+            coord.sessionGeneration("feed") != null,
+            "a close authorised for an older generation must not remove the current session",
+        )
+        assertTrue(
+            coord.sessionGeneration("feed") != staleGeneration,
+            "precondition: the replacement really is a different generation",
+        )
+    }
+
+    /**
+     * Capacity released by one session is offered to demand another session already wanted.
+     *
+     * A denied reservation is recorded as deferred and dropped. Nothing re-offered it when
+     * capacity appeared, and `reconcileDemands` only runs on a window update — so a scrolling
+     * feed recovered by accident on the next scroll while a single inline slot, whose window
+     * is published exactly once, stayed Empty for the life of the screen.
+     */
+    @Test fun `freed capacity is offered to a deferred slot without a new window`() = runTest(dispatcher) {
+        val platform = fakePlatform { _, count, _ ->
+            AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map(::FakeAd), null))
+        }
+        val coord = coordinator(
+            memoryPolicy = NativeAdMemoryPolicy(softLimit = 1, hardLimit = 1),
+            platform = platform,
+        )
+        coord.session("holder")
+        coord.updateWindow("holder", windowWith("held"))
+        advanceUntilIdle()
+        // Mounted records are never eviction candidates, so this genuinely occupies the cap.
+        coord.setMounted("holder", "held", true)
+
+        val waiting = coord.session("waiting")
+        coord.updateWindow("waiting", windowWith("wanted"))
+        advanceUntilIdle()
+        assertTrue(
+            waiting.state.value.slots["wanted"] !is NativeAdSlotState.Ready,
+            "precondition: the second slot must be denied at the hard cap",
+        )
+
+        // The only event is the holder going away — no window update for `waiting`.
+        coord.closeSession("holder")
+        advanceUntilIdle()
+
+        assertTrue(
+            waiting.state.value.slots["wanted"] is NativeAdSlotState.Ready,
+            "freed capacity must reach demand that is still wanted; was " +
+                "${waiting.state.value.slots["wanted"]}",
+        )
+    }
+
+    /** A trim must not immediately refill what it just reclaimed. */
+    @Test fun `a memory trim is not refilled by its own event`() = runTest(dispatcher) {
+        val platform = fakePlatform { _, count, _ ->
+            AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map(::FakeAd), null))
+        }
+        val coord = coordinator(
+            memoryPolicy = NativeAdMemoryPolicy(softLimit = 1, hardLimit = 2),
+            platform = platform,
+        )
+        coord.session("s")
+        coord.updateWindow("s", windowWith("a", "b"))
+        advanceUntilIdle()
+        val loadsBeforeTrim = platform.loadCalls.size
+
+        coord.onMemoryPressure(NativeMemoryPressure.Critical)
+        advanceUntilIdle()
+
+        assertEquals(
+            loadsBeforeTrim,
+            platform.loadCalls.size,
+            "a trim exists to lower the footprint; re-offering its own freed capacity would undo it",
+        )
     }
 
 }

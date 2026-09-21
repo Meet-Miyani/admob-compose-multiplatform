@@ -16,6 +16,8 @@ import dev.avinya.ads.nativead.NativeAdSessionState
 import dev.avinya.ads.nativead.NativeAdSlotState
 import dev.avinya.ads.nativead.NativeAdWindow
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -149,6 +151,17 @@ internal class NativeAdCoordinatorCore<A : Any>(
     private inner class Effects {
         val destroy = mutableListOf<A>()
         val cancel = mutableListOf<Job>()
+
+        /**
+         * Set when this mutation released capacity that some other session could now use.
+         *
+         * Per-Effects, so it cannot leak into the next public call, and deliberately NOT set
+         * by the governor's own eviction-to-make-room path: that frees a permit only to hand
+         * it straight to the caller, and re-offering it would let visible slots at the hard
+         * cap evict each other in a loop inside one locked section.
+         */
+        var capacityFreed = false
+
         fun run() {
             cancel.distinct().forEach { it.cancel() }
             destroy.distinct().forEach(platform::destroy)
@@ -219,19 +232,37 @@ internal class NativeAdCoordinatorCore<A : Any>(
         val effects = lock.withLock {
             val effects = Effects()
             tickLocked(effects)
-            val holder = sessions.remove(key) ?: return@withLock effects
-            inactiveOrder.remove(key)
-            applySessionMutationLocked(holder, holder.core.close(), effects)
-            schedulers.values.toList().forEach { it.cancelForSessionLocked(key, effects) }
-            cleanupSchedulersLocked()
+            closeSessionLocked(key, effects)
+            reconsiderDeferredLocked(effects)
             effects
         }
         effects.run()
     }
 
+    /** Caller must hold [lock]. Shared by both [closeSession] overloads. */
+    private fun closeSessionLocked(key: String, effects: Effects) {
+        val holder = sessions.remove(key) ?: return
+        inactiveOrder.remove(key)
+        applySessionMutationLocked(holder, holder.core.close(), effects)
+        schedulers.values.toList().forEach { it.cancelForSessionLocked(key, effects) }
+        cleanupSchedulersLocked()
+    }
+
     fun closeSession(key: String, sessionGeneration: Long) {
-        if (lock.withLock { currentHolderLocked(key, sessionGeneration) == null }) return
-        closeSession(key)
+        // Check and remove in ONE critical section. Checking under the lock, releasing it, then
+        // closing by key alone let a replacement session created in between be closed instead:
+        // the generation check authorised a mutation it did not actually cover, and the
+        // consumer's current handle was silently torn down. The sibling generation-scoped
+        // overloads (updateWindow, deactivateSession) already do check-and-mutate as one.
+        val effects = lock.withLock {
+            val effects = Effects()
+            tickLocked(effects)
+            if (currentHolderLocked(key, sessionGeneration) == null) return@withLock effects
+            closeSessionLocked(key, effects)
+            reconsiderDeferredLocked(effects)
+            effects
+        }
+        effects.run()
     }
 
     fun clear() {
@@ -327,6 +358,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 inactiveOrder[sessionKey] = nowLocked()
                 tickLocked(effects)
             }
+            reconsiderDeferredLocked(effects)
             effects
         }
         effects.run()
@@ -343,6 +375,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 inactiveOrder[sessionKey] = nowLocked()
                 tickLocked(effects)
             }
+            reconsiderDeferredLocked(effects)
             effects
         }
         effects.run()
@@ -382,6 +415,10 @@ internal class NativeAdCoordinatorCore<A : Any>(
             entry.rendererId = null
             applySessionMutationLocked(holder, holder.core.setMounted(slotKey, recordId, false), effects)
             governor.setMounted(recordId, false)
+            // An unmounted record becomes an eviction candidate, so demand blocked at the hard
+            // cap may now be satisfiable.
+            effects.capacityFreed = true
+            reconsiderDeferredLocked(effects)
             effects
         }
         effects.run()
@@ -391,19 +428,38 @@ internal class NativeAdCoordinatorCore<A : Any>(
         val effects = lock.withLock {
             val effects = Effects()
             val result = governor.trim(pressure)
-            result.cancelledReservations.forEach { reservation ->
-                reservationOwners.remove(reservation.id)?.let { owner ->
-                    schedulers[owner.placementId]?.cancelSlotLocked(
-                        owner.sessionKey,
-                        SlotGeneration(owner.slotKey, owner.slotGeneration),
-                        effects,
-                    )
-                }
-            }
-            result.retiredRecordIds.forEach { removeRecordLocked(it, effects) }
+            // Settle each cancelled reservation directly instead of routing through
+            // cancelSlotLocked(). That helper finds what to cancel by re-querying
+            // reservationOwners — which this loop has just removed the entry from — so it found
+            // nothing, left the pair in activeReservations, and never settled the slot. Every
+            // terminal path then rejected the pair via isPairLiveLocked(), so no success,
+            // failure or timeout could clear inFlight: the slot showed Loading forever, and
+            // reconcileDemands() skips a slot with inFlight set, so even an identical window
+            // update could not revive it.
+            //
+            // cancelSlotLocked() is not simply mis-ordered here: it assumes the session has
+            // ALREADY invalidated the slot, which is true for a viewport change and false
+            // under memory pressure, where the slot is still desired.
+            result.cancelledReservations.forEach(::settleCancelledReservationLocked)
+            // freesCapacity = false: a trim exists to LOWER the footprint, so re-offering the
+            // capacity it just reclaimed would undo the trim in the same locked section.
+            result.retiredRecordIds.forEach { removeRecordLocked(it, effects, freesCapacity = false) }
             effects
         }
         effects.run()
+    }
+
+    /**
+     * Retires one reservation the governor has already cancelled: drop the ownership entry,
+     * drop the scheduler's pair, and settle the slot as deferred so it can be requested again.
+     *
+     * Deferred rather than failed on purpose — `recordDeferred` leaves `lastError` null, which
+     * is what keeps the slot eligible for the next reconciliation. Caller must hold [lock].
+     */
+    private fun settleCancelledReservationLocked(reservation: NativeAdLoadReservation) {
+        val owner = reservationOwners.remove(reservation.id) ?: return
+        schedulers[owner.placementId]?.forgetReservationLocked(reservation)
+        sessions[owner.sessionKey]?.core?.recordDeferred(owner.slotKey, owner.slotGeneration)
     }
 
     fun schedulerCount(): Int = lock.withLock { schedulers.size }
@@ -520,18 +576,49 @@ internal class NativeAdCoordinatorCore<A : Any>(
      * (e.g. an already-reaped record). Used by [closeSession] and the
      * inactive-session reap path.
      */
-    private fun removeRecordLocked(recordId: NativeAdRecordId, effects: Effects) {
+    private fun removeRecordLocked(
+        recordId: NativeAdRecordId,
+        effects: Effects,
+        freesCapacity: Boolean = true,
+    ) {
         val entry = records.remove(recordId) ?: return
         entry.rendererId = null
         sessions[entry.sessionKey]?.core?.recordEvicted(entry.slotKey, recordId)
         schedulers[entry.placementId]?.activeRecordIds?.remove(recordId)
         governor.retire(recordId)
         effects.destroy += entry.ad
+        // A retired record returns a permit to the governor. The one caller that passes false
+        // is the governor's own evict-to-make-room decision, whose permit is already spoken
+        // for by the reservation that triggered it.
+        if (freesCapacity) effects.capacityFreed = true
         cleanupSchedulersLocked()
     }
 
     private fun cleanupSchedulersLocked() {
         schedulers.entries.removeAll { (_, scheduler) -> scheduler.isIdleLocked() }
+    }
+
+    /**
+     * Offers freed capacity to demand that was previously denied it.
+     *
+     * Without this, a slot denied a reservation was marked deferred and simply dropped: the
+     * governor knew capacity had since been released and the session still wanted the slot,
+     * but nothing connected the two. A scrolling feed hid it, because every scroll republishes
+     * a window and re-drives demand — a single inline slot does not. `rememberNativeAdSlotSession`
+     * updates its window exactly once, so such a slot stayed Empty for the whole life of the
+     * screen with no error and no retry.
+     *
+     * Runs once per public mutation, after the mutation itself, and only when that mutation
+     * actually freed something. The `capacityFreed` flag is cleared first so demand submitted
+     * from inside the pass — which can itself retire records — cannot re-enter it. Caller must
+     * hold [lock].
+     */
+    private fun reconsiderDeferredLocked(effects: Effects) {
+        if (!effects.capacityFreed) return
+        effects.capacityFreed = false
+        sessions.values.filter { it.active }.toList().forEach { holder ->
+            submitDemand(holder, holder.core.reconsiderDeferred(), effects)
+        }
     }
 
     /** Platform callbacks are accepted only while their owned record is current. */
@@ -571,6 +658,11 @@ internal class NativeAdCoordinatorCore<A : Any>(
 
         fun bumpGeneration() {
             generation++
+        }
+
+        /** Drops a reservation this scheduler launched, without touching the queue. */
+        fun forgetReservationLocked(reservation: NativeAdLoadReservation) {
+            activeReservations.removeAll { it.reservation === reservation }
         }
 
         fun cancelSlotLocked(sessionKey: String, invalidation: SlotGeneration, effects: Effects) {
@@ -643,15 +735,12 @@ internal class NativeAdCoordinatorCore<A : Any>(
             // Consume both retired records and cancelled reservations
             // from the decision — they are the platform objects /
             // permits the prior call already accounted for.
-                decision.retiredRecordIds.forEach { removeRecordLocked(it, effects) }
-                decision.cancelledReservations.forEach { reservation ->
-                    reservationOwners.remove(reservation.id)?.let { owner ->
-                        schedulers[owner.placementId]?.activeReservations?.removeAll {
-                            it.reservation === reservation
-                        }
-                        sessions[owner.sessionKey]?.core?.recordDeferred(owner.slotKey, owner.slotGeneration)
-                    }
-                }
+                decision.retiredRecordIds.forEach { removeRecordLocked(it, effects, freesCapacity = false) }
+                // Same settlement as the memory-pressure path, through one helper. These two
+                // sites handled the identical event differently for a while — this one
+                // correctly, the other not at all — which is exactly the divergence that made
+                // the memory-pressure defect invisible.
+                decision.cancelledReservations.forEach(::settleCancelledReservationLocked)
                 val reservation = decision.reservations.singleOrNull()
                 if (reservation == null) {
                     requested.holder.core.recordDeferred(entry.key, entry.generation)
@@ -680,7 +769,16 @@ internal class NativeAdCoordinatorCore<A : Any>(
             // shift the ad-to-slot mapping. Serialisation via currentJob keeps the two equal today,
             // which made that an invariant held by accident; deriving it here makes it structural.
             val launchedPairs = grantedPairs.toList()
-            currentJob = scope.launch {
+            // ATOMIC, not the default start. cancelSlotLocked() can cancel this job before its
+            // first dispatch — a viewport change in the same frame that submitted it — and a
+            // DEFAULT-start coroutine cancelled before it starts never runs its body at all.
+            // handleCancelled() therefore never ran and `currentJob` was never cleared, so
+            // submit(), processNextOrCleanupLocked() and isIdleLocked() all treated this
+            // placement as permanently busy: every later demand for it sat at Loading for the
+            // rest of the process. ATOMIC guarantees the body starts, hits its first
+            // suspension, and settles through handleCancelled().
+            @OptIn(DelicateCoroutinesApi::class)
+            currentJob = scope.launch(start = CoroutineStart.ATOMIC) {
                 try {
                     var attempted = false
                     val result = withTimeoutOrNull(placement.timeoutPolicy.loadTimeout) {
@@ -746,15 +844,17 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 if (result is AdAttemptResult.Success) {
                     effects.destroy += result.value.ads
                 }
-                releaseReservationsLocked()
+                releaseReservationsLocked(effects)
                 processNextOrCleanupLocked(effects)
+                reconsiderDeferredLocked(effects)
                 return@withLock effects
             }
             when (result) {
                 is AdAttemptResult.Success -> handleSuccess(launchedPairs, result.value, effects)
-                is AdAttemptResult.Failure -> handleFailure(launchedPairs, result.error)
+                is AdAttemptResult.Failure -> handleFailure(launchedPairs, result.error, effects)
             }
             processNextOrCleanupLocked(effects)
+            reconsiderDeferredLocked(effects)
             effects
             }
             effects.run()
@@ -791,13 +891,14 @@ internal class NativeAdCoordinatorCore<A : Any>(
                     }
                 }
                 currentJob = null
-                releaseReservationsLocked()
+                releaseReservationsLocked(effects)
                 // Re-queue before processNextOrCleanupLocked, which is what starts the next batch —
                 // and which would otherwise delete this scheduler outright once the queue is empty.
                 resubmit.forEach { (sessionKey, entries) ->
                     sessions[sessionKey]?.let { holder -> queue.add(Batch(holder, entries)) }
                 }
                 processNextOrCleanupLocked(effects)
+                reconsiderDeferredLocked(effects)
                 effects
             }
             effects.run()
@@ -821,8 +922,9 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 }
                 effects.destroy += ads
                 currentJob = null
-                releaseReservationsLocked()
+                releaseReservationsLocked(effects)
                 processNextOrCleanupLocked(effects)
+                reconsiderDeferredLocked(effects)
                 effects
             }
             effects.run()
@@ -900,26 +1002,33 @@ internal class NativeAdCoordinatorCore<A : Any>(
             reservationOwners.remove(reservation.id)
             try {
                 governor.releaseReservation(reservation)
+                effects.capacityFreed = true
             } catch (_: IllegalStateException) {
                 // The governor already settled this exact token.
             }
         }
 
-        private fun handleFailure(launchedPairs: List<ReservationSlotPair>, error: AdError) {
+        private fun handleFailure(
+            launchedPairs: List<ReservationSlotPair>,
+            error: AdError,
+            effects: Effects,
+        ) {
             livePairs(launchedPairs).forEach { pair ->
                 reservationOwners[pair.reservation.id]?.let { owner ->
                     sessions[owner.sessionKey]?.core?.recordFailed(owner.slotKey, error, pair.entry.generation)
                 }
             }
-            releaseReservationsLocked()
+            releaseReservationsLocked(effects)
         }
 
-        private fun releaseReservationsLocked() {
+        private fun releaseReservationsLocked(effects: Effects? = null) {
             for (pair in activeReservations) {
                 val res = pair.reservation
                 reservationOwners.remove(res.id)
                 try {
                     governor.releaseReservation(res)
+                    // Every released permit is capacity another session may be waiting on.
+                    effects?.capacityFreed = true
                 } catch (_: IllegalStateException) {
                     // Already gone.
                 }
