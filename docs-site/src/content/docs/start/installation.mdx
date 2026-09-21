@@ -38,7 +38,7 @@ Most Compose Multiplatform applications should depend on the umbrella coordinate
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation("dev.avinya.ads:admob-cmp:2.4.0")
+            implementation("dev.avinya.ads:admob-cmp:2.5.0")
         }
     }
 }
@@ -60,7 +60,7 @@ For multi-module Gradle projects, manage library dependencies and plugin definit
 ```toml
 # gradle/libs.versions.toml
 [versions]
-admob-cmp = "2.4.0"
+admob-cmp = "2.5.0"
 
 [libraries]
 admob-cmp = { module = "dev.avinya.ads:admob-cmp", version.ref = "admob-cmp" }
@@ -95,7 +95,7 @@ To resolve Kotlin/Native test linking, apply the `dev.avinya.ads.admob-cmp` Grad
 ```kotlin
 // shared/build.gradle.kts
 plugins {
-    id("dev.avinya.ads.admob-cmp") version "2.4.0"
+    id("dev.avinya.ads.admob-cmp") version "2.5.0"
 }
 ```
 
