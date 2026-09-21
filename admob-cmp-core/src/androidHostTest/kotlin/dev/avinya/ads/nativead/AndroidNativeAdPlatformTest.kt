@@ -72,6 +72,56 @@ class AndroidNativeAdPlatformTest {
         assertEquals("INTERNAL_ERROR", batch.unfilledError?.code)
     }
 
+    /**
+     * A sequential batch cancelled midway destroys the ads it already collected.
+     *
+     * `Sequential` is the default batching, and the coordinator's load timeout spans the whole
+     * batch rather than each request, so a slow network reaches this on ordinary traffic. Each
+     * request's own cancellation handler only knows about its own pending list, so ads from
+     * EARLIER requests were neither returned nor destroyed — and `placementIds` held a strong
+     * reference to each one for the life of the process.
+     */
+    @Test
+    fun `cancelling a sequential batch destroys the ads already accumulated`() = runTest(dispatcher) {
+        val loader = RecordingLoader()
+        val firstAd = Mockito.mock(com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd::class.java)
+        val load = async { AndroidNativeAdPlatform(loader).load(placement(), 2, 0) }
+        runCurrent()
+
+        // Request one completes; request two is issued and never answers.
+        loader.callbacks[0].onNativeAdLoaded(firstAd)
+        loader.callbacks[0].onAdLoadingCompleted()
+        runCurrent()
+        assertEquals(2, loader.singleRequests, "precondition: the batch moved on to its second request")
+
+        load.cancel()
+        runCurrent()
+
+        Mockito.verify(firstAd).destroy()
+    }
+
+    /**
+     * A batch that completed while its caller was being cancelled is destroyed.
+     *
+     * This is the `withContext` prompt-cancellation guarantee: the value is discarded during
+     * the dispatch back to the caller, with no cleanup hook anywhere in the platform.
+     */
+    @Test
+    fun `a batch lost on the way back to the caller is destroyed`() = runTest(dispatcher) {
+        val loader = RecordingLoader()
+        val ad = Mockito.mock(com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd::class.java)
+        val load = async { AndroidNativeAdPlatform(loader).load(placement(), 1, 0) }
+        runCurrent()
+
+        loader.callbacks[0].onNativeAdLoaded(ad)
+        loader.callbacks[0].onAdLoadingCompleted()
+        // Cancel before the completed result is dispatched back to the awaiting caller.
+        load.cancel()
+        runCurrent()
+
+        Mockito.verify(ad).destroy()
+    }
+
     @Test
     fun `destroy gate does not retain ads and runs teardown once`() {
         val gate = AndroidNativeDestroyGate()

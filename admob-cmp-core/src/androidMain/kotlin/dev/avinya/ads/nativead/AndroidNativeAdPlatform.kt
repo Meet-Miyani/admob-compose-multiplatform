@@ -68,15 +68,35 @@ internal class AndroidNativeAdPlatform(
         placement: AdPlacement,
         count: Int,
         generation: Long,
-    ): AdAttemptResult<NativeAdPlatformBatch<AndroidLoadedNativeAd>> = withContext(Dispatchers.Main.immediate) {
-        require(count > 0) { "Native-ad load count must be positive." }
-        val request = placement.requestOptions.toAndroidNativeAdRequest(placement.androidAdUnitId, placement.nativeOptions)
-        when (placement.nativeOptions.batching) {
-            NativeAdBatching.Sequential -> loadSequential(placement, request, count)
-            NativeAdBatching.GoogleOnly -> {
-                require(count in 1..5) { "Google-only native-ad batches must request between 1 and 5 ads." }
-                loadRequest(placement, request, count, multiAd = true)
+    ): AdAttemptResult<NativeAdPlatformBatch<AndroidLoadedNativeAd>> {
+        // `produced` and `delivered` are declared OUTSIDE withContext deliberately.
+        //
+        // A sequential batch loads one ad at a time through separately cancellable requests,
+        // and each request's own cancellation handler knows only about its own pending list.
+        // Cancel or time out midway — the coordinator's timeout spans the whole batch, and
+        // Sequential is the default — and every ad already accumulated was neither returned
+        // nor destroyed, while `placementIds` kept a strong reference to each one for the
+        // process lifetime. Holding the list out here also covers the withContext return
+        // itself, which discards its value if this caller was cancelled during the hop back.
+        val produced = mutableListOf<AndroidLoadedNativeAd>()
+        var delivered = false
+        try {
+            val result = withContext(Dispatchers.Main.immediate) {
+                require(count > 0) { "Native-ad load count must be positive." }
+                val request = placement.requestOptions.toAndroidNativeAdRequest(placement.androidAdUnitId, placement.nativeOptions)
+                when (placement.nativeOptions.batching) {
+                    NativeAdBatching.Sequential -> loadSequential(placement, request, count, produced)
+                    NativeAdBatching.GoogleOnly -> {
+                        require(count in 1..5) { "Google-only native-ad batches must request between 1 and 5 ads." }
+                        loadRequest(placement, request, count, multiAd = true)
+                            .also { if (it is AdAttemptResult.Success) produced += it.value.ads }
+                    }
+                }
             }
+            delivered = true
+            return result
+        } finally {
+            if (!delivered) produced.forEach(::destroy)
         }
     }
 
@@ -84,23 +104,24 @@ internal class AndroidNativeAdPlatform(
         placement: AdPlacement,
         request: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdRequest,
         count: Int,
+        /** Caller-owned accumulator, so a cancellation mid-batch can still find these ads. */
+        ads: MutableList<AndroidLoadedNativeAd>,
     ): AdAttemptResult<NativeAdPlatformBatch<AndroidLoadedNativeAd>> {
-        val ads = mutableListOf<AndroidLoadedNativeAd>()
         repeat(count) {
             when (val next = loadRequest(placement, request, 1, multiAd = false)) {
                 is AdAttemptResult.Failure -> {
                     if (ads.isEmpty()) return next
-                    return AdAttemptResult.Success(NativeAdPlatformBatch(ads, next.error))
+                    return AdAttemptResult.Success(NativeAdPlatformBatch(ads.toList(), next.error))
                 }
                 is AdAttemptResult.Success -> {
                     ads += next.value.ads
                     if (next.value.ads.isEmpty() || next.value.unfilledError != null) {
-                        return AdAttemptResult.Success(NativeAdPlatformBatch(ads, next.value.unfilledError))
+                        return AdAttemptResult.Success(NativeAdPlatformBatch(ads.toList(), next.value.unfilledError))
                     }
                 }
             }
         }
-        return AdAttemptResult.Success(NativeAdPlatformBatch(ads, null))
+        return AdAttemptResult.Success(NativeAdPlatformBatch(ads.toList(), null))
     }
 
     private suspend fun loadRequest(

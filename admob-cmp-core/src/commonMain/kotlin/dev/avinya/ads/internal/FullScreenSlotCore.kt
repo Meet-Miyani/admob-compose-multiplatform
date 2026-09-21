@@ -274,6 +274,12 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
 
         var lastError: AdError? = null
         var acceptedAny = false
+        // Declared outside every cancellable boundary below, which is the only way to keep a
+        // loaded ad reachable if one of them drops it. See UndeliveredLoad: withTimeoutOrNull
+        // returns null when it is cancelled as the block completes, and withContext discards
+        // its result if the caller was cancelled during the dispatch back — both silently, and
+        // both after SingleShotContinuation.onUndelivered has already run.
+        val undelivered = UndeliveredLoad<AdT>()
         try {
             // Repeat count only — no per-iteration index is needed, each iteration fills one
             // more cache slot independently. A `while` loop (not `for`/`repeat`) because the
@@ -290,7 +296,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 val result = withTimeoutOrNull(placement.timeoutPolicy.loadTimeout) {
                     retryAdLoad(placement.retryPolicy, { it.isRetryableLoadFailure() }) {
                         if (isCurrentGeneration(requiredGeneration)) {
-                            loadAd(requestOptions)
+                            undelivered.capture(loadAd(requestOptions))
                         } else {
                             AdAttemptResult.Failure(AdError.message("Full-screen load was cleared."))
                         }
@@ -304,6 +310,8 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 when (result) {
                     is AdAttemptResult.Success -> {
                         val loadedAd = result.value
+                        // Delivered: this frame owns it now, so the finally must not free it.
+                        undelivered.take()
                         val entry = try {
                             onAdLoaded(loadedAd, requestOptions)
                             CachedAd(
@@ -346,6 +354,12 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             // second rule.
             finishCancelledLoad(requiredGeneration)
             throw t
+        } finally {
+            // Whatever is still held here was produced by the SDK and accepted by nobody:
+            // either a boundary dropped it, or this frame is unwinding. Destroying it is the
+            // only remaining reference. safelyDestroyAd swallows platform throws, which
+            // matters in a finally that may already be unwinding a cancellation.
+            undelivered.take()?.let(::safelyDestroyAd)
         }
 
         val completion = publicationLock.withLock {

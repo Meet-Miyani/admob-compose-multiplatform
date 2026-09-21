@@ -12,7 +12,9 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -1166,6 +1168,81 @@ class FullScreenSlotCoreTest {
 
         assertEquals(3, slot.loadCalls.size, "custom load, post-clear load, plus one automatic reload")
         assertEquals(emptyMap(), slot.loadCalls[2].customTargeting)
+    }
+
+    /**
+     * An ad produced by the SDK is either admitted or destroyed — never silently dropped.
+     *
+     * A characterization test, not a regression test: it passes with and without the
+     * ownership holder, because a common-code fake cannot reproduce the specific interleaving
+     * that loses the value (the platform's `withContext(Main.immediate)` returning to a
+     * caller that was cancelled during the dispatch back — see UndeliveredLoad). The timeout
+     * case below DOES fail without the fix and is the executable proof; this one states the
+     * invariant so a future change that breaks it in the reachable direction is caught.
+     */
+    @Test
+    fun `an ad delivered while its caller is cancelled is admitted or destroyed exactly once`() = runSlotTest {
+        lateinit var slot: FakeFullScreenSlot
+        var caller: Job? = null
+        slot = FakeFullScreenSlot(
+            testPlacement,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            loadHandler = {
+                // Queue the cancellation behind this frame, then produce the ad. Runs on an
+                // unrelated scope: a child of this coroutine would make the enclosing
+                // withContext wait for it.
+                backgroundScope.launch { caller?.cancel() }
+                AdAttemptResult.Success("raced-ad")
+            },
+        )
+
+        caller = launch { runCatching { slot.load() } }
+        advanceUntilIdle()
+
+        val cached = slot.availability().cachedCount
+        val destroyed = "raced-ad" in slot.destroyedAds
+        assertTrue(
+            (cached == 1) != destroyed,
+            "the ad must be either admitted or destroyed, never both and never neither " +
+                "(cached=$cached, destroyed=$destroyed)",
+        )
+    }
+
+    /**
+     * An ad arriving as the load timeout fires is destroyed, not dropped.
+     *
+     * `withTimeoutOrNull` cancels concurrently with the block and may fire after the block
+     * finished but before the caller is resumed — documented explicitly — in which case it
+     * returns null with the ad already produced. Indistinguishable from "no ad" to the core.
+     */
+    @Test
+    fun `an ad arriving as the load timeout fires is destroyed`() = runSlotTest {
+        val timingOut = testPlacement.copy(timeoutPolicy = AdTimeoutPolicy(loadTimeout = 5.seconds))
+        val slot = FakeFullScreenSlot(
+            timingOut,
+            testGlobalEvents(),
+            unblockedAdRequestError(),
+            tickClock(),
+            loadHandler = {
+                // Suspend first: a block that never suspended is allowed to return its value
+                // even past its own timeout, which would make this test prove nothing.
+                yield()
+                testScheduler.advanceTimeBy(6.seconds)
+                AdAttemptResult.Success("late-ad")
+            },
+        )
+
+        val state = slot.load()
+        advanceUntilIdle()
+
+        assertIs<AdLoadState.Failed>(state, "the load timed out")
+        assertTrue(
+            "late-ad" in slot.destroyedAds,
+            "an ad produced after the timeout won has no owner and must be destroyed; " +
+                "destroyed=${slot.destroyedAds}",
+        )
     }
 
     /**

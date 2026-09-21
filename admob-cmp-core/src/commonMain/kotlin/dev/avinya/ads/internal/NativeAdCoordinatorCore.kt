@@ -779,6 +779,12 @@ internal class NativeAdCoordinatorCore<A : Any>(
             // suspension, and settles through handleCancelled().
             @OptIn(DelicateCoroutinesApi::class)
             currentJob = scope.launch(start = CoroutineStart.ATOMIC) {
+                // Outside the cancellable boundaries below. This job runs on the coordinator's
+                // own dispatcher while every platform load hops to Main, so EVERY native batch
+                // crosses a real thread boundary on the way back — the case withContext's
+                // prompt-cancellation guarantee discards, silently and with no cleanup hook.
+                // withTimeoutOrNull can likewise return null with the batch already produced.
+                val undelivered = UndeliveredLoad<NativeAdPlatformBatch<A>>()
                 try {
                     var attempted = false
                     val result = withTimeoutOrNull(placement.timeoutPolicy.loadTimeout) {
@@ -788,7 +794,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                             else {
                                 attempted = true
                                 try {
-                                    platform.load(placement, grantedCount, genAtSubmit)
+                                    undelivered.capture(platform.load(placement, grantedCount, genAtSubmit))
                                 } catch (cancelled: CancellationException) {
                                     throw cancelled
                                 } catch (failure: Throwable) {
@@ -802,6 +808,9 @@ internal class NativeAdCoordinatorCore<A : Any>(
                         }
                     } ?: AdAttemptResult.Failure(AdError.message("Native ad load timed out after ${placement.timeoutPolicy.loadTimeout}."))
                     if (result is AdAttemptResult.Success) {
+                        // Delivered: handleSuccess / handleBindingFailure own every ad in this
+                        // batch from here, and both destroy what they do not admit.
+                        undelivered.take()
                         try {
                             val liveAtBinding = lock.withLock {
                                 launchedPairs.map(::isPairLiveLocked)
@@ -822,6 +831,12 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 } catch (cancelled: CancellationException) {
                     handleCancelled(launchedPairs, genAtSubmit)
                     throw cancelled
+                } finally {
+                    // A batch the platform produced that no terminal path received. Destroyed
+                    // here because nothing else holds it: the governor counts permits, not
+                    // platform objects, so an undestroyed batch is a pure leak that also keeps
+                    // its ads registered in the platform's placement map.
+                    undelivered.take()?.ads?.forEach(platform::destroy)
                 }
             }
         }

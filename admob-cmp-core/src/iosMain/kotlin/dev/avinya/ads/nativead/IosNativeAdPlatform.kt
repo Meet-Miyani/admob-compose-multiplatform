@@ -27,9 +27,11 @@ import dev.avinya.ads.toAdError
 import dev.avinya.ads.toCommon
 import dev.avinya.ads.toGADRequest
 import dev.avinya.ads.topViewController
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -124,6 +126,35 @@ internal class IosNativeLoadMachine<A : Any>(private val facade: IosNativeAdLoad
             throw t
         }
         return result
+    }
+
+    /**
+     * [load] plus the ownership the caller's cancellation needs.
+     *
+     * `load(...).await()` alone is not enough: cancelling the coroutine that awaits a Deferred
+     * does NOT cancel the Deferred, as kotlinx documents. So `invokeOnCompletion` never fired,
+     * `flight.invalidate()` never ran, and the flight kept accepting ads and kept issuing the
+     * next sequential request — after the coordinator had already retired its reservations.
+     * Real SDK work and real ad objects outlived the accounting that was supposed to own them.
+     *
+     * The second case is a batch that COMPLETED while the waiter was being cancelled: nobody
+     * receives it, so it is destroyed here. `isCompleted && !isCancelled` is used rather than
+     * `getCompleted()`, which is still experimental.
+     */
+    suspend fun awaitLoad(placement: AdPlacement, count: Int, generation: Long): IosNativeLoadResult<A> {
+        val deferred = load(placement, count, generation)
+        try {
+            return deferred.await()
+        } catch (cancellation: CancellationException) {
+            deferred.cancel(cancellation)
+            if (deferred.isCompleted && !deferred.isCancelled) {
+                withContext(NonCancellable) { runCatching { deferred.await() } }
+                    .getOrNull()
+                    ?.ads
+                    ?.forEach(::destroy)
+            }
+            throw cancellation
+        }
     }
 
     fun destroy(ad: A) = facade.destroy(ad)
@@ -243,12 +274,25 @@ internal class IosNativeAdPlatform(
 
     private val placements = NativePlacementRegistry<LoadedNativeAd>()
 
-    override suspend fun load(placement: AdPlacement, count: Int, generation: Long): AdAttemptResult<NativeAdPlatformBatch<LoadedNativeAd>> =
-        withContext(Dispatchers.Main.immediate) {
-            val batch = machine.load(placement, count, generation).await()
-            placements.register(batch.ads, placement.id)
-            batch.toAttemptResult()
+    override suspend fun load(placement: AdPlacement, count: Int, generation: Long): AdAttemptResult<NativeAdPlatformBatch<LoadedNativeAd>> {
+        // Same shape as the Android platform: the accumulator lives outside withContext, so a
+        // batch dropped at the hop back to the caller is still destroyed rather than leaked
+        // with its entries left in the placement registry.
+        val produced = mutableListOf<LoadedNativeAd>()
+        var delivered = false
+        try {
+            val result = withContext(Dispatchers.Main.immediate) {
+                val batch = machine.awaitLoad(placement, count, generation)
+                produced += batch.ads
+                placements.register(batch.ads, placement.id)
+                batch.toAttemptResult()
+            }
+            delivered = true
+            return result
+        } finally {
+            if (!delivered) produced.forEach(::destroy)
         }
+    }
 
     override suspend fun bindEvents(ad: LoadedNativeAd, adInstanceId: String, emit: (AdEvent) -> Unit) =
         withContext(Dispatchers.Main.immediate) {
