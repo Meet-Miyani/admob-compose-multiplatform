@@ -81,6 +81,19 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
         }
     }
 
+    /**
+     * Applies a runtime request-configuration change.
+     *
+     * `GADMobileAds.sharedInstance.requestConfiguration` is a live, mutable object, so the
+     * same `applyTo` the initialization path uses is also the update path — including the
+     * audio settings, which it writes onto the shared instance directly.
+     */
+    internal override suspend fun applyGlobalRequestConfigurationNative(
+        configuration: GlobalRequestConfiguration,
+    ) {
+        configuration.applyTo(GADMobileAds.sharedInstance.requestConfiguration)
+    }
+
     override fun configuredNativePolicyOrNull(): NativeAdMemoryPolicy? = nativeManager.configuredPolicyOrNull()
 
     override fun onNativeConsentRevoked() {

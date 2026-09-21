@@ -37,6 +37,8 @@ internal class FakeGoogleAdManager(
      */
     nativePlatform: dev.avinya.ads.internal.NativeAdPlatform<String>? = null,
     nativeScope: CoroutineScope? = null,
+    /** Non-null makes the platform reject a runtime request-configuration update. */
+    private val applyRequestConfigurationFailure: (() -> Throwable)? = null,
 ) : GoogleAdManagerBase() {
 
     override val platformTag: String = "Fake"
@@ -82,6 +84,16 @@ internal class FakeGoogleAdManager(
     init { startAdmissionTracking() }
 
     override fun appId(config: AdConfig): String = config.androidAppId
+
+    /** Every configuration the "platform SDK" was actually asked to apply, in order. */
+    val appliedRequestConfigurations = mutableListOf<GlobalRequestConfiguration>()
+
+    internal override suspend fun applyGlobalRequestConfigurationNative(
+        configuration: GlobalRequestConfiguration,
+    ) {
+        applyRequestConfigurationFailure?.let { throw it() }
+        appliedRequestConfigurations += configuration
+    }
     internal override fun configureNativeAdsAfterAcceptedInitialization(config: AdConfig) {
         realNativeManager?.configure(config.nativeAdMemoryPolicy)
     }

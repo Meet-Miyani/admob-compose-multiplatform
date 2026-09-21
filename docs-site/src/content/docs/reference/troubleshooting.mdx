@@ -136,6 +136,26 @@ Invoking `initialize()` with conflicting configuration parameters — a differen
 
 `AdManager.status` continues to report the configuration that *was* accepted. Only the return value of the refused call reports the conflict, so a rejected reconfiguration never interrupts ad serving for the rest of the application.
 
+### Changing request configuration after initialisation
+
+The app ID genuinely cannot be changed after the platform SDK has started, but the **global request configuration** can. Use `updateGlobalRequestConfiguration()` rather than a second `initialize()`:
+
+```kotlin
+when (val result = adManager.updateGlobalRequestConfiguration(
+    GlobalRequestConfiguration(maxAdContentRating = MaxAdContentRating.General)
+)) {
+    is RequestConfigurationUpdateResult.Applied ->
+        if (result.invalidatedCachedAds) reloadYourAdSlots()
+    RequestConfigurationUpdateResult.NotInitialized -> adManager.initialize(config)
+    RequestConfigurationUpdateResult.Unsupported -> Unit
+    is RequestConfigurationUpdateResult.Failed -> report(result.error)
+}
+```
+
+Inventory already loaded is dropped when a field that affects what the ad servers return changes — content rating, age treatment, publisher personalisation, or the publisher first-party ID — because those ads were requested under rules that no longer apply. Changing only `appMuted`, `appVolume` or `testDeviceIds` keeps the cache.
+
+After a successful update, `initialize()` with that same configuration is equivalent rather than a conflict.
+
 ## Constructor validation errors
 
 Several configuration types validate their arguments in `init` and throw `IllegalArgumentException`
