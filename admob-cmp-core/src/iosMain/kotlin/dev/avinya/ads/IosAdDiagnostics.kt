@@ -5,12 +5,12 @@ package dev.avinya.ads
 import GoogleMobileAds.GADAdapterInitializationStateReady
 import GoogleMobileAds.GADAdapterStatus
 import GoogleMobileAds.GADMobileAds
+import dev.avinya.ads.internal.tryResumeOnce
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
 import kotlinx.coroutines.withContext
 import kotlin.runCatching
 
@@ -56,7 +56,7 @@ internal class IosAdDiagnostics : AdDiagnostics {
         suspendCancellableCoroutine { continuation ->
             continuation.invokeOnCancellation { }
             GADMobileAds.sharedInstance.presentAdInspectorFromViewController(rootVC) { error ->
-                if (continuation.isActive) continuation.resume(error == null)
+                continuation.tryResumeOnce(error == null)
             }
         }
     }

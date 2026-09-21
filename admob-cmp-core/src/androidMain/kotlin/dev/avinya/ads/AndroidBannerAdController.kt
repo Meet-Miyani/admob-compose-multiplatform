@@ -2,6 +2,7 @@ package dev.avinya.ads
 
 import dev.avinya.ads.internal.BannerCore
 import dev.avinya.ads.internal.BannerPlatform
+import dev.avinya.ads.internal.tryResumeOnce
 import com.google.android.libraries.ads.mobile.sdk.banner.AdSize
 import com.google.android.libraries.ads.mobile.sdk.banner.AdView
 import com.google.android.libraries.ads.mobile.sdk.banner.BannerAd
@@ -9,7 +10,6 @@ import com.google.android.libraries.ads.mobile.sdk.banner.BannerAdEventCallback
 import com.google.android.libraries.ads.mobile.sdk.banner.BannerAdRequest
 import com.google.android.libraries.ads.mobile.sdk.common.AdLoadCallback
 import com.google.android.libraries.ads.mobile.sdk.common.LoadAdError
-import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -90,7 +90,7 @@ internal class AndroidBannerAdController internal constructor(
         suspendCancellableCoroutine { continuation ->
             val activity = activityProvider()
             if (activity == null) {
-                continuation.resume(
+                continuation.tryResumeOnce(
                     AdAttemptResult.Failure(AdError.message("No current Android Activity."))
                 )
                 return@suspendCancellableCoroutine
@@ -136,17 +136,23 @@ internal class AndroidBannerAdController internal constructor(
                     // there put a GMA access on an arbitrary thread (CLAUDE.md invariant #5).
                     // Response info is fixed once the ad is loaded, so a snapshot loses nothing.
                     val loaded = AndroidLoadedBanner(adView, detachedAd, detachedAd.getResponseInfo().toCommon())
-                    continuation.resume(
-                        AdAttemptResult.Success(loaded),
-                        onCancellation = { _, _, _ -> loaded.destroy() }
-                    )
+                    // Atomic single-shot resume. GMA can deliver its terminal callbacks on two
+                    // threads at once; a bare `if (isActive) resume(...)` lets both through and the
+                    // loser throws `IllegalStateException: Already resumed` on the SDK's thread,
+                    // killing the process. The reported crash came from this same callback's
+                    // `onAdFailedToLoad` branch below, which likewise claims the continuation
+                    // instead of reading `isActive` first.
+                    if (!continuation.tryResumeOnce(AdAttemptResult.Success(loaded)) { _, _, _ -> loaded.destroy() }) {
+                        // Lost the race. `tryResume` does not run onCancellation for an
+                        // already-resumed or already-cancelled continuation, so nothing else will
+                        // release this banner's AdView/native ad.
+                        loaded.destroy()
+                    }
                 }
 
                 override fun onAdFailedToLoad(adError: LoadAdError) {
                     adView.destroy()
-                    if (continuation.isActive) {
-                        continuation.resume(AdAttemptResult.Failure(adError.toAdError()))
-                    }
+                    continuation.tryResumeOnce(AdAttemptResult.Failure(adError.toAdError()))
                 }
             })
         }

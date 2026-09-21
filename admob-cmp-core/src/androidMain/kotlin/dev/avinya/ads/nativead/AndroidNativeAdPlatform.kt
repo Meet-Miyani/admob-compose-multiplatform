@@ -11,6 +11,7 @@ import dev.avinya.ads.INTERNAL_LOAD_ERROR_CODE
 import dev.avinya.ads.PaidEvent
 import dev.avinya.ads.internal.NativeAdPlatform
 import dev.avinya.ads.internal.NativeAdPlatformBatch
+import dev.avinya.ads.internal.tryResumeOnce
 import dev.avinya.ads.toAdError
 import dev.avinya.ads.toAndroidNativeAdRequest
 import dev.avinya.ads.toCommon
@@ -22,7 +23,6 @@ import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdLoaderCallba
 import java.util.IdentityHashMap
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -179,10 +179,13 @@ internal class AndroidNativeAdPlatform(
                     }
                 }
                 val attempt = result.second
-                if (attempt == null) {
+                if (attempt == null || !continuation.tryResumeOnce(attempt) { _, _, _ -> destroyAll(result.first) }) {
+                    // Nothing was delivered: either this callback already decided not to resume
+                    // (cancelled or terminal), or the resume lost the atomic claim to a concurrent
+                    // terminal callback. `tryResume` does not run `onCancellation` in that case, so
+                    // the batch is released here -- exactly once per accepted ad (destroy() is
+                    // gated by destroyGate).
                     destroyAll(result.first)
-                } else {
-                    continuation.resume(attempt) { _, _, _ -> destroyAll(result.first) }
                 }
             }
         }

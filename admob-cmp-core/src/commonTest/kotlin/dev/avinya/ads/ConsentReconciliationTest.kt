@@ -20,6 +20,11 @@ import kotlinx.coroutines.test.runTest
  * IosConsentController fix: a UMP native callback (form dismissed, privacy options form
  * dismissed) must always reconcile the SDK's own consent state, even if the coroutine that
  * originally awaited it was cancelled. Only resuming that waiter is conditional.
+ *
+ * Resuming it is also *atomic*: the helper claims the continuation through `tryResume` /
+ * `completeResume` (see `internal/AtomicContinuationResume.kt`) rather than through a racy
+ * `isActive` read, so a second concurrent callback cannot make it throw. That contract, and the
+ * control case proving the old shape really does throw, live in [ContinuationResumeTest].
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConsentReconciliationTest {
@@ -76,16 +81,29 @@ class ConsentReconciliationTest {
         assertEquals(listOf("reconcile", "resumed"), order)
     }
 
-    // Documents the invariant reconcileThenResumeIfActive's isActive-check-then-resume shape
-    // relies on: kotlinx.coroutines deliberately makes Continuation.resume() on an
-    // already-cancelled CancellableContinuation a safe no-op (see CancellableContinuationImpl's
-    // handling of the CancelledContinuation state) rather than throwing -- specifically so that
-    // "the loser of a resume/cancel race is safe to call resume anyway" is a supported pattern.
-    // That is what makes the isActive check here (and at every other native-callback site in
-    // this codebase) race-safe without needing tryResume/completeResume: even if cancellation
-    // lands between the isActive check and the resume() call, resume() itself tolerates it.
-    // If a future kotlinx.coroutines version ever changes this, this test fails loudly instead
-    // of the change silently becoming unsafe.
+    // Documents exactly ONE of the two races that exist at a resume site: kotlinx.coroutines
+    // deliberately makes Continuation.resume() on an already-cancelled CancellableContinuation a
+    // safe no-op (see CancellableContinuationImpl's handling of the CancelledContinuation state),
+    // specifically so that "the loser of a resume/cancel race is safe to call resume anyway" is a
+    // supported pattern.
+    //
+    // This does NOT generalise to resume/resume -- the correction that matters. A concurrent
+    // second terminal callback is not a cancellation: whichever of the two calls loses that race
+    // throws `IllegalStateException: Already resumed, but proposed with update ...` on the SDK's
+    // own callback thread, where no caller-side try/catch can reach it, killing the process. That
+    // is a real, on-device crash (FATAL EXCEPTION: GMA(BG) 7, 2026-09-18, thrown
+    // from AndroidBannerAdController's onAdFailedToLoad while the ad unit answered NO_FILL).
+    //
+    // Therefore: `if (continuation.isActive) { continuation.resume(value) }` is NOT race-safe,
+    // and it is no longer used anywhere in this library. Every native-callback resume goes
+    // through
+    // `tryResumeOnce` (internal/AtomicContinuationResume.kt), which claims the continuation
+    // atomically -- see ContinuationResumeTest for that contract and for a control case proving
+    // bare double-resume really does throw. Do not read this test as an endorsement of the
+    // check-then-act shape at any callback site.
+    //
+    // If a future kotlinx.coroutines version ever changes this cancellation tolerance, this test
+    // fails loudly instead of the change silently becoming unsafe.
     @Test
     fun `resume on an already-cancelled continuation does not throw`() = runTest {
         val captured = CompletableDeferred<CancellableContinuation<String>>()
@@ -96,7 +114,9 @@ class ConsentReconciliationTest {
         job.cancelAndJoin()
         advanceUntilIdle()
 
-        // No isActive check at all -- this is the exact call the TOCTOU claim says is unsafe.
+        // No isActive check at all -- safe ONLY because this is resume vs. cancel, which kotlinx
+        // tolerates. It is not the race the old global idiom claimed to protect against, and it
+        // is not the race that crashed the process: two concurrent resumes would throw here.
         continuation.resume("late value")
     }
 }

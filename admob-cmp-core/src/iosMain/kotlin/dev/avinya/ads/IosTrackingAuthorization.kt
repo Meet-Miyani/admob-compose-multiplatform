@@ -5,10 +5,10 @@ import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeCallbackTimeoutException
 import dev.avinya.ads.internal.awaitCondition
 import dev.avinya.ads.internal.awaitNativeCallback
+import dev.avinya.ads.internal.tryResumeOnce
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import kotlin.coroutines.resume
 import platform.AppTrackingTransparency.ATTrackingManager
 import platform.AppTrackingTransparency.ATTrackingManagerAuthorizationStatusAuthorized
 import platform.AppTrackingTransparency.ATTrackingManagerAuthorizationStatusDenied
@@ -60,7 +60,7 @@ internal object IosTrackingController : AdTrackingController {
                 ) {
                     suspendCancellableCoroutine { continuation ->
                         ATTrackingManager.requestTrackingAuthorizationWithCompletionHandler { _ ->
-                            if (continuation.isActive) continuation.resume(status())
+                            continuation.tryResumeOnce(status())
                         }
                     }
                 }
