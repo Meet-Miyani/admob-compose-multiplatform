@@ -24,6 +24,7 @@ import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Clock
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 import kotlinx.coroutines.CancellationException
@@ -149,6 +150,19 @@ internal class FullScreenPresentationHandle(
     }
 }
 
+/** A shown ad kept past dismissal for a possible late reward callback. */
+private data class OrphanedAd<AdT : Any>(val ad: AdT, val orphanedAt: Instant)
+
+/**
+ * How long a shown rewarded ad outlives its dismissal before an ordinary load may retire it.
+ *
+ * Internal and deliberately not configurable: it is a workaround for third-party adapters that
+ * deliver a reward after dismissal, not a policy a publisher should be tuning. Long enough to
+ * cover a slow adapter callback, short enough that a rewarded ad is not pinned in memory for a
+ * meaningful part of a session. `clear()` ignores it entirely.
+ */
+private val LATE_REWARD_GRACE: Duration = 30.seconds
+
 @OptIn(ExperimentalTime::class, ExperimentalAtomicApi::class)
 internal abstract class FullScreenSlotCore<AdT : Any>(
     override val placement: AdPlacement,
@@ -183,7 +197,18 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     private val activePresentation = AtomicReference<FullScreenPresentationHandle?>(null)
     private val reloadJob = AtomicReference<Job?>(null)
     private val reloadScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val orphanedAds = mutableListOf<AdT>()
+    /**
+     * Ads kept alive after dismissal so a late reward callback still has its ad.
+     *
+     * Timestamped, because "the next load started" is not evidence that reward processing
+     * finished. `reloadAfterShow` schedules that load immediately after dismissal, and
+     * `prepareLoad` used to drain every orphan unconditionally — so the two documented
+     * behaviours combined to destroy the rewarded ad within milliseconds of the dismissal it
+     * was retained for. Google's iOS guidance is that the reward normally precedes dismissal,
+     * but states that a mediation adapter decides its own ordering, which is exactly the case
+     * this retention exists to cover.
+     */
+    private val orphanedAds = mutableListOf<OrphanedAd<AdT>>()
     // Last resolved per-load options, mirroring BannerCore.replayRequest. scheduleReload
     // must replay what load() resolved, never rebuild from placement.requestOptions.
     private val lastRequestOptions = AtomicReference<AdRequestOptions?>(null)
@@ -536,7 +561,10 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                     cache = emptyList()
                 )
                 if (slotState.compareAndSet(current, cleared)) {
-                    val retiredOrphans = orphanedAds.toList().also { orphanedAds.clear() }
+                    // clear() drains EVERY orphan regardless of age: the host has explicitly
+                    // discarded this slot's inventory, so there is no presentation left whose
+                    // reward callback could still be expected.
+                    val retiredOrphans = orphanedAds.map { it.ad }.also { orphanedAds.clear() }
                     result = current.cache.map { it.ad } + retiredOrphans
                     break
                 }
@@ -584,7 +612,14 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             // load fall through into the load loop on iOS. Equality against the data
             // object is compiled correctly on both backends.
             val isLoading = nextLoadState == AdLoadState.Loading
-            val retiredOrphans = orphanedAds.toList().also { orphanedAds.clear() }
+            // Only orphans whose grace period has elapsed. An ordinary load — including the
+            // automatic reload scheduled by reloadAfterShow, which starts within
+            // milliseconds of the dismissal — is not evidence that a mediated reward callback
+            // has finished, so it must not be what decides the ad's lifetime.
+            val graceCutoff = now - LATE_REWARD_GRACE
+            val expiredOrphans = orphanedAds.filter { it.orphanedAt <= graceCutoff }
+            orphanedAds.removeAll(expiredOrphans)
+            val retiredOrphans = expiredOrphans.map { it.ad }
             return LoadPreparation(
                 immediateResult = if (isLoading) null else nextLoadState,
                 slotsToLoad = if (isLoading) placement.cachePolicy.maxSize - fresh.size else 0,
@@ -766,7 +801,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 safelyDestroyAd(ad)
             } else {
                 publicationLock.withLock {
-                    orphanedAds.add(ad)
+                    orphanedAds.add(OrphanedAd(ad, clock()))
                 }
             }
             if (wasShown && placement.cachePolicy.reloadAfterShow) scheduleReload(generation)

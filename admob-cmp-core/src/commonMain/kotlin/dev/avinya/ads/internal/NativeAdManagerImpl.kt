@@ -61,6 +61,17 @@ internal class NativeAdManagerImpl<A : Any>(
         publish()
     }
 
+    /**
+     * Forwards a platform memory warning to the coordinator.
+     *
+     * A no-op before configuration: with no coordinator there is no inventory to trim. The
+     * platform managers own the signal that calls this, because `ComponentCallbacks2` and
+     * `UIApplicationDidReceiveMemoryWarningNotification` have no common-code equivalent.
+     */
+    fun onMemoryPressure(pressure: NativeMemoryPressure) {
+        coordinatorOrNull()?.onMemoryPressure(pressure)
+    }
+
     private fun materialise(
         coordinator: NativeAdCoordinatorCore<A>,
         key: String,

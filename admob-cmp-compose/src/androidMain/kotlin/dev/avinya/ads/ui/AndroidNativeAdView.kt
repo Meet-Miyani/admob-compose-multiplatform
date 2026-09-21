@@ -51,6 +51,7 @@ public actual fun NativeAdView(
             NativeAdRenderLeaseOwner(
                 acquire = { session.acquireAndroidRenderLease(slotKey, placement, rendererId) },
                 release = AndroidNativeAdRenderLease::release,
+                identityOf = AndroidNativeAdRenderLease::adInstanceId,
             )
         }
     } else {
@@ -91,7 +92,7 @@ public actual fun NativeAdView(
                         // renderer: `NativeAdView` clips its children for asset containment, and
                         // the root content view fills it exactly, so a root shadow had nowhere to
                         // land. iOS already drew it Compose-side; this is what makes the two agree.
-                        modifier = modifier.adRootSurface(layout.root),
+                        modifier = modifier.adRootSurface(layout.frozenRoot),
                     )
                 }
             }

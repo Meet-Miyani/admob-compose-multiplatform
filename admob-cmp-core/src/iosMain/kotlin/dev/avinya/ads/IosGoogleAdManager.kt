@@ -16,6 +16,7 @@ import dev.avinya.ads.internal.awaitNativeCallback
 import dev.avinya.ads.internal.emitOrLogDrop
 import dev.avinya.ads.internal.suspendSingleShot
 import dev.avinya.ads.nativead.IosNativeAdPlatform
+import dev.avinya.ads.nativead.IosNativeMemorySignal
 import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
 import kotlinx.coroutines.CoroutineDispatcher
@@ -68,8 +69,16 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
         startAdmissionTracking()
     }
 
+    /** See the Android counterpart: registered once, at configuration time. */
+    private var memorySignal: IosNativeMemorySignal? = null
+
     internal override fun configureNativeAdsAfterAcceptedInitialization(config: AdConfig) {
         nativeManager.configure(config.nativeAdMemoryPolicy)
+        if (memorySignal == null) {
+            memorySignal = IosNativeMemorySignal(
+                callback = { nativeManager.onMemoryPressure(it) },
+            )
+        }
     }
 
     override fun configuredNativePolicyOrNull(): NativeAdMemoryPolicy? = nativeManager.configuredPolicyOrNull()

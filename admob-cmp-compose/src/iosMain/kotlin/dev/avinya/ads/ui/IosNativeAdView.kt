@@ -80,6 +80,7 @@ public actual fun NativeAdView(
             NativeAdRenderLeaseOwner(
                 acquire = { session.acquireIosNativeAdRenderLease(slotKey, placement, rendererId) },
                 release = IosNativeAdRenderLease::release,
+                identityOf = IosNativeAdRenderLease::adInstanceId,
             )
         }
     } else {
@@ -113,7 +114,7 @@ public actual fun NativeAdView(
                     val maxHeightPoints = maxHeight.value.toDouble().takeIf { it.isFinite() && it > 0.0 }
                     // A root that asks to fill takes the host's height rather than measuring its
                     // own: see `IosNativeAdHostView.fillsHost`.
-                    val rootFillsHost = layout.root.modifier.height == AdLayoutSize.Match && minHeightPoints > 0.0
+                    val rootFillsHost = layout.frozenRoot.modifier.height == AdLayoutSize.Match && minHeightPoints > 0.0
                     // Screen scale only, never the whole Density. On iOS `fontScale` tracks
                     // Dynamic Type, and rebuilding for that would fight ObserveContentSizeCategory
                     // below: the labels already set `adjustsFontForContentSizeCategory`, so the
@@ -167,7 +168,7 @@ public actual fun NativeAdView(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .then(if (rootFillsHost) Modifier.fillMaxHeight() else Modifier.height(height.dp))
-                                .adRootSurface(layout.root),
+                                .adRootSurface(layout.frozenRoot),
                             properties = UIKitInteropProperties(isInteractive = true, isNativeAccessibilityEnabled = true),
                         )
                     }
@@ -465,7 +466,7 @@ private fun prepareNativeAd(
         nativeAd = nativeAd,
         nativeView = nativeView,
         density = density,
-    ).render(layout.root)
+    ).render(layout.frozenRoot)
     nativeView.addSubview(content)
     content.leadingAnchor.constraintEqualToAnchor(nativeView.leadingAnchor).active = true
     content.trailingAnchor.constraintEqualToAnchor(nativeView.trailingAnchor).active = true
@@ -475,7 +476,7 @@ private fun prepareNativeAd(
         nativeView = nativeView,
         content = content,
         nativeAd = nativeAd,
-        surfaceArgb = resolveNativeAdSurfaceArgb(layout.root),
+        surfaceArgb = resolveNativeAdSurfaceArgb(layout.frozenRoot),
         fillsHost = fillsHost,
     )
     return PreparedNativeAd(host = host, height = host.measureDetachedHeight(width))
