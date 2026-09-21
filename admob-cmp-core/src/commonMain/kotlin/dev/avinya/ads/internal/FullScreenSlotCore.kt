@@ -257,15 +257,20 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     ): AdLoadState = loadMutex.withLock {
         val initialNow = clock()
         val cacheTtl = ttl()
+        // Snapshot OUTSIDE the lock (it allocates), store INSIDE it. The store has to be part
+        // of the same critical section that decides this load proceeds, so it is ordered
+        // against clear()'s generation bump under one lock — see clear().
+        val ownedOptions = requestOptions.ownedSnapshot()
         val preparation = publicationLock.withLock {
-            prepareLoad(requiredGeneration, initialNow, cacheTtl)
+            prepareLoad(requiredGeneration, initialNow, cacheTtl).also { prepared ->
+                // Record only a call that actually proceeds to a request. A cache-full /
+                // consent-blocked / stale-generation early return issues no request, so it
+                // must not clobber the snapshot scheduleReload replays.
+                if (prepared.immediateResult == null) lastRequestOptions.store(ownedOptions)
+            }
         }
         destroyAds(preparation.retiredAds)
         preparation.immediateResult?.let { return@withLock it }
-        // Record only a call that actually proceeds to a request. A cache-full /
-        // consent-blocked / stale-generation early return above issues no request, so it
-        // must not clobber the snapshot scheduleReload replays.
-        lastRequestOptions.store(requestOptions.ownedSnapshot())
 
         var lastError: AdError? = null
         var acceptedAny = false
@@ -494,8 +499,21 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     }
 
     override fun clear() {
-        val retiredAds: List<AdT> = publicationLock.withLock {
+        val (retiredAds, staleReload) = publicationLock.withLock {
             var result = emptyList<AdT>()
+            // Retire the snapshot BEFORE publishing the new generation, and inside the same
+            // lock that publishes it. Ordered the other way — the store ran after the lock was
+            // released — a load for the NEW generation could store its own options in between
+            // and have them wiped by this clear, so reload-after-show silently replayed
+            // placement.requestOptions instead of what that load resolved (dropping its
+            // targeting and reporting overrides).
+            //
+            // This is reachable on one thread: publicationLock is reentrant on both platforms,
+            // and a loadState observer on Main.immediate/Unconfined is resumed inline by the
+            // compareAndSet below, so its load() can run to this point while clear() is still
+            // inside its critical section. The old comment claimed no public sequence could
+            // observe it; the regression test in FullScreenSlotCoreTest is that sequence.
+            lastRequestOptions.store(null)
             while (true) {
                 val current = slotState.value
                 val cleared = SlotState<AdT>(
@@ -509,15 +527,12 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                     break
                 }
             }
-            result
+            // Taken under the lock for the same reason, cancelled outside it: cancel() can
+            // resume the reload's continuation inline, and that must not happen while this
+            // lock is held.
+            result to reloadJob.exchange(null)
         }
-        reloadJob.exchange(null)?.cancel()
-        // Defensive, and deliberately untested: no public sequence can observe it. A reload
-        // needs a show, a show needs a cached ad, and every load that fills the cache stores
-        // its own options first — so a snapshot surviving clear() is always overwritten before
-        // it could be replayed. Kept so the field cannot outlive the state it describes, and
-        // so this mirrors BannerCore.clearLocked() as the comment on the field claims.
-        lastRequestOptions.store(null)
+        staleReload?.cancel()
         destroyAds(retiredAds)
     }
 

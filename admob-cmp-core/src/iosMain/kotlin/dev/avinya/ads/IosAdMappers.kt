@@ -82,6 +82,12 @@ internal fun GlobalRequestConfiguration.applyTo(requestConfiguration: GADRequest
         PublisherPrivacyPersonalizationState.Disabled -> requestConfiguration.publisherPrivacyPersonalizationState = GADPublisherPrivacyPersonalizationStateDisabled
         PublisherPrivacyPersonalizationState.Default -> Unit
     }
+    // Applied here, alongside every other request-configuration field, rather than skipped as
+    // "Ad Manager only" — `-[GADRequestConfiguration setPublisherFirstPartyIDEnabled:]` is part
+    // of the AdMob iOS surface (GADRequestConfiguration.h), and Google documents the key as
+    // enabled by default with the value persisted across app sessions. Silently dropping it
+    // therefore discarded the only value a publisher has a reason to set: `false`.
+    publisherFirstPartyIdEnabled?.let { requestConfiguration.setPublisherFirstPartyIDEnabled(it) }
     appMuted?.let { GADMobileAds.sharedInstance.applicationMuted = it }
     appVolume?.let { GADMobileAds.sharedInstance.applicationVolume = it.coerceIn(0f, 1f) }
 }

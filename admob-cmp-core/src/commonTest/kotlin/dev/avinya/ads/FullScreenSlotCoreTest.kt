@@ -1141,12 +1141,11 @@ class FullScreenSlotCoreTest {
     }
 
     /**
-     * Deliberately NOT a test of `clear()` resetting the replay snapshot. That reset has no
-     * reachable failure path: a reload needs a show, a show needs a cached ad, and any load
-     * that fills the cache stores its own options — so the snapshot is always overwritten
-     * before it could be replayed. Verified by deleting the reset and watching this suite stay
-     * green. What this DOES pin is the sequence a host actually hits: the reload replays the
-     * options of the load that last issued a request, not the ones from before the clear.
+     * The straightforward sequence: the reload replays the options of the load that last
+     * issued a request, not the ones from before the clear.
+     *
+     * The interleaved sequence — a load starting while `clear()` is mid-flight — is covered
+     * separately below; it used to lose the newer load's options.
      */
     @Test
     fun `a post-clear load reloads with its own options rather than the cleared load's`() = runSlotTest {
@@ -1167,5 +1166,53 @@ class FullScreenSlotCoreTest {
 
         assertEquals(3, slot.loadCalls.size, "custom load, post-clear load, plus one automatic reload")
         assertEquals(emptyMap(), slot.loadCalls[2].customTargeting)
+    }
+
+    /**
+     * A load that starts while `clear()` is still running must keep its own replay snapshot.
+     *
+     * `publicationLock` is reentrant, and an `Unconfined` observer of `loadState` is resumed
+     * INLINE by the state publication inside `clear()`. So this is a single-threaded, fully
+     * deterministic interleaving, not a stress test: the observer's `load()` reaches the point
+     * where it stores its snapshot while `clear()` is between publishing the new generation and
+     * retiring the old snapshot. With the retire ordered after the lock, `clear()` then wiped
+     * the newer load's options and the automatic reload silently fell back to the placement
+     * defaults — dropping that load's targeting.
+     */
+    @Test
+    fun `a load starting during clear keeps its own replay options`() = runSlotTest {
+        val reloading = testPlacement.copy(cachePolicy = AdCachePolicy(reloadAfterShow = true))
+        val slot = FakeFullScreenSlot(reloading, testGlobalEvents(), unblockedAdRequestError(), tickClock())
+        val custom = AdRequestOptions(customTargeting = mapOf("sport" to listOf("football")))
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+        slot.enqueueLoadResult(AdAttemptResult.Success("ad2"))
+        slot.enqueueLoadResult(AdAttemptResult.Success("reload-ad"))
+
+        slot.load()
+        advanceUntilIdle()
+
+        var armed = true
+        val observer = backgroundScope.launch(Dispatchers.Unconfined) {
+            slot.loadState.collect { state ->
+                if (armed && state == AdLoadState.Idle) {
+                    armed = false
+                    slot.load(custom)
+                }
+            }
+        }
+
+        slot.clear()
+        advanceUntilIdle()
+        observer.cancel()
+
+        assertIs<AdShowResult.Shown>(slot.show())
+        advanceUntilIdle()
+
+        val reload = slot.loadCalls.last()
+        assertEquals(
+            custom.customTargeting,
+            reload.customTargeting,
+            "the reload must replay the options of the load that actually issued the request",
+        )
     }
 }

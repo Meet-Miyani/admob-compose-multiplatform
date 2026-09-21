@@ -31,6 +31,18 @@ LaunchedEffect(Unit) {
 Other consent strategies: `adManager.initialize(config, ConsentMode.InitializeOnlyIfAlreadyAllowed)`
 or `ConsentMode.SkipConsent`.
 
+**iOS: this snippet does not request ATT.** `gatherConsentAndInitialize` runs UMP consent and
+then initializes; it never calls `tracking.requestAuthorization()`. Requesting ads before ATT
+resolves permanently forfeits the IDFA for those requests, so an iOS app must do one of:
+
+- configure a UMP **IDFA message** in the AdMob UI, which makes UMP present ATT during
+  `gatherConsent` (it is a dashboard setting, not a property of this helper); or
+- sequence ATT itself with a `BeforeMobileAdsInitialize` hook, or the explicit
+  `gatherConsent` → `requestAuthorization` → `initialize(…, InitializeOnlyIfAlreadyAllowed)`
+  form — see "iOS: App Tracking Transparency" below; or
+- deliberately not request tracking. Ads still serve without the IDFA; Google's guidance is to
+  keep requesting ads when ATT is denied, just without that identifier.
+
 ## Formats → API
 
 | `AdFormat` | Controller (from `AdManager`) | Composable | Test ids (Android / iOS) |

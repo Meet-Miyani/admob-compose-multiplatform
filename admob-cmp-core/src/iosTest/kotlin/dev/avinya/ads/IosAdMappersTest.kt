@@ -35,6 +35,37 @@ class IosAdMappersTest {
     }
 
     @Test
+    fun `applies publisherFirstPartyIdEnabled in both directions and leaves null alone`() {
+        // `setPublisherFirstPartyIDEnabled:` is write-only — GADRequestConfiguration exposes no
+        // getter — so record the call instead of reading a property back.
+        for (requested in listOf(true, false)) {
+            val recording = RecordingRequestConfiguration()
+            GlobalRequestConfiguration(publisherFirstPartyIdEnabled = requested).applyTo(recording)
+
+            assertEquals(
+                listOf(requested),
+                recording.firstPartyIdCalls,
+                "iOS must apply publisherFirstPartyIdEnabled=$requested, not skip it",
+            )
+        }
+
+        val untouched = RecordingRequestConfiguration()
+        GlobalRequestConfiguration(publisherFirstPartyIdEnabled = null).applyTo(untouched)
+
+        // Google documents the key as enabled by default and persisted across sessions, so
+        // "unspecified" must stay unspecified rather than being written as a default.
+        assertEquals(emptyList(), untouched.firstPartyIdCalls)
+    }
+
+    private class RecordingRequestConfiguration : GADRequestConfiguration() {
+        val firstPartyIdCalls = mutableListOf<Boolean>()
+
+        override fun setPublisherFirstPartyIDEnabled(enabled: Boolean) {
+            firstPartyIdCalls += enabled
+        }
+    }
+
+    @Test
     fun `maps NSError code to its numeric string not a name`() {
         val mapped = gadError(2L).toAdError()
         assertEquals("2", mapped.code, "iOS must expose GMA numeric codes, not enum names")

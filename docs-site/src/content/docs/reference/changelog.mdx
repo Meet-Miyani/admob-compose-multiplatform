@@ -32,6 +32,32 @@ release is **2.5.0**.
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
 
+## Unreleased
+
+Fixes from an external review of the SDK. Every finding was re-verified against the
+code and the vendors' own documentation before being accepted, and each fix ships with a
+regression test that fails without it. No public API change so far.
+
+### Fixes
+
+**Android banner terminal callbacks no longer touch the `AdView` off the main thread.** GMA Next-Gen delivers ad callbacks on a background pool, and the Next-Gen reference marks `AdView.unregisterBannerAd()` and `AdView.destroy()` `@MainThread`. Both callbacks called them inline on the callback thread, on the ordinary load path — entering `Dispatchers.Main.immediate` before registering a callback does not change the thread the SDK invokes it on. The whole settle transaction now runs in one posted Main block.
+
+**A duplicate `onAdLoaded` no longer destroys the banner that was just admitted.** The success callback still guarded with `isActive` and destroyed the view unconditionally when it read false, so a second terminal callback for one request tore down the live banner. One owner now decides, on Main, which callback takes the view; every later one returns without touching it.
+
+**A `Fixed` banner requests the width it was configured with.** In both platform size mappers the `widthDp` function parameter shadowed `AdSizePolicy.Fixed.widthDp`, so a `Fixed(320, 50)` placement in a 400dp container was requested as 400x50 — a non-standard size, from a policy whose entire purpose is to be fixed. `heightDp` was unaffected, which is what made the result a plausible-looking hybrid. The iOS characterization test passed 320 as both the configured and the container width, so it could not see the difference; it now passes different values.
+
+**iOS applies `publisherFirstPartyIdEnabled`.** It was logged as "Ad Manager only" and dropped. `-[GADRequestConfiguration setPublisherFirstPartyIDEnabled:]` is part of the AdMob iOS surface, and Google documents the key as enabled by default and persisted across app sessions — so the value silently discarded was `false`, the only one a publisher has a reason to set.
+
+**A banner refresh no longer stops after landing mid-load.** The refresh loop waited on `snapshotFlow { controller.loadState.value !is Loading }`. `snapshotFlow` re-runs only when a Compose `State` read inside it changes, and a `StateFlow`'s `value` is not one, so if the first read said `Loading` nothing could ever wake it and that banner stopped refreshing for the lifetime of the effect. It now collects the flow, and re-checks foreground and on-screen visibility after the wait.
+
+**Changing a banner's explicit `widthDp` no longer blanks it.** The mirrored banner state was keyed on the width while the coroutine writing it was keyed only on the controller, so a width change created a fresh empty state that nothing ever wrote to again. Both are now keyed on the controller.
+
+**A blank ad attribution badge is reported instead of accepted.** The layout validator recorded attribution by node type, so an `AdBadge` whose text resolved to empty — a missing localization, say — satisfied both the "has a badge" and the "badge is at the top" checks while rendering nothing. Google requires visible ad attribution, so a blank badge now warns and counts for neither check. Static text already had this check.
+
+**A cancelled app-open show no longer blocks every full-screen format.** Admission took the process-wide presentation token and then launched the coroutine whose `finally` releases it. A coroutine cancelled before its first dispatch never runs its body, so a `stop()` or scope cancellation in that window stranded the token for the rest of the process, silently preventing interstitial, rewarded and app-open ads from ever presenting again. Admission now happens inside the launched coroutine.
+
+**`clear()` no longer discards a concurrent load's replay options.** It retired the replay snapshot after releasing the publication lock, so a load for the new generation could store its options in between and have them wiped, leaving `reloadAfterShow` to replay placement defaults instead. The retire now happens inside the same lock, before the new generation is published. The old comment claiming no public sequence could observe this was wrong: the state publication resumes an inline `loadState` observer, which is exactly that sequence.
+
 ## 2.5.0
 
 A fix release. No public API change: `admob-cmp-core.klib.api` and

@@ -186,6 +186,71 @@ class AdLayoutValidatorVisibilityTest {
     }
 
     @Test
+    fun `blank ad badge is reported as missing attribution`() {
+        // A badge is "visible" by every geometric rule yet renders nothing. Both renderers pass
+        // node.text through unchanged, so this ships an ad with no attribution. The realistic
+        // route is a localized string that resolves to empty for one locale.
+        val layout = AdLayout(
+            root = AdContainerNode.Column(
+                modifier = AdModifier.empty,
+                children = listOf(
+                    AdAssetNode.AdBadge(text = ""),
+                    AdAssetNode.Headline(),
+                    AdAssetNode.AdChoices(),
+                )
+            )
+        )
+        val warnings = layout.validation.warnings
+        assertTrue(
+            warnings.any { it.code == "blank_ad_badge" },
+            "a blank badge must be named as blank, not silently accepted; got $warnings"
+        )
+        assertTrue(
+            warnings.any { it.code == "missing_ad_badge" },
+            "a blank badge must not satisfy the attribution requirement; got $warnings"
+        )
+    }
+
+    @Test
+    fun `whitespace-only ad badge is reported as missing attribution`() {
+        val layout = AdLayout(
+            root = AdContainerNode.Column(
+                modifier = AdModifier.empty,
+                children = listOf(
+                    AdAssetNode.AdBadge(text = "   "),
+                    AdAssetNode.Headline(),
+                    AdAssetNode.AdChoices(),
+                )
+            )
+        )
+        assertTrue(
+            layout.validation.warnings.any { it.code == "missing_ad_badge" },
+            "whitespace renders as nothing, so it is not attribution either"
+        )
+    }
+
+    @Test
+    fun `a blank badge at the top does not satisfy attribution-at-top either`() {
+        // Guards the second, independent badge check: containsAdBadge() keyed on node type
+        // alone, so a blank badge suppressed this warning as well.
+        val layout = AdLayout(
+            root = AdContainerNode.Column(
+                modifier = AdModifier.empty,
+                children = listOf(
+                    AdAssetNode.Headline(),
+                    AdAssetNode.AdBadge(text = ""),
+                    AdAssetNode.AdChoices(),
+                )
+            )
+        )
+        val warnings = layout.validation.warnings
+        assertTrue(
+            warnings.any { it.code == "missing_ad_badge" },
+            "got $warnings"
+        )
+    }
+
+    @Test
     fun `hidden parent container marks all children as hidden_asset`() {
         val layout = AdLayout(
             root = AdContainerNode.Column(

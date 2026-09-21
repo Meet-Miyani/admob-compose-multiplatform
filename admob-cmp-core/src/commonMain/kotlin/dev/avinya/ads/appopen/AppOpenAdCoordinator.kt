@@ -189,13 +189,16 @@ public class AppOpenAdCoordinator internal constructor(
         // process-wide probe token and sets showInFlight, but there is nothing to launch the work
         // that would release them.
         val activeScope = lifecycle ?: return
-        if (backgroundDuration >= config.minBackgroundDuration && tryAcquireShowAdmission()) {
-            activeScope.launch {
-                showNow()
-                if (!controller.isReady()) controller.load()
-            }
-        } else if (!controller.isReady()) {
-            activeScope.launch { controller.load() }
+        val qualifies = backgroundDuration >= config.minBackgroundDuration
+        // Admission is acquired INSIDE the child, never before launching it. The releasing
+        // `finally` lives in showNow(), and a DEFAULT-start coroutine cancelled before its
+        // first dispatch never runs its body at all — so acquiring out here and cancelling in
+        // between (stop(), a restart, or the host scope dying) stranded the process-wide
+        // arbiter token and showInFlight for the rest of the process, silently blocking every
+        // full-screen format. Nothing suspends between the acquisition and showNow()'s try.
+        activeScope.launch {
+            if (qualifies && tryAcquireShowAdmission()) showNow()
+            if (!controller.isReady()) controller.load()
         }
     }
 
