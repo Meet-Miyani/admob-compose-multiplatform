@@ -10,7 +10,6 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
 import dev.avinya.ads.AdError
 import dev.avinya.ads.AdEvent
@@ -79,7 +78,7 @@ public actual fun NativeAdView(
                 NativeAdPlaceholder(modifier, loading)
             } else {
                 key(mountedLease.adInstanceId, layout.identity, resolvedComposeFonts) {
-                    AndroidView(
+                    AndroidAdHost(
                         factory = { context ->
                             AndroidNativeAdLayoutRenderer(
                                 context = context,

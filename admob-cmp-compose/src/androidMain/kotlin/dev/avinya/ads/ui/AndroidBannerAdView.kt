@@ -23,7 +23,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.snapshotFlow
@@ -184,7 +183,7 @@ public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, width
             val bannerModifier = baseModifier.onBannerViewabilityChanged { viewable ->
                 isVisible = viewable
             }
-            AndroidView(
+            AndroidAdHost(
                 factory = { context ->
                     FrameLayout(context).apply {
                         clipChildren = false
