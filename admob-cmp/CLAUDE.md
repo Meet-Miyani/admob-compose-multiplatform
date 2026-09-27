@@ -26,6 +26,12 @@ AGENTS.md, not this file.
   (notably the GMA error-code mapping contract, which is easy to break silently
   on an SDK bump — `LoadAdError.code` is an **enum**, so `code.toString()` yields
   the enum NAME that `retryableLoadFailureCodes` matches on, not an integer).
+- `admob-cmp-compose`'s `androidHostTest` also runs Robolectric, only where the
+  behaviour under test *is* the Android View and Compose frameworks — today
+  `AndroidAdHostFocusTest`, which reproduces Compose's crash on removing a focused
+  `AndroidView`. Every Android ad view must be embedded through `AndroidAdHost`,
+  never `AndroidView` directly; that test fails the build otherwise. Prefer fakes
+  for everything else.
 - `explicitApi()` is on **and** KGP ABI validation is enforced: after ANY public
   API change run `./gradlew :admob-cmp:updateKotlinAbi` and commit
   `api/admob-cmp.klib.api`, or the build fails. The DSL is still experimental and

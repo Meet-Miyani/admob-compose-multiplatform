@@ -28,7 +28,11 @@ kotlin {
         namespace = "dev.avinya.ads.compose"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
-        withHostTest { isReturnDefaultValues = true }
+        withHostTest {
+            isReturnDefaultValues = true
+            // Robolectric-hosted Compose needs the dependencies' R classes (poolingcontainer's ids).
+            isIncludeAndroidResources = true
+        }
         compilerOptions { jvmTarget.set(JvmTarget.JVM_11) }
     }
 
@@ -77,8 +81,18 @@ kotlin {
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.mockito.core)
+            // Runs the real View focus framework and a real Compose host on the JVM, so the
+            // ad-host focus test reproduces the removal crash instead of mocking setters.
+            implementation(libs.robolectric)
         }
     }
+}
+
+tasks.withType<Test>().configureEach {
+    // Robolectric's API 36 environment writes FileDescriptor internals through
+    // jdk.internal.access.SharedSecrets when it sets up the application; without this export a
+    // JDK 17+ test JVM fails every Robolectric test in setup with IllegalAccessException.
+    jvmArgs("--add-exports=java.base/jdk.internal.access=ALL-UNNAMED")
 }
 
 composeCompiler {

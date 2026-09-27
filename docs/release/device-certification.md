@@ -39,6 +39,8 @@ Run every row on both platforms.
 | 13 | Double-tap the privacy options entry point during the launch-time consent refresh → one form, and the second tap declines without a spurious failure | | |
 | 14 | Slow mediation adapter (throttled network, real mediation configured) → `Ready` is reached, not a spurious initialization failure, on both platforms | | |
 | 15 | Airplane mode during the launch-time consent refresh, then restore and retry `initialize()` immediately → the retry contacts UMP rather than declining, and `ConsentStatus` never contradicts `canRequestAds` | | |
+| 16 | Android only: with a hardware keyboard or D-pad (`adb shell input keyevent KEYCODE_TAB`), traversal skips every banner and native ad; then switch dark mode (`adb shell cmd uimode night yes`) and rotate with a native ad on screen in a lazy list → no crash | | n/a |
+| 17 | Android only: touch a banner and a native media view, then hide the slot and let the ad refresh → no crash; a touch click and a TalkBack double-tap each still report `AdEvent.Clicked`, impressions still record, and banner and native layout is unchanged from the previous release (same size, position and clipping) | | n/a |
 
 ## Devices
 
@@ -138,3 +140,41 @@ Google's validator passes it in both states.
 Still untested on iOS: rows 1-8, 10, 13, 14, 15, and every format except
 native. A physical iPhone is still required before the iOS column can be
 signed.
+
+## Run record — 2026-09-27, ad-host input focus fix (Android only)
+
+Android device: Samsung SM-S942B (Galaxy S26), Android 16 (API 36). Two
+`:androidApp:assembleDebug` builds of the same app: the fix branch, and `master`
+at `48a41376` (2.5.0) as the baseline. For the run only, both builds' manifests
+added `android:configChanges="uiMode"` to `MainActivity`, matching the consumer
+app where the crash was reported, so a dark-mode switch recomposes in place. That
+line was reverted and is not part of the change.
+
+**This run does not certify a release.** It covers rows 7, 11, 16 and part of
+17 on one Android device. The TalkBack half of row 17 was not run, and neither
+were rows 1-6, 8-10 and 12-15 or any iOS row.
+
+| # | Scenario | Baseline (2.5.0) | Fix branch | Evidence |
+|---|---|---|---|---|
+| 16 | Keyboard traversal | TAB enters the feed native ad (`NativeAdView`, AdChoices, icon, headline, body) and the article banner's WebView | PASS — TAB skips both ads | Real View focus flags from `dumpsys activity top`; tabs 1-7 identical on both builds, tab 8 enters the ad only on the baseline |
+| 16 | Dark-mode swap with the ad focused and last focusable on screen | **Crash**: `ComposeRuntimeError … pending composition has not been applied`, via `removeAndroidView` → `rootViewRequestFocus` → `focusSearch` → `searchBeyondBounds` → `measureLazyList` | PASS — no crash in 6 switches, 2 in the same position | Crash buffer empty for the whole fix-branch session |
+| 17 | Touch click and impression | — | PASS (touch) | Tap on the native headline opened Play; Inspector recorded `feed_native CLICKED`, `IMPRESSION` and `PAID` |
+| 17 | Layout unchanged | Banner holder `0,1960-1080,2298`, `AdView` 1080×337; inline native 878×386 | PASS — identical bounds; `AdHostFrame` matches the holder exactly | `dumpsys activity top` on both builds, same article, portrait |
+| 7 | Rotation | — | PASS | Landscape: banner re-bound at 2340×216, feed native at 2228×406; no crash |
+| 11 | Native ad validator | "No implementation issues found" | PASS — same result, portrait and landscape | Validator popup |
+
+Findings from the run:
+
+- The crash needs the ad to be the **last focusable element on screen** in the
+  search direction. With a focusable card visible below the ad, even the
+  baseline does not crash: Compose finds that card and never lays out
+  off-screen items. A quick manual check can therefore report a false "no
+  crash" against a vulnerable build.
+- On GMA Next-Gen 1.4.0 a **touch does not give the banner WebView input
+  focus** on either build; only keyboard traversal reaches it. uiautomator
+  reported the WebView as `focused` after a touch on the fix branch, but that is
+  Chromium's accessibility focus, not View input focus. Use
+  `dumpsys activity top` flags, not uiautomator, to judge input focus.
+- On the baseline, backing out of an article with the banner focused did not
+  crash. The banner is anchored outside the scrolling column, so the refocus
+  search has no off-screen list items to lay out.
