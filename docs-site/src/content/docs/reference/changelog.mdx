@@ -32,6 +32,15 @@ release is **2.5.0**.
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
 
+## Unreleased
+
+Merged to `master` and not yet published. Nothing below resolves from Maven Central
+yet; the current release is still 2.5.0.
+
+### Fixes
+
+**Removing an Android ad that holds input focus no longer crashes the app.** When Compose removes an `AndroidView` whose content holds input focus, Android immediately asks the window to place focus again. That runs a Compose focus search while Compose is still applying or measuring the change that removed the ad, and inside a `LazyColumn` or `LazyVerticalGrid` the search lays out off-screen items, so Compose aborts with `pending composition has not been applied` or `performMeasureAndLayout called during measure layout`. Any removal that went through composition could trigger it — an ad refresh, a theme change that produces a new `AdLayout`, the app hiding the slot or navigating away — once a keyboard or D-pad user had moved onto the ad, or a touch had focused a WebView inside it. `NativeAdView` and `BannerAdView` now host their Android views in an SDK-owned container that keeps everything inside it out of input focus. Touch clicks and TalkBack work as before. Two things change: keyboard and D-pad traversal skip the ad, and an HTML banner creative that contains a text field can no longer raise the keyboard. Affects every Android release to date; seen in production on 2.3.0 and reproduced on 2.5.0. The underlying defect is in Compose UI, which ships a fix only behind the experimental, app-wide `ComposeUiFlags.isViewFocusFixEnabled`.
+
 ## 2.5.0
 
 A fix release built on an external review of the SDK, plus a group of native-feed
