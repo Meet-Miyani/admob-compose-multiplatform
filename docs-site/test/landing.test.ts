@@ -890,3 +890,200 @@ describe('dist/index.html rendered landing contract', () => {
     ).toBeGreaterThan(positions[0]);
   });
 });
+
+const landingFormatsPath = fileURLToPath(
+  new URL('../src/components/landing/LandingFormats.astro', import.meta.url)
+);
+
+describe('landing motion contracts', () => {
+  const landingFormatsSource = readFileSync(landingFormatsPath, 'utf8');
+  const heroSource = readFileSync(heroPath, 'utf8');
+  const css = readFileSync(landingCssPath, 'utf8');
+
+  it('LandingFormats.astro script defines STORY_MS = 4800', () => {
+    expect(landingFormatsSource).toMatch(/const\s+STORY_MS\s*=\s*4800/);
+  });
+
+  it('LandingFormats.astro script checks prefers-reduced-motion and disables when matched', () => {
+    expect(landingFormatsSource).toMatch(
+      /const\s+reduce\s*=\s*window\.matchMedia\s*\(\s*['"]?\(prefers-reduced-motion:\s*reduce\)['"]?\s*\)/
+    );
+    expect(landingFormatsSource).toMatch(/if\s*\(\s*[^)]*!reduce\.matches/);
+  });
+
+  it('LandingFormats.astro script uses IntersectionObserver to track visibility', () => {
+    expect(landingFormatsSource).toMatch(/new\s+IntersectionObserver/);
+    expect(landingFormatsSource).toMatch(/\.observe\s*\(\s*list\s*\)/);
+  });
+
+  it('LandingFormats.astro script toggles is-playing class on cards', () => {
+    expect(landingFormatsSource).toMatch(/classList\.toggle\s*\(\s*['"]is-playing['"]/);
+  });
+
+  it('LandingFormats.astro script stops on visibilitychange', () => {
+    expect(landingFormatsSource).toMatch(/addEventListener\s*\(\s*['"]visibilitychange['"]/);
+    expect(landingFormatsSource).toMatch(/document\.hidden\s*\?\s*stop\s*\(\)\s*:\s*start\s*\(\)/);
+  });
+
+  it('LandingFormats.astro script holds sequence on pointerenter/focusin and resumes on pointerleave/focusout', () => {
+    expect(landingFormatsSource).toMatch(/addEventListener\s*\(\s*['"]pointerenter['"]/);
+    expect(landingFormatsSource).toMatch(/addEventListener\s*\(\s*['"]pointerleave['"]/);
+    expect(landingFormatsSource).toMatch(/addEventListener\s*\(\s*['"]focusin['"]/);
+    expect(landingFormatsSource).toMatch(/addEventListener\s*\(\s*['"]focusout['"]/);
+  });
+
+  it('story duration 4.8s in CSS equals 4800ms in script', () => {
+    const scriptMs = landingFormatsSource.match(/STORY_MS\s*=\s*(\d+)/);
+    const cssSeconds = css.match(/4\.8s/);
+    expect(scriptMs, 'STORY_MS must be defined').not.toBeNull();
+    expect(cssSeconds, '4.8s animation duration must be present').not.toBeNull();
+    const ms = parseInt(scriptMs![1], 10);
+    const s = 4.8;
+    expect(ms / 1000).toBe(s);
+  });
+
+  it('animation rules inside @media (prefers-reduced-motion: no-preference) guard', () => {
+    const guardMatch = css.match(
+      /@media\s*\(\s*prefers-reduced-motion:\s*no-preference\s*\)\s*\{\s*\/\*\s*stage[\s\S]*?\n\}/
+    );
+    expect(guardMatch, 'prefers-reduced-motion guard with animation rules must exist').not.toBeNull();
+    const guardBody = guardMatch![0];
+
+    // Check for required stage animation selectors
+    expect(guardBody).toMatch(/\.landing-device__rows/);
+    expect(guardBody).toMatch(/\.landing-device__sheen/);
+    expect(guardBody).toMatch(/\.landing-code__line--placed::before/);
+    expect(guardBody).toMatch(/\.landing-stage__bridge\s+svg/);
+
+    // Check for required format-story animation selectors
+    expect(guardBody).toMatch(/\.landing-format__card:is\([^)]*is-playing/);
+  });
+
+  it('no animation naming landing-story-, landing-feed-, landing-banner-sheen, landing-placed or landing-nudge outside no-preference guard', () => {
+    // Find the main @media (prefers-reduced-motion: no-preference) block (not @supports)
+    const mediaMatch = css.match(
+      /@media\s*\(\s*prefers-reduced-motion:\s*no-preference\s*\)\s*\{\s*\/\*\s*stage[\s\S]*?\n\}/
+    );
+    expect(mediaMatch, 'prefers-reduced-motion: no-preference block must exist').not.toBeNull();
+
+    // Get everything except @keyframes definitions and this guard
+    let outside = css;
+
+    // Remove @keyframes blocks
+    outside = outside.replace(/@keyframes[\s\S]*?\{[\s\S]*?\}/g, '');
+
+    // Remove the main prefers-reduced-motion guard
+    outside = outside.replace(mediaMatch![0], '');
+
+    // Remove other @media/@supports blocks
+    outside = outside.replace(/@media[\s\S]*?\{[\s\S]*?\n\}/g, '');
+    outside = outside.replace(/@supports[\s\S]*?\{[\s\S]*?\}/g, '');
+
+    // Patterns for animations that should only appear inside guard
+    const patterns = [
+      /animation:\s*landing-story-/g,
+      /animation:\s*landing-feed-/g,
+      /animation:\s*landing-banner-sheen/g,
+      /animation:\s*landing-placed/g,
+      /animation:\s*landing-nudge/g
+    ];
+
+    const violations: string[] = [];
+    for (const pattern of patterns) {
+      const matches = outside.match(pattern) || [];
+      if (matches.length > 0) {
+        violations.push(`found ${matches.length} ${pattern.source}`);
+      }
+    }
+
+    expect(violations, violations.length > 0 ? violations.join('; ') : undefined).toHaveLength(0);
+  });
+
+  it('banner format card has landing-story__feed--scroll and landing-story__banner', () => {
+    const bannerMatch = landingFormatsSource.match(
+      /\{format\.slug\s*===\s*['"]banner['"]\s*&&\s*\(([\s\S]*?)\)\s*\}\s*\{format\.slug/
+    );
+    expect(bannerMatch, 'banner format branch must exist').not.toBeNull();
+    const bannerBranch = bannerMatch![1];
+    expect(bannerBranch).toMatch(/landing-story__feed--scroll/);
+    expect(bannerBranch).toMatch(/landing-story__banner/);
+  });
+
+  it('interstitial format card has landing-story__takeover--dismissible and landing-story__tap', () => {
+    const interstitialMatch = landingFormatsSource.match(
+      /\{format\.slug\s*===\s*['"]interstitial['"]\s*&&\s*\(([\s\S]*?)\)\s*\}\s*\{format\.slug/
+    );
+    expect(interstitialMatch, 'interstitial format branch must exist').not.toBeNull();
+    const interstitialBranch = interstitialMatch![1];
+    expect(interstitialBranch).toMatch(/landing-story__takeover--dismissible/);
+    expect(interstitialBranch).toMatch(/landing-story__tap/);
+  });
+
+  it('rewarded format card has four landing-story__time-- spans, landing-story__fill and landing-story__reward', () => {
+    const rewardedMatch = landingFormatsSource.match(
+      /\{format\.slug\s*===\s*['"]rewarded['"]\s*&&\s*\(([\s\S]*?)\)\s*\}\s*\{format\.slug/
+    );
+    expect(rewardedMatch, 'rewarded format branch must exist').not.toBeNull();
+    const rewardedBranch = rewardedMatch![1];
+    expect(rewardedBranch).toMatch(/landing-story__time--1/);
+    expect(rewardedBranch).toMatch(/landing-story__time--2/);
+    expect(rewardedBranch).toMatch(/landing-story__time--3/);
+    expect(rewardedBranch).toMatch(/landing-story__time--4/);
+    expect(rewardedBranch).toMatch(/landing-story__fill/);
+    expect(rewardedBranch).toMatch(/landing-story__reward/);
+  });
+
+  it('rewarded-interstitial format card has three landing-story__count-step-- spans, landing-story__skip and landing-story__full', () => {
+    const riMatch = landingFormatsSource.match(
+      /\{format\.slug\s*===\s*['"]rewarded-interstitial['"]\s*&&\s*\(([\s\S]*?)\)\s*\}\s*\{format\.slug/
+    );
+    expect(riMatch, 'rewarded-interstitial format branch must exist').not.toBeNull();
+    const riBranch = riMatch![1];
+    expect(riBranch).toMatch(/landing-story__count-step--3/);
+    expect(riBranch).toMatch(/landing-story__count-step--2/);
+    expect(riBranch).toMatch(/landing-story__count-step--1/);
+    expect(riBranch).toMatch(/landing-story__skip/);
+    expect(riBranch).toMatch(/landing-story__full/);
+  });
+
+  it('app-open format card has landing-story__home, landing-story__app and landing-story__splash', () => {
+    const appOpenMatch = landingFormatsSource.match(
+      /\{format\.slug\s*===\s*['"]app-open['"]\s*&&\s*\(([\s\S]*?)\)\s*\}\s*\{format\.slug/
+    );
+    expect(appOpenMatch, 'app-open format branch must exist').not.toBeNull();
+    const appOpenBranch = appOpenMatch![1];
+    expect(appOpenBranch).toMatch(/landing-story__home/);
+    expect(appOpenBranch).toMatch(/landing-story__app/);
+    expect(appOpenBranch).toMatch(/landing-story__splash/);
+  });
+
+  it('native format card has landing-story__feed--native and landing-story__sheen--media', () => {
+    // Find native format branch
+    const startIdx = landingFormatsSource.indexOf("format.slug === 'native'");
+    expect(startIdx, 'native format branch must start').toBeGreaterThan(-1);
+
+    // Check section from native start
+    const nativeSection = landingFormatsSource.substring(startIdx, startIdx + 2000);
+    expect(nativeSection).toMatch(/landing-story__feed--native/);
+    expect(nativeSection).toMatch(/landing-story__sheen--media/);
+  });
+
+  it('Hero.astro renders landing-device__rows for feed scrolling', () => {
+    expect(heroSource).toMatch(/class="landing-device__rows"/);
+  });
+
+  it('Hero.astro builds feedRows as three copies of rows for seamless looping', () => {
+    expect(heroSource).toMatch(/const\s+feedRows\s*=\s*\[\.\.\.rows,\s*\.\.\.rows,\s*\.\.\.rows\]/);
+  });
+
+  it('Hero.astro marks placed code line via landing-code__line--placed from BannerAdView token', () => {
+    expect(heroSource).toMatch(/['"]BannerAdView['"]/);
+    expect(heroSource).toMatch(/landing-code__line--placed/);
+    expect(heroSource).toMatch(/i\s*===\s*placedFull/);
+  });
+
+  it('Hero.astro renders landing-device__sheen in each device banner (two occurrences)', () => {
+    const sheenMatches = heroSource.match(/class="landing-device__sheen"/g) || [];
+    expect(sheenMatches.length, 'landing-device__sheen must appear twice (Android and iOS banners)').toBe(2);
+  });
+});

@@ -174,6 +174,28 @@ consent, native, parity, roadmap, closing call to action, footer.
   document, and it needs no box-shadow.
 - **Copy buttons** ship `hidden` and are revealed by `CopyScript.astro` only
   when the clipboard API exists.
+- **Motion** follows the canvas's "Motion — landing" page:
+  - *Format stories.* Each format card's phone tells its format in a 4.8 s
+    loop (banner refreshes while the feed scrolls under it; the interstitial
+    takes the screen and is dismissed; rewarded counts down and pays out;
+    rewarded interstitial counts in, skips or plays, pays out; app-open shows
+    the splash on return; native scrolls with the feed and loads). The script
+    in `LandingFormats.astro` plays them **one card at a time** while the list
+    is on screen — each story once, then the card rests on its still — and
+    hovering or focusing a card hands the stage to that card. Six loops at
+    once compete with the copy and with each other; one moving card never
+    does. The resting state of every phone is its still illustration, so no
+    script, reduced motion, print and screenshots all show the designed
+    stills.
+  - *Stage.* Both feeds scroll slowly under their anchored banners; every
+    6 s the banners refresh with a sheen, the `BannerAdView(placement)` line
+    lights up in the code, and the bridge arrow nudges — one beat, so the code
+    reads as the cause of what the phones show. The feed tracks hold three
+    copies of the rows and scroll by exactly one copy (198px / 165px), which
+    is why the row heights are fixed.
+  - Every one of these rules lives inside
+    `@media (prefers-reduced-motion: no-preference)`; the script also checks
+    the preference before it starts and stops if it changes.
 
 Two dark panels (stage, consent band) and one tinted panel (the closing call to
 action). Everything else sits on paper. A fourth big panel is the most likely

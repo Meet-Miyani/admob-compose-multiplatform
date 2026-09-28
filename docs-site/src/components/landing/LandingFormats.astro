@@ -1,17 +1,34 @@
 ---
 /**
  * 01 — Formats. Six cards, one per AdMob format, each with a small phone that
- * shows where that format lands and how it looks: a bottom strip for the
- * banner, a full-screen takeover with a close control for the interstitial, a
- * countdown and a reward for rewarded, an intro card for rewarded
- * interstitial, a branded splash for app-open, and an ad card inside a feed
- * for native. The orange region is always the ad.
+ * tells its format's story in a 4.8 s loop — the "Format cards in motion"
+ * board of the design canvas:
+ *
+ *   banner                 the feed scrolls under an anchored banner, which
+ *                          arrives, holds, and refreshes with a sheen;
+ *   interstitial           the ad slides up over the app at a natural break,
+ *                          the close control lands, a tap dismisses it;
+ *   rewarded               a progress bar and timer run 0:15 → 0:00, then the
+ *                          reward pops;
+ *   rewarded interstitial  an intro card counts in 3, 2, 1 with Skip, grows
+ *                          into the ad, then pays the reward;
+ *   app-open               the app drops to the home screen; tapping it back
+ *                          shows the splash ad first; Continue returns;
+ *   native                 the ad card scrolls with the feed, its media loads
+ *                          like the app's own content, the CTA pulses once.
+ *
+ * At rest every phone shows its still illustration. The script below plays
+ * the stories one card at a time while the list is on screen, and hovering or
+ * focusing a card plays that card instead. Nothing moves under
+ * prefers-reduced-motion, and without script the stills are the whole design.
  *
  * Every card is a plain link to its format guide. The phones are decorative
  * (aria-hidden); the card text carries the meaning.
  */
 import { formats } from '../../data/landing';
 import '../../styles/landing.css';
+
+const feed = (count: number) => Array.from({ length: count }, (_, i) => i);
 ---
 
 <section class="landing-section" aria-labelledby="landing-formats-title">
@@ -35,48 +52,113 @@ import '../../styles/landing.css';
               <span class={`landing-format__screen landing-format__screen--${format.slug}`}>
                 {format.slug === 'banner' && (
                   <>
-                    <span class="landing-format__bar" />
-                    <span class="landing-format__block" />
-                    <span class="landing-format__block" />
-                    <span class="landing-format__spacer" />
-                    <span class="landing-format__ad landing-format__ad--banner" />
+                    <span class="landing-story__head"><span class="landing-format__bar" /></span>
+                    <span class="landing-story__feed landing-story__feed--scroll">
+                      {feed(9).map(() => <span class="landing-format__block" />)}
+                    </span>
+                    <span class="landing-format__ad landing-story__banner">
+                      <span class="landing-story__sheen" />
+                    </span>
                   </>
                 )}
                 {format.slug === 'interstitial' && (
-                  <span class="landing-format__ad landing-format__ad--full">
-                    <span class="landing-format__close">×</span>
-                    <span class="landing-format__creative" />
-                  </span>
+                  <>
+                    <span class="landing-story__head"><span class="landing-format__bar" /></span>
+                    <span class="landing-story__feed">
+                      {feed(6).map(() => <span class="landing-format__block" />)}
+                    </span>
+                    <span class="landing-format__ad landing-story__takeover landing-story__takeover--dismissible">
+                      <span class="landing-format__close">
+                        <span class="landing-story__tap" />×
+                      </span>
+                      <span class="landing-format__creative" />
+                    </span>
+                  </>
                 )}
                 {format.slug === 'rewarded' && (
-                  <span class="landing-format__ad landing-format__ad--full landing-format__ad--spread">
-                    <span class="landing-format__timer">0:15</span>
-                    <span class="landing-format__reward">+1 reward</span>
-                  </span>
+                  <>
+                    <span class="landing-format__ad landing-story__takeover">
+                      <span class="landing-story__progress"><span class="landing-story__fill" /></span>
+                      <span class="landing-story__timer">
+                        <span class="landing-story__time landing-story__time--1">0:15</span>
+                        <span class="landing-story__time landing-story__time--2">0:10</span>
+                        <span class="landing-story__time landing-story__time--3">0:05</span>
+                        <span class="landing-story__time landing-story__time--4">0:00</span>
+                      </span>
+                      <span class="landing-format__creative" />
+                    </span>
+                    <span class="landing-story__sparks">
+                      <span class="landing-story__spark landing-story__spark--1" />
+                      <span class="landing-story__spark landing-story__spark--2" />
+                      <span class="landing-story__spark landing-story__spark--3" />
+                      <span class="landing-story__spark landing-story__spark--4" />
+                    </span>
+                    <span class="landing-story__reward">+1 reward</span>
+                  </>
                 )}
                 {format.slug === 'rewarded-interstitial' && (
-                  <span class="landing-format__ad landing-format__ad--intro">
-                    <span class="landing-format__line landing-format__line--ink" />
-                    <span class="landing-format__line landing-format__line--muted" />
-                    <span class="landing-format__countdown">in 3…</span>
-                  </span>
+                  <>
+                    <span class="landing-story__head"><span class="landing-format__bar" /></span>
+                    <span class="landing-story__feed">
+                      {feed(6).map(() => <span class="landing-format__block" />)}
+                    </span>
+                    <span class="landing-format__ad landing-story__intro-card">
+                      <span class="landing-story__intro">
+                        <span class="landing-format__line landing-format__line--ink" />
+                        <span class="landing-format__line landing-format__line--muted" />
+                        <span class="landing-story__count">
+                          <span class="landing-story__count-step landing-story__count-step--3">in 3…</span>
+                          <span class="landing-story__count-step landing-story__count-step--2">in 2…</span>
+                          <span class="landing-story__count-step landing-story__count-step--1">in 1…</span>
+                        </span>
+                        <span class="landing-story__skip">Skip</span>
+                      </span>
+                      <span class="landing-story__full">
+                        <span class="landing-format__creative" />
+                      </span>
+                    </span>
+                    <span class="landing-story__reward landing-story__reward--late">+1 reward</span>
+                  </>
                 )}
                 {format.slug === 'app-open' && (
-                  <span class="landing-format__ad landing-format__ad--full landing-format__ad--splash">
-                    <span class="landing-format__logo" />
-                    <span class="landing-format__continue">Continue to app ›</span>
-                  </span>
+                  <>
+                    <span class="landing-story__home">
+                      {feed(9).map((i) => (
+                        <span class:list={['landing-story__app-icon', i === 4 && 'landing-story__app-icon--ours']} />
+                      ))}
+                    </span>
+                    <span class="landing-story__app">
+                      <span class="landing-story__head"><span class="landing-format__bar" /></span>
+                      <span class="landing-story__feed">
+                        {feed(6).map(() => <span class="landing-format__block" />)}
+                      </span>
+                    </span>
+                    <span class="landing-format__ad landing-story__splash">
+                      <span class="landing-format__logo" />
+                      <span class="landing-format__continue">Continue to app ›</span>
+                    </span>
+                  </>
                 )}
                 {format.slug === 'native' && (
                   <>
-                    <span class="landing-format__block landing-format__block--short" />
-                    <span class="landing-format__ad landing-format__ad--native">
-                      <span class="landing-format__media" />
-                      <span class="landing-format__line landing-format__line--ink" />
-                      <span class="landing-format__line landing-format__line--muted" />
-                      <span class="landing-format__button" />
+                    <span class="landing-story__head"><span class="landing-format__bar" /></span>
+                    <span class="landing-story__feed landing-story__feed--native">
+                      {feed(3).map(() => (
+                        <>
+                          <span class="landing-format__block landing-format__block--short" />
+                          <span class="landing-format__ad landing-format__ad--native">
+                            <span class="landing-format__media">
+                              <span class="landing-story__sheen landing-story__sheen--media" />
+                            </span>
+                            <span class="landing-format__line landing-format__line--ink" />
+                            <span class="landing-format__line landing-format__line--muted" />
+                            <span class="landing-format__button" />
+                          </span>
+                          <span class="landing-format__block landing-format__block--short" />
+                          <span class="landing-format__block landing-format__block--short" />
+                        </>
+                      ))}
                     </span>
-                    <span class="landing-format__block landing-format__block--short" />
                   </>
                 )}
               </span>
@@ -92,3 +174,67 @@ import '../../styles/landing.css';
     }
   </ol>
 </section>
+
+<script>
+  /**
+   * One story at a time. While the list is on screen, each card in turn gets
+   * `is-playing` for one 4.8 s loop (landing.css plays each story once, then
+   * the card rests on its still). Hovering or focusing a card hands the stage
+   * to that card — CSS loops it — and the sequence resumes after it.
+   * Off screen, in a background tab, or under reduced motion: nothing runs.
+   */
+  const STORY_MS = 4800;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const list = document.querySelector<HTMLElement>('.landing-formats');
+  const cards = list ? [...list.querySelectorAll<HTMLElement>('.landing-format__card')] : [];
+
+  if (list && cards.length > 0 && !reduce.matches) {
+    let index = 0;
+    let timer = 0;
+    let onScreen = false;
+    let held = false;
+
+    const play = () => cards.forEach((card, i) => card.classList.toggle('is-playing', i === index));
+    const stop = () => {
+      window.clearInterval(timer);
+      timer = 0;
+      cards.forEach((card) => card.classList.remove('is-playing'));
+    };
+    const start = () => {
+      if (timer || held || !onScreen || document.hidden || reduce.matches) return;
+      play();
+      timer = window.setInterval(() => {
+        index = (index + 1) % cards.length;
+        play();
+      }, STORY_MS);
+    };
+
+    new IntersectionObserver(
+      ([entry]) => {
+        onScreen = entry.isIntersecting;
+        if (onScreen) start();
+        else stop();
+      },
+      { threshold: 0.35 }
+    ).observe(list);
+
+    document.addEventListener('visibilitychange', () => (document.hidden ? stop() : start()));
+    reduce.addEventListener('change', () => (reduce.matches ? stop() : start()));
+
+    cards.forEach((card, i) => {
+      const hold = () => {
+        held = true;
+        stop();
+      };
+      const release = () => {
+        held = false;
+        index = (i + 1) % cards.length;
+        start();
+      };
+      card.addEventListener('pointerenter', hold);
+      card.addEventListener('pointerleave', release);
+      card.addEventListener('focusin', hold);
+      card.addEventListener('focusout', release);
+    });
+  }
+</script>
