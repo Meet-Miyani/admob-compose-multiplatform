@@ -1,0 +1,63 @@
+---
+/**
+ * The landing page's motion switch. It sits under each region that moves on its
+ * own (the stage, the format cards), and every copy flips the same page-wide
+ * state: WCAG 2.2.2 asks that anything moving by itself for more than five
+ * seconds can be paused.
+ *
+ * Every loop in landing.css runs only under `.landing[data-motion='on']`, which
+ * the script below sets. Without script there is nothing to pause, so the
+ * switch ships `hidden`; under reduced motion nothing loops, so it stays
+ * hidden then too. Pausing rests every loop on its still, and the choice is
+ * remembered on this device. One-shot entrances are not loops and are left to
+ * prefers-reduced-motion.
+ */
+import '../../styles/landing.css';
+---
+
+<button class="landing-motion" type="button" hidden data-motion-toggle>
+  <svg class="landing-motion__icon landing-motion__icon--pause" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1.5" width="2.75" height="9" rx="0.75" fill="currentColor"></rect><rect x="7.25" y="1.5" width="2.75" height="9" rx="0.75" fill="currentColor"></rect></svg>
+  <svg class="landing-motion__icon landing-motion__icon--play" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.75 10.25 6 3 10.25z" fill="currentColor" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"></path></svg>
+  <span class="landing-motion__label">Pause motion</span>
+</button>
+
+<script>
+  const KEY = 'admob-cmp:landing-motion';
+  const landing = document.querySelector<HTMLElement>('.landing');
+  const toggles = [...document.querySelectorAll<HTMLButtonElement>('[data-motion-toggle]')];
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  if (landing) {
+    let paused = false;
+    try {
+      paused = window.localStorage.getItem(KEY) === 'paused';
+    } catch {
+      // Storage can be blocked; the page then simply starts in motion.
+    }
+
+    const render = () => {
+      landing.dataset.motion = paused ? 'paused' : 'on';
+      for (const toggle of toggles) {
+        toggle.hidden = reduce.matches;
+        const label = toggle.querySelector('.landing-motion__label');
+        if (label) label.textContent = paused ? 'Play motion' : 'Pause motion';
+      }
+    };
+
+    for (const toggle of toggles) {
+      toggle.addEventListener('click', () => {
+        paused = !paused;
+        try {
+          if (paused) window.localStorage.setItem(KEY, 'paused');
+          else window.localStorage.removeItem(KEY);
+        } catch {
+          // Not remembered this time; the switch still works for this visit.
+        }
+        render();
+      });
+    }
+
+    reduce.addEventListener('change', render);
+    render();
+  }
+</script>

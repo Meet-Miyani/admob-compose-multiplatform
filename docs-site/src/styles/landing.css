@@ -91,6 +91,42 @@
   color: var(--admob-accent-text);
 }
 
+/* The motion switch (LandingMotionToggle.astro): a caption-sized control just
+   below each region that moves on its own — the stage and the format cards.
+   It ships hidden and only its script reveals it. */
+.landing-motion {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: max-content;
+  min-height: 2rem;
+  margin: 0.75rem 0 0 auto;
+  padding: 0 0 0 0.5rem;
+  border: 0;
+  border-radius: var(--admob-radius-sm);
+  background: none;
+  color: var(--admob-slate);
+  font-family: var(--admob-font-mono);
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 180ms var(--admob-ease);
+}
+
+.landing-motion:hover {
+  color: var(--admob-ink);
+}
+
+.landing-motion[hidden],
+.landing-motion__icon--play,
+.landing[data-motion='paused'] .landing-motion__icon--pause {
+  display: none;
+}
+
+.landing[data-motion='paused'] .landing-motion__icon--play {
+  display: block;
+}
+
 /* ----------------------------------------------------------------- opening */
 
 .landing-opening {
@@ -1973,9 +2009,18 @@
  *
  * ---------------------------------------------------------- format stories
  *
- * One 4.8 s story per format card (see LandingFormats.astro). A card plays
- * while it has `is-playing` (the one-at-a-time sequence: once, then it rests
- * on its still) or while it is hovered or keyboard-focused (looping).
+ * One 4.8 s story per format card (see LandingFormats.astro). All six loop
+ * together as a wave in reading order: each card starts 0.8 s after the one
+ * before it — a sixth of the loop — so the takeovers, timers and rewards
+ * ripple across the grid instead of landing in unison.
+ *
+ * Every loop runs on screen only (not in print), only without a reduced-motion
+ * preference, and only under `.landing[data-motion='on']`, which the motion
+ * switch sets (LandingMotionToggle.astro). Without script, under reduced
+ * motion and while paused, every phone rests on its still. The switch governs
+ * what moves on its own — the loops. The one-shot banner entrance and the
+ * scroll-linked consent steps are not autoplay; prefers-reduced-motion alone
+ * turns those off.
  */
 
 @keyframes landing-feed-android {
@@ -2514,178 +2559,192 @@
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
+@media screen and (prefers-reduced-motion: no-preference) {
   /* stage */
-  .landing-device__rows {
+  .landing[data-motion='on'] .landing-device__rows {
     animation: landing-feed-android 9s linear infinite;
   }
 
-  .landing-device--ios .landing-device__rows {
+  .landing[data-motion='on'] .landing-device--ios .landing-device__rows {
     animation-name: landing-feed-ios;
   }
 
-  .landing-device__sheen {
+  .landing[data-motion='on'] .landing-device__sheen {
     animation: landing-banner-sheen 6s ease-in-out infinite;
   }
 
-  .landing-device--ios .landing-device__sheen {
+  .landing[data-motion='on'] .landing-device--ios .landing-device__sheen {
     animation-delay: 120ms;
   }
 
-  .landing-code__line--placed::before {
+  .landing[data-motion='on'] .landing-code__line--placed::before {
     animation: landing-placed 6s ease infinite;
   }
 
-  .landing-stage__bridge svg {
+  .landing[data-motion='on'] .landing-stage__bridge svg {
     animation: landing-nudge 6s var(--admob-ease-out) infinite;
   }
 
   /* format stories */
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__feed--scroll {
+  .landing[data-motion='on'] .landing-format__card .landing-story__feed--scroll {
     animation: landing-story-feed 4.8s linear infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__banner {
+  .landing[data-motion='on'] .landing-format__card .landing-story__banner {
     animation: landing-story-banner 4.8s var(--admob-ease-out) infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__banner .landing-story__sheen {
+  .landing[data-motion='on'] .landing-format__card .landing-story__banner .landing-story__sheen {
     animation: landing-story-sheen 4.8s ease-in-out infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__takeover--dismissible {
+  .landing[data-motion='on'] .landing-format__card .landing-story__takeover--dismissible {
     animation: landing-story-take 4.8s var(--admob-ease-out) infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__takeover--dismissible .landing-format__close {
+  .landing[data-motion='on'] .landing-format__card .landing-story__takeover--dismissible .landing-format__close {
     animation: landing-story-close 4.8s ease infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__tap {
+  .landing[data-motion='on'] .landing-format__card .landing-story__tap {
     animation: landing-story-tap 4.8s ease-out infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__fill {
+  .landing[data-motion='on'] .landing-format__card .landing-story__fill {
     animation: landing-story-fill 4.8s linear infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__time--1 {
+  .landing[data-motion='on'] .landing-format__card .landing-story__time--1 {
     animation: landing-story-t1 4.8s step-end infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__time--2 {
+  .landing[data-motion='on'] .landing-format__card .landing-story__time--2 {
     animation: landing-story-t2 4.8s step-end infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__time--3 {
+  .landing[data-motion='on'] .landing-format__card .landing-story__time--3 {
     animation: landing-story-t3 4.8s step-end infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__time--4 {
+  .landing[data-motion='on'] .landing-format__card .landing-story__time--4 {
     animation: landing-story-t4 4.8s step-end infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-format__screen--rewarded .landing-story__reward {
+  .landing[data-motion='on'] .landing-format__card .landing-format__screen--rewarded .landing-story__reward {
     animation: landing-story-reward 4.8s var(--admob-ease-out) infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__spark--1 {
+  .landing[data-motion='on'] .landing-format__card .landing-story__spark--1 {
     animation: landing-story-spark-1 4.8s ease-out infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__spark--2 {
+  .landing[data-motion='on'] .landing-format__card .landing-story__spark--2 {
     animation: landing-story-spark-2 4.8s ease-out infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__spark--3 {
+  .landing[data-motion='on'] .landing-format__card .landing-story__spark--3 {
     animation: landing-story-spark-3 4.8s ease-out infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__spark--4 {
+  .landing[data-motion='on'] .landing-format__card .landing-story__spark--4 {
     animation: landing-story-spark-4 4.8s ease-out infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__intro-card {
+  .landing[data-motion='on'] .landing-format__card .landing-story__intro-card {
     animation: landing-story-intro-card 4.8s var(--admob-ease-out) infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__intro {
+  .landing[data-motion='on'] .landing-format__card .landing-story__intro {
     animation: landing-story-intro 4.8s ease infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__count-step--3 {
+  .landing[data-motion='on'] .landing-format__card .landing-story__count-step--3 {
     animation: landing-story-count-3 4.8s step-end infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__count-step--2 {
+  .landing[data-motion='on'] .landing-format__card .landing-story__count-step--2 {
     animation: landing-story-count-2 4.8s step-end infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__count-step--1 {
+  .landing[data-motion='on'] .landing-format__card .landing-story__count-step--1 {
     animation: landing-story-count-1 4.8s step-end infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__full {
+  .landing[data-motion='on'] .landing-format__card .landing-story__full {
     animation: landing-story-full 4.8s ease infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__reward--late {
+  .landing[data-motion='on'] .landing-format__card .landing-story__reward--late {
     animation: landing-story-reward-late 4.8s var(--admob-ease-out) infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__app {
+  .landing[data-motion='on'] .landing-format__card .landing-story__app {
     animation: landing-story-app 4.8s var(--admob-ease-out) infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__home {
+  .landing[data-motion='on'] .landing-format__card .landing-story__home {
     animation: landing-story-home 4.8s ease infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__app-icon--ours {
+  .landing[data-motion='on'] .landing-format__card .landing-story__app-icon--ours {
     animation: landing-story-icon 4.8s ease infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__splash {
+  .landing[data-motion='on'] .landing-format__card .landing-story__splash {
     animation: landing-story-splash 4.8s var(--admob-ease-out) infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__splash .landing-format__continue {
+  .landing[data-motion='on'] .landing-format__card .landing-story__splash .landing-format__continue {
     animation: landing-story-continue 4.8s ease infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__feed--native {
+  .landing[data-motion='on'] .landing-format__card .landing-story__feed--native {
     animation: landing-story-native-feed 4.8s linear infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-format__media {
+  .landing[data-motion='on'] .landing-format__card .landing-format__media {
     animation: landing-story-media 4.8s ease infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__sheen--media {
+  .landing[data-motion='on'] .landing-format__card .landing-story__sheen--media {
     animation: landing-story-media-sheen 4.8s ease-in-out infinite;
   }
 
-  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-format__button {
+  .landing[data-motion='on'] .landing-format__card .landing-format__button {
     animation: landing-story-cta 4.8s ease infinite;
   }
 
-  /* In the one-at-a-time sequence each story plays once, then the card rests
-     on its still until its turn comes round again. */
-  .landing-format__card.is-playing:not(:hover, :focus-visible) * {
-    animation-iteration-count: 1;
+  /* The wave: card n starts (n - 1) × 0.8 s in, six starts across one 4.8 s loop. */
+  .landing[data-motion='on'] .landing-format:nth-child(2) .landing-format__screen * {
+    animation-delay: 0.8s;
+  }
+
+  .landing[data-motion='on'] .landing-format:nth-child(3) .landing-format__screen * {
+    animation-delay: 1.6s;
+  }
+
+  .landing[data-motion='on'] .landing-format:nth-child(4) .landing-format__screen * {
+    animation-delay: 2.4s;
+  }
+
+  .landing[data-motion='on'] .landing-format:nth-child(5) .landing-format__screen * {
+    animation-delay: 3.2s;
+  }
+
+  .landing[data-motion='on'] .landing-format:nth-child(6) .landing-format__screen * {
+    animation-delay: 4s;
   }
 }
 
 @media print {
   .landing-device__banner,
-  .landing-device__rows,
-  .landing-device__sheen,
-  .landing-code__line--placed::before,
-  .landing-stage__bridge svg,
-  .landing-format__screen *,
   .landing-consent__step,
   .landing-consent__number {
     animation: none;
+  }
+
+  .landing-motion {
+    display: none;
   }
 }
 

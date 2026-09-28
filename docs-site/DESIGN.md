@@ -120,7 +120,10 @@ over a near-black page needs more separation than the same scrim gives on white.
 Motion is allowed. The single rule: **anything that animates must answer
 `prefers-reduced-motion`**, in the same file. `landing.test.ts` fails a file that
 declares `@keyframes` or `animation:` without a guard, and `check-theme.mjs`
-verifies live that every landing element stops under `reduce`.
+verifies live that every landing element stops under `reduce`. A second rule
+for loops: **anything that moves on its own for more than five seconds must
+stop when the landing page's motion switch is paused** (WCAG 2.2.2), so every
+infinite animation is gated on `.landing[data-motion='on']`.
 
 Two traps, both hit in practice:
 
@@ -179,23 +182,33 @@ consent, native, parity, roadmap, closing call to action, footer.
     loop (banner refreshes while the feed scrolls under it; the interstitial
     takes the screen and is dismissed; rewarded counts down and pays out;
     rewarded interstitial counts in, skips or plays, pays out; app-open shows
-    the splash on return; native scrolls with the feed and loads). The script
-    in `LandingFormats.astro` plays them **one card at a time** while the list
-    is on screen — each story once, then the card rests on its still — and
-    hovering or focusing a card hands the stage to that card. Six loops at
-    once compete with the copy and with each other; one moving card never
-    does. The resting state of every phone is its still illustration, so no
-    script, reduced motion, print and screenshots all show the designed
-    stills.
+    the splash on return; native scrolls with the feed and loads). **All six
+    loop together** — the canvas's "Loop all" mode — as a wave in reading
+    order: card *n* starts (*n* − 1) × 0.8 s in, a sixth of the loop, so the
+    takeovers, timers and rewards ripple across the grid and never land in
+    unison. The section is a comparison: six formats behaving side by side
+    say "every AdMob format" at a glance, where one card at a time needed
+    almost 30 s to show them all. The resting state of every phone is its
+    still illustration, so no script, reduced motion, print, a paused switch
+    and screenshots all show the designed stills.
   - *Stage.* Both feeds scroll slowly under their anchored banners; every
     6 s the banners refresh with a sheen, the `BannerAdView(placement)` line
     lights up in the code, and the bridge arrow nudges — one beat, so the code
     reads as the cause of what the phones show. The feed tracks hold three
     copies of the rows and scroll by exactly one copy (198px / 165px), which
     is why the row heights are fixed.
-  - Every one of these rules lives inside
-    `@media (prefers-reduced-motion: no-preference)`; the script also checks
-    the preference before it starts and stops if it changes.
+  - *Motion switch.* `LandingMotionToggle.astro` renders a caption-sized
+    "Pause motion" control right-aligned just below the stage and below the
+    format grid; both copies flip one page-wide state. It sets
+    `data-motion` on `.landing` (`on` or `paused`), remembers a pause in
+    `localStorage`, and ships `hidden` — its script reveals it, except under
+    reduced motion, where nothing loops. It governs the loops only: the
+    one-shot banner entrance and the scroll-linked consent steps are not
+    autoplay, and resuming must not replay the entrance.
+  - Every loop lives inside
+    `@media screen and (prefers-reduced-motion: no-preference)` and under
+    `.landing[data-motion='on']`, so print, reduced motion, no script and a
+    paused switch all leave it off.
 
 Two dark panels (stage, consent band) and one tinted panel (the closing call to
 action). Everything else sits on paper. A fourth big panel is the most likely

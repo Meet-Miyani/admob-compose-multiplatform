@@ -17,15 +17,17 @@
  *   native                 the ad card scrolls with the feed, its media loads
  *                          like the app's own content, the CTA pulses once.
  *
- * At rest every phone shows its still illustration. The script below plays
- * the stories one card at a time while the list is on screen, and hovering or
- * focusing a card plays that card instead. Nothing moves under
- * prefers-reduced-motion, and without script the stills are the whole design.
+ * All six loop together as a wave in reading order, each card 0.8 s behind the
+ * one before it, so the big moments ripple across the grid and never land in
+ * unison (landing.css, "format stories"). At rest every phone shows its still
+ * illustration: under prefers-reduced-motion, in print, without script, and
+ * once the motion switch below the grid is paused.
  *
  * Every card is a plain link to its format guide. The phones are decorative
  * (aria-hidden); the card text carries the meaning.
  */
 import { formats } from '../../data/landing';
+import LandingMotionToggle from './LandingMotionToggle.astro';
 import '../../styles/landing.css';
 
 const feed = (count: number) => Array.from({ length: count }, (_, i) => i);
@@ -173,68 +175,6 @@ const feed = (count: number) => Array.from({ length: count }, (_, i) => i);
       ))
     }
   </ol>
+  <LandingMotionToggle />
 </section>
 
-<script>
-  /**
-   * One story at a time. While the list is on screen, each card in turn gets
-   * `is-playing` for one 4.8 s loop (landing.css plays each story once, then
-   * the card rests on its still). Hovering or focusing a card hands the stage
-   * to that card — CSS loops it — and the sequence resumes after it.
-   * Off screen, in a background tab, or under reduced motion: nothing runs.
-   */
-  const STORY_MS = 4800;
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const list = document.querySelector<HTMLElement>('.landing-formats');
-  const cards = list ? [...list.querySelectorAll<HTMLElement>('.landing-format__card')] : [];
-
-  if (list && cards.length > 0 && !reduce.matches) {
-    let index = 0;
-    let timer = 0;
-    let onScreen = false;
-    let held = false;
-
-    const play = () => cards.forEach((card, i) => card.classList.toggle('is-playing', i === index));
-    const stop = () => {
-      window.clearInterval(timer);
-      timer = 0;
-      cards.forEach((card) => card.classList.remove('is-playing'));
-    };
-    const start = () => {
-      if (timer || held || !onScreen || document.hidden || reduce.matches) return;
-      play();
-      timer = window.setInterval(() => {
-        index = (index + 1) % cards.length;
-        play();
-      }, STORY_MS);
-    };
-
-    new IntersectionObserver(
-      ([entry]) => {
-        onScreen = entry.isIntersecting;
-        if (onScreen) start();
-        else stop();
-      },
-      { threshold: 0.35 }
-    ).observe(list);
-
-    document.addEventListener('visibilitychange', () => (document.hidden ? stop() : start()));
-    reduce.addEventListener('change', () => (reduce.matches ? stop() : start()));
-
-    cards.forEach((card, i) => {
-      const hold = () => {
-        held = true;
-        stop();
-      };
-      const release = () => {
-        held = false;
-        index = (i + 1) % cards.length;
-        start();
-      };
-      card.addEventListener('pointerenter', hold);
-      card.addEventListener('pointerleave', release);
-      card.addEventListener('focusin', hold);
-      card.addEventListener('focusout', release);
-    });
-  }
-</script>
