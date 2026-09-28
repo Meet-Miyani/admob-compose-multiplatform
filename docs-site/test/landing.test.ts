@@ -47,7 +47,7 @@ interface CssBlock {
 }
 
 function extractCssBlocks(contents: string): CssBlock[] {
-  const stripped = contents.replace(/\/\*[\s\S]*?\*\//g);
+  const stripped = contents.replace(/\/\*[\s\S]*?\*\//g, '');
   const blocks: CssBlock[] = [];
   const re = /([^{}]+)\{([^{}]*)\}/g;
   let match: RegExpExecArray | null;
@@ -900,103 +900,218 @@ describe('landing motion contracts', () => {
   const heroSource = readFileSync(heroPath, 'utf8');
   const css = readFileSync(landingCssPath, 'utf8');
 
-  it('LandingFormats.astro script defines STORY_MS = 4800', () => {
-    expect(landingFormatsSource).toMatch(/const\s+STORY_MS\s*=\s*4800/);
+  it('LandingFormats.astro contains no <script> and no is-playing, and renders <LandingMotionToggle /> after </ol>', () => {
+    // Should not contain a script tag
+    expect(landingFormatsSource).not.toMatch(/<script[^>]*>[\s\S]*?<\/script>/);
+    // Should not contain is-playing class reference
+    expect(landingFormatsSource).not.toMatch(/is-playing/);
+    // Should render LandingMotionToggle after the ol
+    expect(landingFormatsSource).toMatch(/<\/ol>\s*\n\s*<LandingMotionToggle\s*\/>/);
   });
 
-  it('LandingFormats.astro script checks prefers-reduced-motion and disables when matched', () => {
-    expect(landingFormatsSource).toMatch(
-      /const\s+reduce\s*=\s*window\.matchMedia\s*\(\s*['"]?\(prefers-reduced-motion:\s*reduce\)['"]?\s*\)/
+  it('Hero.astro imports LandingMotionToggle and renders it after the stage devices markup and before class="landing-facts"', () => {
+    // Should import LandingMotionToggle
+    expect(heroSource).toMatch(/import\s+LandingMotionToggle\s+from\s+['"]\.\/landing\/LandingMotionToggle\.astro['"]/);
+    // Should render LandingMotionToggle after landing-stage__devices ends and before landing-facts
+    expect(heroSource).toMatch(/<\/div>\s*\n\s*<LandingMotionToggle\s*\/>\s*\n\s*<dl\s+class="landing-facts"/);
+  });
+
+  it('LandingMotionToggle.astro: button has type="button", hidden, and data-motion-toggle', () => {
+    const motionTogglePath = fileURLToPath(
+      new URL('../src/components/landing/LandingMotionToggle.astro', import.meta.url)
     );
-    expect(landingFormatsSource).toMatch(/if\s*\(\s*[^)]*!reduce\.matches/);
+    const source = readFileSync(motionTogglePath, 'utf8');
+    expect(source).toMatch(/<button\s+class="landing-motion"\s+type="button"\s+hidden\s+data-motion-toggle>/);
   });
 
-  it('LandingFormats.astro script uses IntersectionObserver to track visibility', () => {
-    expect(landingFormatsSource).toMatch(/new\s+IntersectionObserver/);
-    expect(landingFormatsSource).toMatch(/\.observe\s*\(\s*list\s*\)/);
-  });
-
-  it('LandingFormats.astro script toggles is-playing class on cards', () => {
-    expect(landingFormatsSource).toMatch(/classList\.toggle\s*\(\s*['"]is-playing['"]/);
-  });
-
-  it('LandingFormats.astro script stops on visibilitychange', () => {
-    expect(landingFormatsSource).toMatch(/addEventListener\s*\(\s*['"]visibilitychange['"]/);
-    expect(landingFormatsSource).toMatch(/document\.hidden\s*\?\s*stop\s*\(\)\s*:\s*start\s*\(\)/);
-  });
-
-  it('LandingFormats.astro script holds sequence on pointerenter/focusin and resumes on pointerleave/focusout', () => {
-    expect(landingFormatsSource).toMatch(/addEventListener\s*\(\s*['"]pointerenter['"]/);
-    expect(landingFormatsSource).toMatch(/addEventListener\s*\(\s*['"]pointerleave['"]/);
-    expect(landingFormatsSource).toMatch(/addEventListener\s*\(\s*['"]focusin['"]/);
-    expect(landingFormatsSource).toMatch(/addEventListener\s*\(\s*['"]focusout['"]/);
-  });
-
-  it('story duration 4.8s in CSS equals 4800ms in script', () => {
-    const scriptMs = landingFormatsSource.match(/STORY_MS\s*=\s*(\d+)/);
-    const cssSeconds = css.match(/4\.8s/);
-    expect(scriptMs, 'STORY_MS must be defined').not.toBeNull();
-    expect(cssSeconds, '4.8s animation duration must be present').not.toBeNull();
-    const ms = parseInt(scriptMs![1], 10);
-    const s = 4.8;
-    expect(ms / 1000).toBe(s);
-  });
-
-  it('animation rules inside @media (prefers-reduced-motion: no-preference) guard', () => {
-    const guardMatch = css.match(
-      /@media\s*\(\s*prefers-reduced-motion:\s*no-preference\s*\)\s*\{\s*\/\*\s*stage[\s\S]*?\n\}/
+  it('LandingMotionToggle.astro: label text is "Pause motion", and script contains both "Pause motion" and "Play motion"', () => {
+    const motionTogglePath = fileURLToPath(
+      new URL('../src/components/landing/LandingMotionToggle.astro', import.meta.url)
     );
-    expect(guardMatch, 'prefers-reduced-motion guard with animation rules must exist').not.toBeNull();
-    const guardBody = guardMatch![0];
-
-    // Check for required stage animation selectors
-    expect(guardBody).toMatch(/\.landing-device__rows/);
-    expect(guardBody).toMatch(/\.landing-device__sheen/);
-    expect(guardBody).toMatch(/\.landing-code__line--placed::before/);
-    expect(guardBody).toMatch(/\.landing-stage__bridge\s+svg/);
-
-    // Check for required format-story animation selectors
-    expect(guardBody).toMatch(/\.landing-format__card:is\([^)]*is-playing/);
+    const source = readFileSync(motionTogglePath, 'utf8');
+    // Label should be "Pause motion"
+    expect(source).toMatch(/class="landing-motion__label">Pause motion<\/span>/);
+    // Script should contain both label strings
+    expect(source).toMatch(/['"]Pause motion['"]/);
+    expect(source).toMatch(/['"]Play motion['"]/);
   });
 
-  it('no animation naming landing-story-, landing-feed-, landing-banner-sheen, landing-placed or landing-nudge outside no-preference guard', () => {
-    // Find the main @media (prefers-reduced-motion: no-preference) block (not @supports)
-    const mediaMatch = css.match(
-      /@media\s*\(\s*prefers-reduced-motion:\s*no-preference\s*\)\s*\{\s*\/\*\s*stage[\s\S]*?\n\}/
+  it('LandingMotionToggle.astro: script references localStorage only inside try block and sets dataset.motion', () => {
+    const motionTogglePath = fileURLToPath(
+      new URL('../src/components/landing/LandingMotionToggle.astro', import.meta.url)
     );
-    expect(mediaMatch, 'prefers-reduced-motion: no-preference block must exist').not.toBeNull();
+    const source = readFileSync(motionTogglePath, 'utf8');
+    // Should have try/catch around localStorage
+    expect(source).toMatch(/try\s*\{[\s\S]*?window\.localStorage[\s\S]*?\}\s*catch/);
+    // Should set dataset.motion
+    expect(source).toMatch(/\.dataset\.motion\s*=\s*(?:paused|'paused'|"paused"|'on'|"on"|paused\s*\?|'on'\s*:\s*'paused')/);
+  });
 
-    // Get everything except @keyframes definitions and this guard
-    let outside = css;
+  it('LandingMotionToggle.astro: script matches (prefers-reduced-motion: reduce) and assigns to .hidden, listens for change', () => {
+    const motionTogglePath = fileURLToPath(
+      new URL('../src/components/landing/LandingMotionToggle.astro', import.meta.url)
+    );
+    const source = readFileSync(motionTogglePath, 'utf8');
+    // Should match prefers-reduced-motion: reduce
+    expect(source).toMatch(/matchMedia\s*\(\s*['"]?\(prefers-reduced-motion:\s*reduce\)['"]?\s*\)/);
+    // Should assign to .hidden
+    expect(source).toMatch(/\.hidden\s*=\s*reduce\.matches/);
+    // Should listen for change event
+    expect(source).toMatch(/\.addEventListener\s*\(\s*['"]change['"]/);
+  });
 
-    // Remove @keyframes blocks
-    outside = outside.replace(/@keyframes[\s\S]*?\{[\s\S]*?\}/g, '');
+  it('landing.css: @media screen and (prefers-reduced-motion: no-preference) block exists and every rule inside starts with .landing[data-motion=\'on\'] ', () => {
+    // Find the media query block by counting braces to handle nesting
+    const mediaRegex = /@media\s+screen\s+and\s+\(prefers-reduced-motion:\s*no-preference\)\s*\{/;
+    const match = css.match(mediaRegex);
+    expect(match, '@media screen and (prefers-reduced-motion: no-preference) must exist').not.toBeNull();
 
-    // Remove the main prefers-reduced-motion guard
-    outside = outside.replace(mediaMatch![0], '');
+    const startIdx = css.indexOf(match![0]) + match![0].length;
+    let braceCount = 1;
+    let endIdx = startIdx;
+    while (braceCount > 0 && endIdx < css.length) {
+      if (css[endIdx] === '{') braceCount++;
+      if (css[endIdx] === '}') braceCount--;
+      endIdx++;
+    }
+    let blockBody = css.substring(startIdx, endIdx - 1);
 
-    // Remove other @media/@supports blocks
-    outside = outside.replace(/@media[\s\S]*?\{[\s\S]*?\n\}/g, '');
-    outside = outside.replace(/@supports[\s\S]*?\{[\s\S]*?\}/g, '');
+    // Strip all /* … */ comments before extracting selectors
+    blockBody = blockBody.replace(/\/\*[\s\S]*?\*\//g, '');
 
-    // Patterns for animations that should only appear inside guard
-    const patterns = [
-      /animation:\s*landing-story-/g,
-      /animation:\s*landing-feed-/g,
-      /animation:\s*landing-banner-sheen/g,
-      /animation:\s*landing-placed/g,
-      /animation:\s*landing-nudge/g
-    ];
+    // Every selector in the block should start with .landing[data-motion='on']
+    // Extract all selectors by finding things before {
+    const selectors = blockBody.match(/[^{}]+(?=\{)/g) || [];
+    expect(selectors.length, 'at least 40 selectors must be checked').toBeGreaterThanOrEqual(40);
 
-    const violations: string[] = [];
-    for (const pattern of patterns) {
-      const matches = outside.match(pattern) || [];
-      if (matches.length > 0) {
-        violations.push(`found ${matches.length} ${pattern.source}`);
+    const badSelectors: string[] = [];
+    for (const selector of selectors) {
+      const trimmed = selector.trim();
+      if (trimmed.length === 0) continue;
+      // Split on commas to check each part of the selector list
+      const parts = trimmed.split(',').map(p => p.trim());
+      for (const part of parts) {
+        if (!part.match(/^\s*\.landing\[data-motion=['"]on['"]\]/)) {
+          badSelectors.push(part);
+        }
       }
     }
+    expect(badSelectors, `Selectors that don't start with .landing[data-motion='on']: ${badSelectors.join('; ')}`).toHaveLength(0);
+  });
 
-    expect(violations, violations.length > 0 ? violations.join('; ') : undefined).toHaveLength(0);
+  it('Every infinite animation in landing.css is inside @media (prefers-reduced-motion: no-preference), and every landing-story-/landing-feed-/landing-banner-sheen/landing-placed/landing-nudge animation name is inside it', () => {
+    // Extract the media query block
+    const mediaRegex = /@media\s+screen\s+and\s+\(prefers-reduced-motion:\s*no-preference\)\s*\{/;
+    const match = css.match(mediaRegex);
+    expect(match, '@media block must exist').not.toBeNull();
+
+    const startIdx = css.indexOf(match![0]) + match![0].length;
+    let braceCount = 1;
+    let endIdx = startIdx;
+    while (braceCount > 0 && endIdx < css.length) {
+      if (css[endIdx] === '{') braceCount++;
+      if (css[endIdx] === '}') braceCount--;
+      endIdx++;
+    }
+    const guardedBlock = css.substring(startIdx, endIdx - 1);
+    const outside = css.replace(css.substring(startIdx - match![0].length, endIdx), '');
+
+    // Check that infinite animations are only inside the guard
+    const infiniteOutside = outside.match(/animation[^:]*:\s*[^;]*infinite/g) || [];
+    expect(infiniteOutside, 'infinite animations found outside guard').toHaveLength(0);
+
+    // Check that landing-story-/feed-/banner-sheen/placed/nudge are only inside guard
+    const patterns = ['landing-story-', 'landing-feed-', 'landing-banner-sheen', 'landing-placed', 'landing-nudge'];
+    for (const pattern of patterns) {
+      const outsideMatches = outside.match(new RegExp(`animation[^:]*:\\s*[^;]*${pattern}`, 'g')) || [];
+      expect(outsideMatches, `${pattern} animation found outside guard`).toHaveLength(0);
+    }
+  });
+
+  it('The wave: nth-child(2..6) delay rules exist with 0.8s, 1.6s, 2.4s, 3.2s, 4s in order; every landing-story- animation uses 4.8s; step × 6 = duration', () => {
+    const mediaRegex = /@media\s+screen\s+and\s+\(prefers-reduced-motion:\s*no-preference\)\s*\{/;
+    const match = css.match(mediaRegex);
+    const startIdx = css.indexOf(match![0]) + match![0].length;
+    let braceCount = 1;
+    let endIdx = startIdx;
+    while (braceCount > 0 && endIdx < css.length) {
+      if (css[endIdx] === '{') braceCount++;
+      if (css[endIdx] === '}') braceCount--;
+      endIdx++;
+    }
+    const guardedBlock = css.substring(startIdx, endIdx - 1);
+
+    // Extract the step from nth-child(2) delay rule
+    const nthRegex2 = /\.landing\[data-motion=['"]on['"]\]\s*\.landing-format:nth-child\(2\)\s*\.landing-format__screen\s*\*\s*\{[^}]*animation-delay:\s*(\d+(?:\.\d+)?)s/;
+    const nthMatch2 = guardedBlock.match(nthRegex2);
+    expect(nthMatch2, 'nth-child(2) delay rule must exist').not.toBeNull();
+    const step = parseFloat(nthMatch2![1]);
+
+    // Parse story duration from landing-story- animations
+    const storyDurationMatch = guardedBlock.match(/animation:\s*landing-story-[^;]*\s+(\d+(?:\.\d+)?)s/);
+    expect(storyDurationMatch, 'landing-story- animation duration must exist').not.toBeNull();
+    const storyDuration = parseFloat(storyDurationMatch![1]);
+
+    // Ensure only one distinct duration for landing-story- animations
+    const allStoryDurations = guardedBlock.match(/animation:\s*landing-story-[^;]*\s+(\d+(?:\.\d+)?)s/g) || [];
+    const distinctDurations = new Set(allStoryDurations.map(a => a.match(/(\d+(?:\.\d+)?)s/)![1]));
+    expect(distinctDurations.size, 'all landing-story- animations must have the same duration').toBe(1);
+
+    // Verify step × 6 = duration (tolerance 0.001)
+    const computed = step * 6;
+    expect(Math.abs(computed - storyDuration)).toBeLessThan(0.001);
+  });
+
+  it('Inside the guarded block there is no is-playing, no :hover and no :focus-visible', () => {
+    const mediaRegex = /@media\s+screen\s+and\s+\(prefers-reduced-motion:\s*no-preference\)\s*\{/;
+    const match = css.match(mediaRegex);
+    const startIdx = css.indexOf(match![0]) + match![0].length;
+    let braceCount = 1;
+    let endIdx = startIdx;
+    while (braceCount > 0 && endIdx < css.length) {
+      if (css[endIdx] === '{') braceCount++;
+      if (css[endIdx] === '}') braceCount--;
+      endIdx++;
+    }
+    const guardedBlock = css.substring(startIdx, endIdx - 1);
+
+    // Should not contain is-playing
+    expect(guardedBlock).not.toMatch(/is-playing/);
+    // Should not contain :hover
+    expect(guardedBlock).not.toMatch(/:hover/);
+    // Should not contain :focus-visible
+    expect(guardedBlock).not.toMatch(/:focus-visible/);
+  });
+
+  it('@media print block contains .landing-motion { display: none; }; .landing-motion[hidden] is in a display: none rule; paused icon-swap rules exist', () => {
+    const printMatch = css.match(/@media\s+print\s*\{[\s\S]*?\n\}/);
+    expect(printMatch, '@media print block must exist').not.toBeNull();
+    const printBlock = printMatch![0];
+
+    // Check .landing-motion { display: none; }
+    expect(printBlock).toMatch(/\.landing-motion\s*\{[^}]*display:\s*none[^}]*\}/);
+
+    // Check .landing-motion[hidden] sets display: none
+    const displayNoneSelectors = css.match(/[^{]+\{[^}]*display:\s*none[^}]*\}/g) || [];
+    const hasMotionHiddenDisplayNone = displayNoneSelectors.some(rule => rule.includes('.landing-motion[hidden]'));
+    expect(hasMotionHiddenDisplayNone, '.landing-motion[hidden] must set display: none').toBe(true);
+
+    // Check paused icon swap rules
+    expect(css).toMatch(/\.landing\[data-motion=['"]paused['"]\]\s*\.landing-motion__icon--play\s*\{[^}]*display:\s*block[^}]*\}/);
+    expect(css).toMatch(/\.landing\[data-motion=['"]paused['"]\]\s*\.landing-motion__icon--pause/);
+  });
+
+  it('No rule whose selector contains data-motion=\'paused\' sets animation', () => {
+    // Find all rules with data-motion='paused' in the selector
+    const pausedRules = css.match(/[^{]*data-motion=['"]paused['"][^{]*\{[^}]*\}/g) || [];
+    for (const rule of pausedRules) {
+      // Extract the body (everything after the last { and before the last })
+      const bodyMatch = rule.match(/\{([^}]*)\}$/);
+      if (bodyMatch) {
+        const body = bodyMatch[1];
+        expect(body, `data-motion='paused' rule should not set animation: ${rule}`).not.toMatch(/animation/);
+      }
+    }
   });
 
   it('banner format card has landing-story__feed--scroll and landing-story__banner', () => {

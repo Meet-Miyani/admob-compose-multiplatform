@@ -646,6 +646,270 @@ try {
         .map((el) => el.className)
         .join(', ')})`
     );
+
+    // Motion switch checks: default (no preference)
+    const motionBrowser1 = await chromium.launch();
+    const motionContext1 = await motionBrowser1.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: theme, reducedMotion: 'no-preference' });
+    const motionPage1 = await motionContext1.newPage();
+    await motionPage1.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await motionPage1.evaluate((nextTheme) => document.documentElement.setAttribute('data-theme', nextTheme), theme);
+
+    const motionDefaultData = await motionPage1.evaluate(() => {
+      const landing = document.querySelector('.landing');
+      const toggles = [...document.querySelectorAll('[data-motion-toggle]')];
+
+      // Use document.getAnimations() to find all animations
+      const allAnimations = document.getAnimations();
+
+      // Get animations per card (issue #2: check each card individually)
+      const cardData = [];
+      const emptyCards = [];
+      for (let n = 1; n <= 6; n++) {
+        const card = document.querySelector(`.landing-format:nth-child(${n})`);
+        if (card) {
+          const cardAnimations = allAnimations.filter(a => {
+            const target = a.effect?.target;
+            const timing = a.effect?.getTiming?.();
+            if (!target || !timing) return false;
+            const isInCard = card.contains(target);
+            const isInfinite = timing.iterations === Infinity;
+            const isRunning = a.playState === 'running';
+            return isInCard && isInfinite && isRunning;
+          });
+
+          const delays = cardAnimations.map(a => a.effect?.getTiming?.()?.delay || 0);
+          cardData.push({ card: n, count: cardAnimations.length, delays });
+          if (cardAnimations.length === 0) {
+            emptyCards.push(n);
+          }
+        }
+      }
+
+      return {
+        landingMotion: landing?.dataset.motion,
+        togglesVisible: toggles.filter(t => {
+          const computed = window.getComputedStyle(t);
+          return computed.display !== 'none';
+        }).length,
+        togglesText: toggles.map(t => t.querySelector('.landing-motion__label')?.textContent).filter(Boolean),
+        cardData,
+        emptyCards
+      };
+    });
+
+    check(
+      motionDefaultData.landingMotion === 'on',
+      `${theme} landing motion switch has data-motion="on" by default`
+    );
+
+    check(
+      motionDefaultData.togglesVisible === 2,
+      `${theme} landing motion switch has exactly two visible toggles (found ${motionDefaultData.togglesVisible})`
+    );
+
+    check(
+      motionDefaultData.togglesText.every(t => t === 'Pause motion'),
+      `${theme} landing motion switch toggles read "Pause motion" (found: ${motionDefaultData.togglesText.join(', ')})`
+    );
+
+    // Check that each card (issue #2) has infinite animations and correct delays
+    const allCardsHaveAnimations = motionDefaultData.cardData.every(c => c.count > 0);
+    check(
+      allCardsHaveAnimations,
+      `${theme} landing motion switch every card has running infinite animations (empty: ${motionDefaultData.emptyCards.join(', ')})`
+    );
+
+    let delayViolations = '';
+    for (const { card, delays } of motionDefaultData.cardData) {
+      if (delays.length > 0) {
+        const expectedDelay = (card - 1) * 800;
+        const allCorrect = delays.every(d => Math.abs(d - expectedDelay) < 1);
+        if (!allCorrect) {
+          delayViolations += `Card ${card}: expected ${expectedDelay}ms, got [${delays.join(', ')}]; `;
+        }
+      }
+    }
+    check(
+      delayViolations === '',
+      `${theme} landing motion switch card delays are (n-1)×800ms${delayViolations ? ' (' + delayViolations + ')' : ''}`
+    );
+
+    await motionContext1.close();
+    await motionBrowser1.close();
+
+    // Motion switch checks: click toggle to pause
+    const motionBrowser2 = await chromium.launch();
+    const motionContext2 = await motionBrowser2.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: theme, reducedMotion: 'no-preference' });
+    const motionPage2 = await motionContext2.newPage();
+    await motionPage2.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await motionPage2.evaluate((nextTheme) => document.documentElement.setAttribute('data-theme', nextTheme), theme);
+
+    await motionPage2.click('[data-motion-toggle]');
+    await motionPage2.waitForTimeout(100);
+
+    const motionPausedData = await motionPage2.evaluate(() => {
+      const landing = document.querySelector('.landing');
+      const toggles = [...document.querySelectorAll('[data-motion-toggle]')];
+      const allAnimations = document.getAnimations();
+
+      const runningInfiniteInLanding = allAnimations.filter(a => {
+        const timing = a.effect?.getTiming?.();
+        const target = a.effect?.target;
+        if (!target || !timing) return false;
+        const isInLanding = landing?.contains(target) || false;
+        const isInfinite = timing.iterations === Infinity;
+        const isRunning = a.playState === 'running';
+        return isInLanding && isInfinite && isRunning;
+      });
+
+      return {
+        landingMotion: landing?.dataset.motion,
+        togglesText: toggles.map(t => t.querySelector('.landing-motion__label')?.textContent).filter(Boolean),
+        totalRunningInfinite: runningInfiniteInLanding.length
+      };
+    });
+
+    check(
+      motionPausedData.landingMotion === 'paused',
+      `${theme} landing motion switch has data-motion="paused" after clicking toggle`
+    );
+
+    check(
+      motionPausedData.totalRunningInfinite === 0,
+      `${theme} landing motion switch stops all infinite animations when paused (${motionPausedData.totalRunningInfinite} still running)`
+    );
+
+    check(
+      motionPausedData.togglesText.every(t => t === 'Play motion'),
+      `${theme} landing motion switch toggles read "Play motion" after pausing (found: ${motionPausedData.togglesText.join(', ')})`
+    );
+
+    await motionContext2.close();
+    await motionBrowser2.close();
+
+    // Motion switch checks: reload and verify localStorage persistence, then resume
+    const motionBrowser3 = await chromium.launch();
+    const motionContext3 = await motionBrowser3.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: theme, reducedMotion: 'no-preference' });
+    const motionPage3 = await motionContext3.newPage();
+    await motionPage3.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await motionPage3.evaluate((nextTheme) => document.documentElement.setAttribute('data-theme', nextTheme), theme);
+
+    // First pause and verify localStorage
+    await motionPage3.click('[data-motion-toggle]');
+    await motionPage3.waitForTimeout(100);
+
+    const beforeReloadData = await motionPage3.evaluate(() => {
+      const landing = document.querySelector('.landing');
+      return { landingMotion: landing?.dataset.motion };
+    });
+
+    check(
+      beforeReloadData.landingMotion === 'paused',
+      `${theme} landing motion switch is paused before reload`
+    );
+
+    // Reload
+    await motionPage3.reload({ waitUntil: 'networkidle' });
+    await motionPage3.evaluate((nextTheme) => document.documentElement.setAttribute('data-theme', nextTheme), theme);
+    await motionPage3.waitForTimeout(100);
+
+    const afterReloadData = await motionPage3.evaluate(() => {
+      const landing = document.querySelector('.landing');
+      const allAnimations = document.getAnimations();
+
+      const runningInfiniteInLanding = allAnimations.filter(a => {
+        const timing = a.effect?.getTiming?.();
+        const target = a.effect?.target;
+        if (!target || !timing) return false;
+        const isInLanding = landing?.contains(target) || false;
+        const isInfinite = timing.iterations === Infinity;
+        const isRunning = a.playState === 'running';
+        return isInLanding && isInfinite && isRunning;
+      });
+
+      return {
+        landingMotion: landing?.dataset.motion,
+        totalRunningInfinite: runningInfiniteInLanding.length
+      };
+    });
+
+    check(
+      afterReloadData.landingMotion === 'paused',
+      `${theme} landing motion switch remains paused after reload (localStorage persistence)`
+    );
+
+    check(
+      afterReloadData.totalRunningInfinite === 0,
+      `${theme} landing motion switch has no running animations after reload (${afterReloadData.totalRunningInfinite} still running)`
+    );
+
+    // Wait ~1600ms for the initial one-shot entrance (900ms delay + 420ms duration) to finish,
+    // then click to resume and read immediately (issue #1: real assertion on banner entrance replay)
+    await motionPage3.waitForTimeout(1600);
+    await motionPage3.click('[data-motion-toggle]');
+    await motionPage3.waitForTimeout(150);
+
+    const resumedData = await motionPage3.evaluate(() => {
+      const landing = document.querySelector('.landing');
+      const banner = document.querySelector('.landing-device__banner');
+      const allAnimations = document.getAnimations();
+
+      const runningInfiniteInLanding = allAnimations.filter(a => {
+        const timing = a.effect?.getTiming?.();
+        const target = a.effect?.target;
+        if (!target || !timing) return false;
+        const isInLanding = landing?.contains(target) || false;
+        const isInfinite = timing.iterations === Infinity;
+        const isRunning = a.playState === 'running';
+        return isInLanding && isInfinite && isRunning;
+      });
+
+      return {
+        landingMotion: landing?.dataset.motion,
+        totalRunningInfinite: runningInfiniteInLanding.length,
+        bannerOpacity: banner ? window.getComputedStyle(banner).opacity : null
+      };
+    });
+
+    check(
+      resumedData.landingMotion === 'on',
+      `${theme} landing motion switch resumes to data-motion="on" after click`
+    );
+
+    check(
+      resumedData.totalRunningInfinite > 0,
+      `${theme} landing motion switch has running animations after resuming (${resumedData.totalRunningInfinite} found)`
+    );
+
+    check(
+      resumedData.bannerOpacity === '1',
+      `${theme} landing motion switch resume does not replay the banner entrance (opacity ${resumedData.bannerOpacity})`
+    );
+
+    await motionContext3.close();
+    await motionBrowser3.close();
+
+    // Motion switch checks: reduced motion
+    const motionBrowser4 = await chromium.launch();
+    const motionContext4 = await motionBrowser4.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: theme, reducedMotion: 'reduce' });
+    const motionPage4 = await motionContext4.newPage();
+    await motionPage4.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    await motionPage4.evaluate((nextTheme) => document.documentElement.setAttribute('data-theme', nextTheme), theme);
+
+    const motionReducedData = await motionPage4.evaluate(() => {
+      const toggles = [...document.querySelectorAll('[data-motion-toggle]')];
+      return {
+        togglesDisplay: toggles.map(t => window.getComputedStyle(t).display)
+      };
+    });
+
+    check(
+      motionReducedData.togglesDisplay.every(d => d === 'none'),
+      `${theme} landing motion switch toggles have display: none under reduced motion (found: ${motionReducedData.togglesDisplay.join(', ')})`
+    );
+
+    await motionContext4.close();
+    await motionBrowser4.close();
   }
 } finally {
   if (server) server.close();

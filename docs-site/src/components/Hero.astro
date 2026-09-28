@@ -13,7 +13,8 @@
  *   - `.hero` contains exactly two links, the frontmatter actions
  *     (scripts/check-theme.mjs counts them). The copy button is a button;
  *   - the stage is aria-hidden: it illustrates the code and the formats that
- *     the text of the page already states.
+ *     the text of the page already states. Its motion switch sits just below
+ *     it, outside the hidden region, so it stays reachable.
  */
 import { Icon } from '@astrojs/starlight/components';
 import { formats, landingMeta } from '../data/landing';
@@ -25,6 +26,7 @@ import LandingParity from './landing/LandingParity.astro';
 import LandingRoadmap from './landing/LandingRoadmap.astro';
 import LandingCta from './landing/LandingCta.astro';
 import LandingFooter from './landing/LandingFooter.astro';
+import LandingMotionToggle from './landing/LandingMotionToggle.astro';
 import '../styles/landing.css';
 
 const { data } = Astro.locals.starlightRoute.entry;
@@ -235,6 +237,7 @@ const facts = [
         </div>
       </div>
     </div>
+    <LandingMotionToggle />
 
     <dl class="landing-facts">
       {
