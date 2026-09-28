@@ -1,0 +1,20 @@
+---
+/**
+ * The closing call to action, just above the footer. Deliberately does not
+ * repeat the Maven coordinate: the page states it exactly twice (the hero spec
+ * strip and the Quick start block), and test/landing.test.ts holds it there.
+ */
+import '../../styles/landing.css';
+---
+
+<section class="landing-section landing-cta" aria-labelledby="closing-cta">
+  <h2 id="closing-cta">Ship AdMob from commonMain.</h2>
+  <p class="landing-cta__lede">
+    Add one dependency to your shared module, initialize once at the root, and place your first
+    test banner.
+  </p>
+  <div class="landing-cta__actions">
+    <a class="landing-cta__action" href="/start/quickstart/">Read the quickstart</a>
+    <a class="landing-cta__action landing-cta__action--quiet" href="/start/installation/">Installation</a>
+  </div>
+</section>

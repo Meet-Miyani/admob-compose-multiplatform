@@ -4,7 +4,7 @@ description: 'Open-source Compose Multiplatform AdMob SDK: single-coordinate fac
 template: splash
 hero:
   title: Compose Multiplatform AdMob SDK for Android and iOS
-  tagline: AdMob ad formats on Android and iOS behind a single Kotlin facade — dev.avinya.ads:admob-cmp. Suspend functions, StateFlow, and UMP consent integrated with lifecycle-aware components.
+  tagline: Six AdMob formats, UMP consent and ATT behind one Kotlin API in commonMain. Suspend functions and StateFlow in, platform glue out.
   actions:
     - text: Quickstart
       link: /start/quickstart/
@@ -28,6 +28,9 @@ import OriginStory from '../../components/landing/OriginStory.astro';
 import CompatibilityList from '../../components/landing/CompatibilityList.astro';
 import RoadmapSummary from '../../components/landing/RoadmapSummary.astro';
 import LandingFooter from '../../components/landing/LandingFooter.astro';
+import ConsentSteps from '../../components/landing/ConsentSteps.astro';
+import NativeShowcase from '../../components/landing/NativeShowcase.astro';
+import ClosingCta from '../../components/landing/ClosingCta.astro';
 
 <section class="landing-section landing-quickstart">
 
@@ -76,10 +79,16 @@ Already have a hand-rolled `expect class AdManager`? [Migrate from expect/actual
 
 </section>
 
+<ConsentSteps />
+
+<NativeShowcase />
+
 <OriginStory />
 
 <CompatibilityList />
 
 <RoadmapSummary />
+
+<ClosingCta />
 
 <LandingFooter />

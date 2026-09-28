@@ -2,13 +2,12 @@
 /**
  * The hero spec strip: the four facts a developer checks before reading any
  * further — what to depend on, under what licence, on which platforms, against
- * which Kotlin. Rendered by Hero.astro, above the headline.
+ * which Kotlin. Rendered by Hero.astro, beside the headline.
  *
- * This used to be a five-row definition list sitting in the page body, which
- * repeated the Kotlin version and Maven coordinate that CompatibilityList
- * already prints further down. The release row is gone as well: the version is
- * the last segment of the coordinate, so printing it separately said nothing
- * new.
+ * The Maven row is drawn as the dark install bar, because the coordinate is
+ * the one thing on the page people copy; the other three sit under it as a
+ * quiet fact line. It is still one definition list, so assistive technology
+ * reads four labelled pairs.
  *
  * All values come from `landingMeta`; this component duplicates no literals.
  * The coordinate keeps `tabindex="0"` so it can be reached and copied without a
@@ -21,7 +20,7 @@ const platforms = `Android ${landingMeta.androidMinSdk}+ / iOS ${landingMeta.ios
 ---
 
 <dl class="landing-meta">
-  <div>
+  <div class="landing-meta__install">
     <dt>Maven</dt>
     <dd>
       <code class="admob-font-mono" tabindex="0">{landingMeta.mavenCoordinate}</code>

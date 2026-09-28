@@ -1,0 +1,52 @@
+---
+/**
+ * Native ads: the typed layout DSL beside the ad it describes.
+ *
+ * The code is real — it is the column layout from the native format guide —
+ * and goes through Starlight's <Code>, so it gets the same frame, highlighting
+ * and copy button as every other block on the site. The ad beside it is an
+ * illustration of that layout with neutral placeholder copy, hidden from
+ * assistive technology; the sentence under the heading says what it shows.
+ */
+import { Code } from '@astrojs/starlight/components';
+import '../../styles/landing.css';
+
+const layout = `adLayout {
+    column(modifier = AdModifier.fillMaxWidth()) {
+        media(modifier = AdModifier.fillMaxWidth().aspectRatio(16f / 9f))
+        headline(maxLines = 2)
+        body(maxLines = 3)
+        row(spacing = 8.dp) { icon(); advertiser(); adBadge() }
+        callToAction(modifier = AdModifier.fillMaxWidth())
+    }
+}`;
+---
+
+<section class="landing-section landing-native" aria-labelledby="native-dsl">
+  <div class="landing-native__copy">
+    <div class="landing-heading">
+      <p class="landing-eyebrow">03 · Native</p>
+      <h2 id="native-dsl">Native ads, laid out in Kotlin.</h2>
+      <p class="landing-native__lede">
+        Describe the ad once with a typed DSL. It renders through Compose on Android and through
+        UIKit on iOS, and can share your Compose-resource fonts.
+      </p>
+    </div>
+    <Code code={layout} lang="kotlin" title="commonMain" />
+    <p><a href="/formats/native/">Read the native ads guide →</a></p>
+  </div>
+
+  <div class="landing-native__preview" aria-hidden="true">
+    <div class="landing-native__card">
+      <span class="landing-native__media">media · 16:9</span>
+      <span class="landing-native__headline">Headline from the creative</span>
+      <span class="landing-native__body">Body copy from the creative, clamped to three lines by the layout.</span>
+      <span class="landing-native__row">
+        <span class="landing-native__icon"></span>
+        <span class="landing-native__advertiser">Advertiser</span>
+        <span class="landing-native__attribution">Ad</span>
+      </span>
+      <span class="landing-native__cta">Call to action</span>
+    </div>
+  </div>
+</section>

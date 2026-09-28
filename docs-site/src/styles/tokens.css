@@ -12,7 +12,13 @@
  *   --admob-font-display --admob-font-body --admob-font-mono
  *   --admob-stretch-display
  *   --admob-tracking-tight --admob-tracking-tighter --admob-tracking-label
- *   --admob-radius-sm --admob-radius --admob-radius-lg --admob-radius-xl
+ *   --admob-stretch-hero
+ *   --admob-radius-sm --admob-radius --admob-radius-lg --admob-radius-xl --admob-radius-2xl
+ *   --admob-stage --admob-stage-raised --admob-stage-hair --admob-stage-ink --admob-stage-slate
+ *   --admob-stage-accent
+ *   --admob-screen --admob-screen-card --admob-screen-ink --admob-screen-slate --admob-screen-hair
+ *   --admob-bezel --admob-mark-ok
+ *   --admob-syn-keyword --admob-syn-function --admob-syn-string --admob-syn-annotation --admob-syn-comment
  *   --admob-border --admob-shadow --admob-shadow-lg
  *   --admob-content-max --admob-reading --admob-content-width --admob-ease --admob-ease-out
  *
@@ -60,14 +66,16 @@
 
 :root,
 :root[data-theme='dark'] {
-  --admob-paper: #0c0a09;
-  --admob-surface: #15110f;
-  --admob-raised: #1e1917;
-  --admob-code: #15110f;
-  --admob-ink: #f5f1ee;
-  --admob-slate: #a39b96;
-  --admob-hair: #2c2522;
-  --admob-hair-soft: #1f1a18;
+  /* The avinya.dev dark palette: a cool near-black, not a warm one, so the
+     docs and the studio site read as one family. */
+  --admob-paper: #0e0f10;
+  --admob-surface: #171819;
+  --admob-raised: #1e2022;
+  --admob-code: #171819;
+  --admob-ink: #edeeec;
+  --admob-slate: #9a9f9c;
+  --admob-hair: #2a2c2e;
+  --admob-hair-soft: #1f2123;
   --admob-accent: #ee3a20;
   --admob-accent-text: #ff8b73;
   --admob-accent-contrast: #ffffff;
@@ -78,27 +86,36 @@
   /* Modal scrim. Heavier in the dark theme: a dark dialog over a near-black
      page needs more separation than the same scrim gives on white. */
   --admob-scrim: rgba(0, 0, 0, 0.72);
+  /* The landing stage is dark in both themes; in this one it lifts off the
+     page by one step rather than inverting. */
+  --admob-stage: #16181a;
+  --admob-stage-raised: #1e2022;
+  --admob-stage-hair: #2e3134;
 }
 
 /* ------------------------------------------------------- tokens: light */
 
 :root[data-theme='light'] {
-  --admob-paper: #ffffff;
-  --admob-surface: #f7f5f3;
-  --admob-raised: #ffffff;
-  --admob-code: #f7f5f3;
-  --admob-ink: #171310;
-  --admob-slate: #6b625c;
-  --admob-hair: #e3deda;
-  --admob-hair-soft: #efebe8;
+  /* The avinya.dev light palette: paper #F3F4F2, ink #16181A. */
+  --admob-paper: #f3f4f2;
+  --admob-surface: #ebecea;
+  --admob-raised: #fafbf9;
+  --admob-code: #ebecea;
+  --admob-ink: #16181a;
+  --admob-slate: #5a5f63;
+  --admob-hair: #d8dad6;
+  --admob-hair-soft: #e4e6e2;
   --admob-accent: #ee3a20;
   --admob-accent-text: #b32a12;
   --admob-accent-contrast: #ffffff;
   --admob-accent-soft: rgba(238, 58, 32, 0.1);
   --admob-tint: rgba(238, 58, 32, 0.04);
-  --admob-shadow: 0 1px 2px rgba(23, 19, 16, 0.08);
-  --admob-shadow-lg: 0 18px 48px -24px rgba(23, 19, 16, 0.28);
-  --admob-scrim: rgba(23, 19, 16, 0.5);
+  --admob-shadow: 0 1px 2px rgba(22, 24, 26, 0.08);
+  --admob-shadow-lg: 0 18px 48px -24px rgba(22, 24, 26, 0.28);
+  --admob-scrim: rgba(22, 24, 26, 0.5);
+  --admob-stage: #16181a;
+  --admob-stage-raised: #1e2022;
+  --admob-stage-hair: #2e3134;
 }
 
 /* -------------------------------------------- tokens: theme-independent */
@@ -113,6 +130,9 @@
      on purpose: past roughly 106% the wide letterforms start costing more in
      legibility than they return in character, and this is a reference site. */
   --admob-stretch-display: 104%;
+  /* The landing headline only. A single display line can afford the width
+     that running headings cannot. */
+  --admob-stretch-hero: 112%;
   --admob-tracking-tight: -0.02em;
   --admob-tracking-tighter: -0.035em;
   --admob-tracking-label: 0.08em;
@@ -120,6 +140,25 @@
   --admob-radius: 8px;
   --admob-radius-lg: 12px;
   --admob-radius-xl: 18px;
+  --admob-radius-2xl: 28px;
+  /* Theme-independent surfaces used by the landing stage: the code window and
+     the two phones read as physical objects, so they do not re-skin with the
+     page. Contrast is checked by diagram-contrast.test.ts. */
+  --admob-stage-ink: #edeeec;
+  --admob-stage-slate: #a0a5a2;
+  --admob-stage-accent: #ff8b73;
+  --admob-screen: #fafbf9;
+  --admob-screen-card: #eceeeb;
+  --admob-screen-ink: #16181a;
+  --admob-screen-slate: #5a5f63;
+  --admob-screen-hair: #dde0dc;
+  --admob-bezel: #0b0c0d;
+  --admob-mark-ok: #3fb573;
+  --admob-syn-keyword: #ff8f70;
+  --admob-syn-function: #9cc3f5;
+  --admob-syn-string: #a9d18e;
+  --admob-syn-annotation: #f2c46d;
+  --admob-syn-comment: #8a908d;
   --admob-border: 1px solid var(--admob-hair);
   --admob-content-max: 78rem;
   --admob-reading: 45rem;
@@ -133,13 +172,13 @@
 :root,
 :root[data-theme='dark'] {
   --sl-color-white: #ffffff;
-  --sl-color-gray-1: #f5f1ee;
-  --sl-color-gray-2: #c9c1bc;
-  --sl-color-gray-3: #a39b96;
-  --sl-color-gray-4: #6f6762;
-  --sl-color-gray-5: #2c2522;
-  --sl-color-gray-6: #15110f;
-  --sl-color-black: #0c0a09;
+  --sl-color-gray-1: #edeeec;
+  --sl-color-gray-2: #c4c8c5;
+  --sl-color-gray-3: #9a9f9c;
+  --sl-color-gray-4: #6a6f6c;
+  --sl-color-gray-5: #2a2c2e;
+  --sl-color-gray-6: #171819;
+  --sl-color-black: #0e0f10;
 
   --sl-color-accent: var(--admob-accent);
   --sl-color-accent-high: var(--admob-accent-text);
@@ -148,15 +187,15 @@
 }
 
 :root[data-theme='light'] {
-  --sl-color-white: #171310;
-  --sl-color-gray-1: #221c19;
-  --sl-color-gray-2: #4a423c;
-  --sl-color-gray-3: #6b625c;
-  --sl-color-gray-4: #8d847d;
-  --sl-color-gray-5: #e3deda;
-  --sl-color-gray-6: #efebe8;
-  --sl-color-gray-7: #f7f5f3;
-  --sl-color-black: #ffffff;
+  --sl-color-white: #16181a;
+  --sl-color-gray-1: #1f2224;
+  --sl-color-gray-2: #43474a;
+  --sl-color-gray-3: #5a5f63;
+  --sl-color-gray-4: #82878a;
+  --sl-color-gray-5: #d8dad6;
+  --sl-color-gray-6: #e4e6e2;
+  --sl-color-gray-7: #ebecea;
+  --sl-color-black: #f3f4f2;
 
   --sl-color-accent: var(--admob-accent);
   --sl-color-accent-high: var(--admob-accent-text);
@@ -305,9 +344,9 @@ h6,
 .sidebar-content a[aria-current='page'],
 .sidebar-content a[aria-current='page']:hover,
 .sidebar-content a[aria-current='page']:focus-visible {
-  color: var(--admob-ink);
+  color: var(--admob-paper);
   font-weight: 600;
-  background: var(--admob-accent-soft);
+  background: var(--admob-ink);
   box-shadow: none;
 }
 
@@ -568,6 +607,93 @@ header.header {
   font-stretch: var(--admob-stretch-display);
   font-weight: 700;
   letter-spacing: var(--admob-tracking-tight);
+}
+
+/* The Slot mark in the site title (SiteTitle.astro). Drawn inline so it takes
+   currentColor in both themes. The pill starts as the Avinya dot and stretches
+   into the ad slot once on load, and again on hover. */
+.site-title {
+  gap: 0.5rem;
+  color: var(--admob-ink);
+  text-decoration: none;
+}
+
+.brand-mark {
+  flex: none;
+  width: 1.375rem;
+  height: 1.375rem;
+  color: var(--admob-ink);
+}
+
+.brand-mark__slot {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.site-title__version {
+  padding: 0.125rem 0.4375rem;
+  border: 1px solid var(--admob-hair);
+  border-radius: 999px;
+  color: var(--admob-slate);
+  font-family: var(--admob-font-mono);
+  font-size: 0.6875rem;
+  font-stretch: normal;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+@keyframes brand-slot {
+  0% {
+    transform: scaleX(0.55);
+  }
+  70% {
+    transform: scaleX(1.06);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes brand-slot-again {
+  0% {
+    transform: scaleX(0.55);
+  }
+  70% {
+    transform: scaleX(1.06);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .brand-mark__slot {
+    animation: brand-slot 450ms var(--admob-ease) 300ms both;
+  }
+
+  .site-title:hover .brand-mark__slot {
+    animation: brand-slot-again 450ms var(--admob-ease) both;
+  }
+}
+
+@media (max-width: 30rem) {
+  .site-title__version {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------- steps */
+
+.sl-steps > li::before {
+  border: 0;
+  background: var(--admob-ink);
+  color: var(--admob-paper);
+  font-family: var(--admob-font-mono);
+  font-weight: 500;
+}
+
+.sl-steps > li::after {
+  background: var(--admob-hair);
 }
 
 site-search button[data-open-modal] {

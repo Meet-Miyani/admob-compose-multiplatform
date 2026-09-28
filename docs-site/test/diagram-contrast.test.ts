@@ -5,6 +5,7 @@ import {
   diagramColourRoles,
   diagramRule,
   resolveRole,
+  themeIndependentTokens,
 } from './helpers/css-tokens';
 
 const THEMES = ['light', 'dark'] as const;
@@ -45,6 +46,60 @@ describe.each(THEMES)('diagram palette — %s theme', (theme) => {
     for (const role of Object.keys(roles)) {
       expect(() => resolveRole(role, roles, palette)).not.toThrow();
     }
+  });
+});
+
+describe.each(THEMES)('landing stage tokens — %s theme', (theme) => {
+  const palette = admobPalette(theme);
+  const independent = themeIndependentTokens();
+
+  it('stage-ink on stage meets 4.5:1', () => {
+    const stageInk = independent['--admob-stage-ink'];
+    const stage = palette['--admob-stage'];
+    const ratio = contrastRatio(stageInk, stage);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('stage-ink on stage-raised meets 4.5:1', () => {
+    const stageInk = independent['--admob-stage-ink'];
+    const stageRaised = palette['--admob-stage-raised'];
+    const ratio = contrastRatio(stageInk, stageRaised);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('stage-slate on stage meets 4.5:1', () => {
+    const stageSlate = independent['--admob-stage-slate'];
+    const stage = palette['--admob-stage'];
+    const ratio = contrastRatio(stageSlate, stage);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('stage-slate on stage-raised meets 4.5:1', () => {
+    const stageSlate = independent['--admob-stage-slate'];
+    const stageRaised = palette['--admob-stage-raised'];
+    const ratio = contrastRatio(stageSlate, stageRaised);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('stage-accent on stage meets 4.5:1', () => {
+    const stageAccent = independent['--admob-stage-accent'];
+    const stage = palette['--admob-stage'];
+    const ratio = contrastRatio(stageAccent, stage);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('screen-ink on screen meets 4.5:1', () => {
+    const screenInk = independent['--admob-screen-ink'];
+    const screen = independent['--admob-screen'];
+    const ratio = contrastRatio(screenInk, screen);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('screen-slate on screen meets 4.5:1', () => {
+    const screenSlate = independent['--admob-screen-slate'];
+    const screen = independent['--admob-screen'];
+    const ratio = contrastRatio(screenSlate, screen);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
   });
 });
 

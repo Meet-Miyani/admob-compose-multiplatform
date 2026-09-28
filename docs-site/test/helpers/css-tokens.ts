@@ -62,6 +62,18 @@ export function admobPalette(theme: 'light' | 'dark'): Declarations {
   throw new Error(`tokens.css has no --admob-* palette block for the ${theme} theme`);
 }
 
+/** The theme-independent `--admob-*` tokens from :root in tokens.css. */
+export function themeIndependentTokens(): Declarations {
+  const css = readDocsSiteFile('src/styles/tokens.css');
+  for (const block of blocks(css)) {
+    if (block.selector !== ':root') continue;
+    const declarations = parseDeclarations(block.body);
+    // Verify this is the theme-independent block by checking for a stage token
+    if (declarations['--admob-stage-ink']) return declarations;
+  }
+  throw new Error('tokens.css has no theme-independent --admob-* token block (expected --admob-stage-ink)');
+}
+
 /** The `--dg-*` colour-role block from diagrams.css, identified by `--dg-ink`. */
 export function diagramColourRoles(): Declarations {
   const css = readDocsSiteFile('src/styles/diagrams.css');
