@@ -7,7 +7,6 @@ import {
   authorUrl,
   formats,
   landingMeta,
-  originStory,
   repoUrl,
   roadmapItems,
   studioName,
@@ -264,20 +263,12 @@ describe('formats contract', () => {
     }
   });
 
-  it('every format states a non-empty on-screen dimension', () => {
+  it('every format has non-empty blurb, api and call', () => {
     for (const f of formats) {
-      expect(typeof f.dimension, `${f.slug} dimension must be a string`).toBe('string');
-      expect(f.dimension.length, `${f.slug} dimension must not be empty`).toBeGreaterThan(0);
+      expect(f.blurb.length, `${f.slug} blurb must not be empty`).toBeGreaterThan(0);
+      expect(f.api.length, `${f.slug} api must not be empty`).toBeGreaterThan(0);
+      expect(f.call.length, `${f.slug} call must not be empty`).toBeGreaterThan(0);
     }
-  });
-
-  it('banner states its real size and the four full-screen formats agree with each other', () => {
-    const bySlug = Object.fromEntries(formats.map((f) => [f.slug, f.dimension]));
-    expect(bySlug.banner).toBe('320 × 50 dp');
-    for (const slug of ['interstitial', 'rewarded', 'rewarded-interstitial', 'app-open']) {
-      expect(bySlug[slug], `${slug} is a full-screen format`).toBe('full screen');
-    }
-    expect(bySlug.native).not.toBe('full screen');
   });
 });
 
@@ -409,88 +400,7 @@ describe('landing components do not import PNGs directly', () => {
   });
 });
 
-const placementPlatePath = fileURLToPath(
-  new URL('../src/components/landing/PlacementPlate.astro', import.meta.url)
-);
 const heroPath = fileURLToPath(new URL('../src/components/Hero.astro', import.meta.url));
-
-describe('PlacementPlate.astro contracts', () => {
-  const source = readFileSync(placementPlatePath, 'utf8');
-
-  it('exists as an Astro component', () => {
-    expect(existsSync(placementPlatePath)).toBe(true);
-  });
-
-  it('iterates the imported `formats` array directly, without sort, filter or slice', () => {
-    expect(source).toMatch(
-      /import\s*\{[^}]*\bformats\b[^}]*\}\s*from\s*['"]\.\.\/\.\.\/data\/landing(?:\.ts)?['"]/
-    );
-    expect(source).toMatch(/formats\.map\(/);
-    expect(source).not.toMatch(/\.sort\s*\(/);
-    expect(source).not.toMatch(/formats\.(?:filter|slice)\s*\(/);
-  });
-
-  it('renders exactly one <ol class="landing-formats"> of anchors to each format guide', () => {
-    expect(source.match(/<ol\s+class="landing-formats"/g) ?? []).toHaveLength(1);
-    expect(source).toMatch(/<a\s+href=\{format\.href\}\s+data-format=\{format\.slug\}>/);
-  });
-
-  it('renders the API identifier inside <code class="admob-font-mono">', () => {
-    expect(source).toMatch(
-      /<code[^>]*class="[^"]*\badmob-font-mono\b[^"]*"[^>]*>\s*\{format\.api\}\s*<\/code>/
-    );
-  });
-
-  it('renders each format name, blurb and dimension as text in the row', () => {
-    expect(source).toMatch(/\{format\.name\}/);
-    expect(source).toMatch(/\{format\.blurb\}/);
-    expect(source).toMatch(/\{format\.dimension\}/);
-  });
-
-  it('hides the decorative phone from assistive technology', () => {
-    expect(source).toMatch(/class="landing-plate__stage"\s+aria-hidden="true"/);
-  });
-
-  it('ships no client-side script — the plate is CSS-only', () => {
-    expect(source).not.toMatch(/<script/i);
-    expect(source).not.toMatch(/addEventListener|client:(load|idle|visible)/);
-  });
-
-  it('landing.css keeps the viewport at a real 9:19.5 phone aspect', () => {
-    const css = readFileSync(landingCssPath, 'utf8');
-    expect(css).toMatch(/\.landing-plate__viewport\s*\{[^}]*aspect-ratio\s*:\s*9\s*\/\s*19\.5/);
-  });
-
-  it('landing.css drives the ad block from --ad-* custom properties', () => {
-    const css = readFileSync(landingCssPath, 'utf8');
-    const block = css.match(/\.landing-plate__ad\s*\{([^}]*)\}/);
-    expect(block, '.landing-plate__ad rule must be present').not.toBeNull();
-    for (const property of ['left', 'top', 'width', 'height']) {
-      const re = new RegExp(`${property}\\s*:\\s*var\\(--ad-`);
-      expect(re.test(block![1]), `.landing-plate__ad must set ${property} from --ad-*`).toBe(true);
-    }
-  });
-
-  it('landing.css defines geometry for every format slug, keyed off :has()', () => {
-    const css = readFileSync(landingCssPath, 'utf8');
-    for (const format of formats) {
-      if (format.slug === 'banner') continue; // banner is the resting state
-      expect(
-        css.includes(`[data-format='${format.slug}']:hover`),
-        `landing.css must define a hover geometry for ${format.slug}`
-      ).toBe(true);
-      expect(
-        css.includes(`[data-format='${format.slug}']:focus`),
-        `landing.css must define a focus geometry for ${format.slug}`
-      ).toBe(true);
-    }
-  });
-
-  it('the plate follows :focus, not only :focus-visible, so keyboard users drive it', () => {
-    const css = readFileSync(landingCssPath, 'utf8');
-    expect(css).not.toMatch(/\[data-format='[a-z-]+'\]:focus-visible/);
-  });
-});
 
 describe('Hero.astro contracts', () => {
   const source = readFileSync(heroPath, 'utf8');
@@ -504,230 +414,150 @@ describe('Hero.astro contracts', () => {
     expect(config).toMatch(/Hero:\s*['"]\.\/src\/components\/Hero\.astro['"]/);
   });
 
-  it('renders the <h1> from hero frontmatter with the id the skip link targets', () => {
-    // The rendered count is asserted against dist/index.html further down; this
-    // only pins the shape, so the title cannot drift away from frontmatter.
-    expect(source).toMatch(/<h1\s+id="_top"\s+data-page-title\s+set:html=\{title\}\s*\/>/);
+  it('renders the <h1> with the correct id and data-page-title attribute', () => {
+    expect(source).toMatch(/<h1\s+id="_top"\s+data-page-title[^>]*set:html=\{title\}\s*\/>/);
     expect(source).toMatch(/const\s*\{\s*title\s*=\s*data\.title/);
   });
 
-  it('renders the frontmatter actions as anchors, and nothing else focusable inside .hero', () => {
+  it('renders frontmatter actions as anchors with landing-hero__action class', () => {
     expect(source).toMatch(/actions\.map\(/);
     expect(source).toMatch(/class:list=\{\[\s*'landing-hero__action'/);
-    // The plate's six links must be siblings of .hero, not descendants, or the
-    // two-hero-action assertion in scripts/check-theme.mjs would count eight.
-    const heroBlock = source.match(/<div class="hero landing-hero">([\s\S]*?)<\/div>\s*\n\s*<PlacementPlate/);
-    expect(heroBlock, '.hero must close before <PlacementPlate />').not.toBeNull();
-    expect(heroBlock![1]).not.toMatch(/<PlacementPlate/);
   });
 
-  it('composes the spec strip and the plate', () => {
-    expect(source).toMatch(/import\s+ProjectMetadata\s+from\s+['"]\.\/landing\/ProjectMetadata\.astro['"]/);
-    expect(source).toMatch(/import\s+PlacementPlate\s+from\s+['"]\.\/landing\/PlacementPlate\.astro['"]/);
-    expect(source).toMatch(/<ProjectMetadata\s*\/>/);
-    expect(source).toMatch(/<PlacementPlate\s*\/>/);
-  });
-});
-
-const capabilityMatrixPath = fileURLToPath(
-  new URL('../src/components/landing/CapabilityMatrix.astro', import.meta.url)
-);
-const indexMdxPath = fileURLToPath(
-  new URL('../src/content/docs/index.mdx', import.meta.url)
-);
-
-describe('competitor data and comparison matrix absence', () => {
-  it('CapabilityMatrix.astro file is deleted', () => {
-    expect(existsSync(capabilityMatrixPath)).toBe(false);
+  it('hero block contains exactly one <a> element (from actions.map)', () => {
+    const heroBlock = source.match(/<div class="hero landing-hero">([\s\S]*?)<div class="landing-stage"/);
+    expect(heroBlock, '.hero block must exist').not.toBeNull();
+    const blockContent = heroBlock![1];
+    const anchorCount = (blockContent.match(/<a\b/g) ?? []).length;
+    expect(anchorCount).toBe(1);
   });
 
-  it('index.mdx does not import or render CapabilityMatrix', () => {
-    const source = readFileSync(indexMdxPath, 'utf8');
-    expect(source).not.toMatch(/CapabilityMatrix/);
+  it('install code element renders the mavenCoordinate without literal string', () => {
+    expect(source).toMatch(/<code\s+class="admob-font-mono landing-install__code"\s+tabindex="0">\{landingMeta\.mavenCoordinate\}<\/code>/);
+    expect(source).not.toMatch(/dev\.avinya\.ads:admob-cmp/);
   });
 
-  it('competitor data (basic-ads, comparisonMatrix, capabilities) is absent from landing page sources', () => {
-    const mdx = readFileSync(indexMdxPath, 'utf8');
-    const dataTs = readFileSync(
-      fileURLToPath(new URL('../src/data/landing.ts', import.meta.url)),
-      'utf8'
-    );
-    expect(mdx).not.toMatch(/basic-ads|comparisonMatrix|CapabilityMatrix/i);
-    expect(dataTs).not.toMatch(/basic-ads|comparisonMatrix|capabilityVerifiedOn|CapabilityRow/i);
-  });
-});
-
-describe('index.mdx quickstart, product facts, and iOS note', () => {
-  const source = readFileSync(indexMdxPath, 'utf8');
-
-  it('asserts presence of supported platforms (Android, iOS), ad formats, facade dependency, and production responsibility wording', () => {
-    expect(source).toMatch(/dev\.avinya\.ads:admob-cmp/);
-    expect(source).toMatch(/Android/);
-    expect(source).toMatch(/iOS/);
-    expect(source).toMatch(/Banner/);
-    expect(source).toMatch(/Interstitial/);
-    expect(source).toMatch(/Rewarded/);
-    expect(source).toMatch(/App Open/);
-    expect(source).toMatch(/Native/);
-    expect(source).toMatch(/configured by the application|configured by the app/i);
+  it('stage has aria-hidden attribute', () => {
+    expect(source).toMatch(/<div class="landing-stage"\s+aria-hidden="true"/);
   });
 
-  it('does not contain time-based promises like 5-minute quickstart', () => {
-    expect(source).not.toMatch(/5-minute/i);
-  });
-
-  it('keeps the install line on the canonical Maven coordinate and current version', () => {
-    const version = readVersionName(rootGradleProps).replaceAll('.', '\\.');
-    expect(source).toMatch(
-      new RegExp(`implementation\\(["']dev\\.avinya\\.ads:admob-cmp:${version}["']\\)`)
-    );
-  });
-
-  it('preserves the gatherConsentAndInitialize(AdConfig(...)) initialization shape', () => {
-    expect(source).toMatch(/adManager\.gatherConsentAndInitialize\(/);
-    expect(source).toMatch(/AdConfig\(/);
-  });
-
-  it('keeps the iOS note mentioning ConsentMode.InitializeOnlyIfAlreadyAllowed and the UMP -> ATT -> initialize ordering', () => {
-    expect(source).toMatch(/ConsentMode\.InitializeOnlyIfAlreadyAllowed/);
-    expect(source).toMatch(/UMP consent/i);
-    expect(source).toMatch(/ATT/i);
-  });
-
-  it('links the Quickstart example to /start/quickstart/ with a trailing slash', () => {
-    const matches = source.match(/\(\/start\/quickstart\/\)/g) ?? [];
-    expect(matches.length, 'multiple quickstart links expected (intro + continue)').toBeGreaterThan(
-      0
-    );
-  });
-
-  it('imports the OriginStory, CompatibilityList, RoadmapSummary, and LandingFooter components', () => {
-    expect(source).toMatch(
-      /import\s+OriginStory\s+from\s+['"]\.\.\/\.\.\/components\/landing\/OriginStory\.astro['"]/
-    );
-    expect(source).toMatch(
-      /import\s+CompatibilityList\s+from\s+['"]\.\.\/\.\.\/components\/landing\/CompatibilityList\.astro['"]/
-    );
-    expect(source).toMatch(
-      /import\s+RoadmapSummary\s+from\s+['"]\.\.\/\.\.\/components\/landing\/RoadmapSummary\.astro['"]/
-    );
-    expect(source).toMatch(
-      /import\s+LandingFooter\s+from\s+['"]\.\.\/\.\.\/components\/landing\/LandingFooter\.astro['"]/
-    );
-  });
-
-  it('renders OriginStory, CompatibilityList, RoadmapSummary, and LandingFooter in plan order', () => {
-    const order = ['<OriginStory', '<CompatibilityList', '<RoadmapSummary', '<LandingFooter']
-      .map((tag) => ({ tag, index: source.indexOf(tag) }))
-      .map(({ tag, index }) => ({ tag, index }));
-    for (const { tag, index } of order) {
-      expect(index, `${tag} must appear in index.mdx`).toBeGreaterThan(-1);
-    }
-    for (let i = 1; i < order.length; i += 1) {
-      expect(
-        order[i].index,
-        `${order[i].tag} must appear after ${order[i - 1].tag}`
-      ).toBeGreaterThan(order[i - 1].index);
-    }
-  });
-});
-
-const compatibilityListPath = fileURLToPath(
-  new URL('../src/components/landing/CompatibilityList.astro', import.meta.url)
-);
-const roadmapSummaryPath = fileURLToPath(
-  new URL('../src/components/landing/RoadmapSummary.astro', import.meta.url)
-);
-const landingFooterPath = fileURLToPath(
-  new URL('../src/components/landing/LandingFooter.astro', import.meta.url)
-);
-
-describe('CompatibilityList.astro contracts', () => {
-  const source = readFileSync(compatibilityListPath, 'utf8');
-
-  it('exists as an Astro component', () => {
-    expect(existsSync(compatibilityListPath)).toBe(true);
-  });
-
-  it('imports InitSequence and PlatformMatrix by their fixed names', () => {
-    expect(source).toMatch(
-      /import\s+InitSequence\s+from\s+['"]\.\.\/diagrams\/InitSequence\.astro['"]/
-    );
-    expect(source).toMatch(
-      /import\s+PlatformMatrix\s+from\s+['"]\.\.\/diagrams\/PlatformMatrix\.astro['"]/
-    );
-  });
-
-  it('mentions the klib binary compatibility caveat', () => {
-    expect(source.toLowerCase()).toMatch(/klib/);
-    expect(source.toLowerCase()).toMatch(/binary compatibility/);
-  });
-
-  it('renders landingMeta fields in canonical order (Kotlin, Compose Multiplatform, Android, iOS)', () => {
-    const expectedKeys = [
-      'kotlinVersion',
-      'composeMultiplatformVersion',
-      'androidMinSdk',
-      'iosDeploymentTarget',
+  it('renders all seven section components in the correct order', () => {
+    const components = [
+      'LandingFormats',
+      'LandingConsent',
+      'LandingNative',
+      'LandingParity',
+      'LandingRoadmap',
+      'LandingCta',
+      'LandingFooter',
     ];
-    const positions = expectedKeys.map((key) => ({ key, index: source.indexOf(key) }));
-    for (const { key, index } of positions) {
-      expect(index, `landingMeta.${key} must be referenced in CompatibilityList.astro`).toBeGreaterThan(
-        -1
+    const positions = components.map((comp) => ({ comp, index: source.indexOf(`<${comp}`) }));
+    for (const { comp, index } of positions) {
+      expect(index, `${comp} must be rendered`).toBeGreaterThan(-1);
+    }
+    for (let i = 1; i < positions.length; i++) {
+      expect(positions[i].index, `${positions[i].comp} must appear after ${positions[i - 1].comp}`).toBeGreaterThan(
+        positions[i - 1].index
       );
     }
-    for (let i = 1; i < positions.length; i += 1) {
-      expect(
-        positions[i].index,
-        `landingMeta.${positions[i].key} must appear after landingMeta.${positions[i - 1].key}`
-      ).toBeGreaterThan(positions[i - 1].index);
-    }
   });
 
-  it('renders a <dl> with four pairs and the expected labels', () => {
-    expect(source).toMatch(/<dl[^>]*class="landing-compatibility__list"/);
-    const dlBlock = source.match(
-      /<dl[^>]*class="landing-compatibility__list"[^>]*>([\s\S]*?)<\/dl>/
-    );
-    expect(dlBlock, 'compatibility <dl> is present').not.toBeNull();
-    const body = dlBlock![1];
-    for (const label of ['Kotlin', 'Compose Multiplatform', 'Android', 'iOS']) {
-      const dtRe = new RegExp(`<dt>\\s*${label}\\s*</dt>`);
-      expect(dtRe.test(body), `expected <dt>${label}</dt> in compatibility <dl>`).toBe(true);
-    }
-    expect((body.match(/<dt>/g) ?? []).length).toBe(4);
-  });
-
-  it('does not repeat the Maven coordinate — the hero and Quick start already state it', () => {
-    expect(source).not.toMatch(/mavenCoordinate/);
-  });
-
-  it('the coordinate still appears exactly twice on the landing page', () => {
-    const hero = readFileSync(projectMetadataPath, 'utf8');
-    const mdx = readFileSync(indexMdxPath, 'utf8');
-    expect(hero).toMatch(/landingMeta\.mavenCoordinate/);
-    expect(mdx).toContain(`implementation("${landingMeta.mavenCoordinate}")`);
-  });
-
-  it('renders the InitSequence and PlatformMatrix components once each', () => {
-    const initCount = (source.match(/<InitSequence\s*\/>/g) ?? []).length;
-    const platformCount = (source.match(/<PlatformMatrix\s*\/>/g) ?? []).length;
-    expect(initCount).toBe(1);
-    expect(platformCount).toBe(1);
-  });
-
-  it('uses sentence-case headings and no uppercase mono eyebrows', () => {
-    expect(source).not.toMatch(/\btext-transform\s*:\s*uppercase\b/i);
-    expect(source).toMatch(/<h2>[^<]+<\/h2>/);
+  it('renders CopyScript component', () => {
+    expect(source).toMatch(/<CopyScript\s*\/>/);
   });
 });
 
-describe('RoadmapSummary.astro contracts', () => {
-  const source = readFileSync(roadmapSummaryPath, 'utf8');
+describe('LandingFormats.astro contracts', () => {
+  const source = readFileSync(
+    fileURLToPath(new URL('../src/components/landing/LandingFormats.astro', import.meta.url)),
+    'utf8'
+  );
 
-  it('exists as an Astro component', () => {
-    expect(existsSync(roadmapSummaryPath)).toBe(true);
+  it('imports formats from the data module', () => {
+    expect(source).toMatch(
+      /import\s*\{[^}]*\bformats\b[^}]*\}\s*from\s*['"]\.\.\/\.\.\/data\/landing(?:\.ts)?['"]/
+    );
   });
+
+  it('iterates formats.map without sort, filter or slice', () => {
+    expect(source).toMatch(/formats\.map\(/);
+    expect(source).not.toMatch(/\.sort\s*\(/);
+    expect(source).not.toMatch(/formats\.(?:filter|slice)\s*\(/);
+  });
+
+  it('renders exactly one <ol class="landing-formats">', () => {
+    expect(source.match(/<ol\s+class="landing-formats"/g) ?? []).toHaveLength(1);
+  });
+
+  it('renders anchors with href and data-format from format data', () => {
+    expect(source).toMatch(/<a\s+class="landing-format__card"\s+href=\{format\.href\}\s+data-format=\{format\.slug\}>/);
+  });
+
+  it('renders format name and blurb text', () => {
+    expect(source).toMatch(/\{format\.name\}/);
+    expect(source).toMatch(/\{format\.blurb\}/);
+  });
+
+  it('renders format.call inside a code element with admob-font-mono class', () => {
+    expect(source).toMatch(/<code[^>]*class="[^"]*\badmob-font-mono\b[^"]*[^>]*>\{format\.call\}<\/code>/);
+  });
+
+  it('hides decorative phone from assistive technology', () => {
+    expect(source).toMatch(/class="landing-format__phone"\s+aria-hidden="true"/);
+  });
+
+  it('renders an illustration branch for every format slug', () => {
+    for (const format of formats) {
+      const pattern = new RegExp(`format\\.slug\\s*===\\s*['\"]${format.slug}['"]`);
+      expect(pattern.test(source), `must have slug check for ${format.slug}`).toBe(true);
+    }
+  });
+});
+
+describe('LandingConsent.astro contracts', () => {
+  const source = readFileSync(
+    fileURLToPath(new URL('../src/components/landing/LandingConsent.astro', import.meta.url)),
+    'utf8'
+  );
+
+  it('renders the three step titles in order: Gather consent, Ask for tracking, Initialize', () => {
+    const gatherIndex = source.indexOf('Gather consent');
+    const askIndex = source.indexOf('Ask for tracking');
+    const initIndex = source.indexOf('Initialize');
+    expect(gatherIndex).toBeGreaterThan(-1);
+    expect(askIndex).toBeGreaterThan(gatherIndex);
+    expect(initIndex).toBeGreaterThan(askIndex);
+  });
+
+  it('renders the text "In that order."', () => {
+    expect(source).toMatch(/In that order\./);
+  });
+
+  it('warning mentions IDFA', () => {
+    expect(source).toMatch(/IDFA/);
+  });
+});
+
+describe('LandingParity.astro contracts', () => {
+  const source = readFileSync(
+    fileURLToPath(new URL('../src/components/landing/LandingParity.astro', import.meta.url)),
+    'utf8'
+  );
+
+  it('links to /reference/compatibility/', () => {
+    expect(source).toMatch(/href="\/reference\/compatibility\/"/);
+  });
+
+  it('table wrapper has tabindex, role and aria-label', () => {
+    expect(source).toMatch(/<div\s+class="landing-parity"\s+tabindex="0"\s+role="region"\s+aria-label="[^"]+"/);
+  });
+});
+
+describe('LandingRoadmap.astro contracts', () => {
+  const source = readFileSync(
+    fileURLToPath(new URL('../src/components/landing/LandingRoadmap.astro', import.meta.url)),
+    'utf8'
+  );
 
   it('imports roadmapItems from the data module', () => {
     expect(source).toMatch(
@@ -735,39 +565,108 @@ describe('RoadmapSummary.astro contracts', () => {
     );
   });
 
-  it('renders the two canonical roadmap titles via the data module', () => {
+  it('renders item title and status', () => {
     expect(source).toMatch(/\{item\.title\}/);
-    const titles = roadmapItems.map((i) => i.title);
-    expect(titles).toContain('Swift Package Manager dependency import');
-    expect(titles).toContain('Native video events on Android');
+    expect(source).toMatch(/\{item\.status\}/);
   });
 
-  it('does not render roadmap status text in uppercase', () => {
-    const denylist = ['GATED', 'BLOCKED'];
-    for (const word of denylist) {
-      const re = new RegExp(`\\b${word}\\b`);
-      expect(re.test(source), `roadmap status must not be the all-caps label '${word}'`).toBe(
-        false
-      );
-    }
-    expect(source).not.toMatch(/\btext-transform\s*:\s*uppercase\b/i);
-  });
-
-  it('links to /project/roadmap/ with a trailing slash', () => {
+  it('links to /project/roadmap/', () => {
     expect(source).toMatch(/href="\/project\/roadmap\/"/);
   });
 
-  it('does not render a status pill, badge, or uppercase chip element', () => {
+  it('does not use pill, badge or chip classes', () => {
     expect(source).not.toMatch(/class="[^"]*\b(?:pill|badge|chip)\b/i);
+  });
+
+  it('does not use text-transform: uppercase', () => {
+    expect(source).not.toMatch(/\btext-transform\s*:\s*uppercase\b/i);
   });
 });
 
+describe('LandingCta.astro contracts', () => {
+  const source = readFileSync(
+    fileURLToPath(new URL('../src/components/landing/LandingCta.astro', import.meta.url)),
+    'utf8'
+  );
+
+  it('references landingMeta.mavenCoordinate without literal coordinate', () => {
+    expect(source).toMatch(/landingMeta\.mavenCoordinate/);
+    expect(source).not.toMatch(/dev\.avinya\.ads:admob-cmp/);
+  });
+
+  it('links to /start/quickstart/', () => {
+    expect(source).toMatch(/href="\/start\/quickstart\/"/);
+  });
+});
+
+describe('copy buttons contract', () => {
+  const hero = readFileSync(heroPath, 'utf8');
+  const cta = readFileSync(
+    fileURLToPath(new URL('../src/components/landing/LandingCta.astro', import.meta.url)),
+    'utf8'
+  );
+  const copyScript = readFileSync(
+    fileURLToPath(new URL('../src/components/landing/CopyScript.astro', import.meta.url)),
+    'utf8'
+  );
+
+  it('copy buttons in Hero and LandingCta carry hidden attribute', () => {
+    expect((hero.match(/button[^>]*data-copy/g) ?? []).every((btn) => btn.includes('hidden'))).toBe(true);
+    expect((cta.match(/button[^>]*data-copy/g) ?? []).every((btn) => btn.includes('hidden'))).toBe(true);
+  });
+
+  it('CopyScript sets hidden = false only behind navigator.clipboard check', () => {
+    expect(copyScript).toMatch(/if\s*\(\s*!navigator\.clipboard/);
+    expect(copyScript).toMatch(/button\.hidden\s*=\s*false/);
+  });
+});
+
+const indexMdxPath = fileURLToPath(
+  new URL('../src/content/docs/index.mdx', import.meta.url)
+);
+
+describe('competitor data and comparison matrix absence', () => {
+  it('competitor data is absent from landing page sources', () => {
+    const mdx = readFileSync(indexMdxPath, 'utf8');
+    const dataTs = readFileSync(
+      fileURLToPath(new URL('../src/data/landing.ts', import.meta.url)),
+      'utf8'
+    );
+    expect(mdx).not.toMatch(/CapabilityMatrix|basic-ads|comparisonMatrix/i);
+    expect(dataTs).not.toMatch(/basic-ads|comparisonMatrix|capabilityVerifiedOn|CapabilityRow/i);
+  });
+});
+
+describe('index.mdx structure', () => {
+  const source = readFileSync(indexMdxPath, 'utf8');
+
+  it('frontmatter has template: splash', () => {
+    expect(source).toMatch(/^template:\s*splash\s*$/m);
+  });
+
+  it('frontmatter has the canonical hero title', () => {
+    expect(source).toMatch(/^hero:\s*\n\s*title:\s*Compose Multiplatform AdMob SDK for Android and iOS/m);
+  });
+
+  it('has actions linking to /start/quickstart/ and GitHub repo', () => {
+    expect(source).toMatch(/link:\s*\/start\/quickstart\//);
+    expect(source).toMatch(/link:\s*https:\/\/github\.com\/Meet-Miyani\/admob-compose-multiplatform/);
+  });
+
+  it('body after frontmatter has no import or component tags', () => {
+    const bodyStart = source.indexOf('---', 1) + 3; // skip the opening ---
+    const body = source.substring(bodyStart);
+    expect(body).not.toMatch(/^import\s/m);
+    expect(body).not.toMatch(/<[A-Z]/);
+  });
+});
+
+const landingFooterPath = fileURLToPath(
+  new URL('../src/components/landing/LandingFooter.astro', import.meta.url)
+);
+
 describe('LandingFooter.astro contracts', () => {
   const source = readFileSync(landingFooterPath, 'utf8');
-
-  it('exists as an Astro component', () => {
-    expect(existsSync(landingFooterPath)).toBe(true);
-  });
 
   it('imports trademarkStatement and repoUrl from the data module', () => {
     expect(source).toMatch(
@@ -778,7 +677,7 @@ describe('LandingFooter.astro contracts', () => {
     );
   });
 
-  it('renders the trademark statement via the data module (rendered value matches the verbatim contract)', () => {
+  it('renders the trademark statement via the data module', () => {
     expect(source).toMatch(/<p[^>]*class="landing-footer__legal"[^>]*>\s*\{trademarkStatement\}\s*<\/p>/);
     expect(trademarkStatement).toBe(
       'Not affiliated with or endorsed by Google. AdMob and Google Mobile Ads are trademarks of Google LLC.'
@@ -805,7 +704,7 @@ describe('LandingFooter.astro contracts', () => {
     ]);
   });
 
-  it('Quickstart, Installation, Compatibility, Roadmap, and API reference all point at internal trailing-slash routes', () => {
+  it('Quickstart, Installation, Compatibility, Roadmap, and API reference point at internal trailing-slash routes', () => {
     const listMatch = source.match(
       /<ul[^>]*class="landing-footer__links"[^>]*>([\s\S]*?)<\/ul>/
     );
@@ -835,12 +734,6 @@ describe('LandingFooter.astro contracts', () => {
     );
   });
 
-  it('renders the trademark statement in a <p class="landing-footer__legal">', () => {
-    expect(source).toMatch(
-      /<p[^>]*class="landing-footer__legal"[^>]*>\s*\{trademarkStatement\}\s*<\/p>/
-    );
-  });
-
   it('does not duplicate the site footer with a five-column marketing layout', () => {
     expect(source).not.toMatch(/footer-cols-5/);
     expect(source).not.toMatch(/class="[^"]*\bcolumns?\b/i);
@@ -856,7 +749,43 @@ describe('LandingFooter.astro contracts', () => {
   });
 });
 
-describe('attribution and origin story data', () => {
+describe('Starlight component overrides', () => {
+  const config = readFileSync(
+    fileURLToPath(new URL('../astro.config.mjs', import.meta.url)),
+    'utf8'
+  );
+  const headerPath = fileURLToPath(new URL('../src/components/Header.astro', import.meta.url));
+  const pageTitlePath = fileURLToPath(new URL('../src/components/PageTitle.astro', import.meta.url));
+  const footerPath = fileURLToPath(new URL('../src/components/Footer.astro', import.meta.url));
+
+  it('astro.config.mjs registers Header, PageTitle and Footer overrides', () => {
+    expect(config).toMatch(/Header:\s*['"]\.\/src\/components\/Header\.astro['"]/);
+    expect(config).toMatch(/PageTitle:\s*['"]\.\/src\/components\/PageTitle\.astro['"]/);
+    expect(config).toMatch(/Footer:\s*['"]\.\/src\/components\/Footer\.astro['"]/);
+  });
+
+  it('Header.astro exists and contains right-group and ThemeSelect', () => {
+    expect(existsSync(headerPath)).toBe(true);
+    const source = readFileSync(headerPath, 'utf8');
+    expect(source).toMatch(/class="right-group/);
+    expect(source).toMatch(/<ThemeSelect\s*\/>/);
+  });
+
+  it('PageTitle.astro renders h1 with id and breadcrumb nav', () => {
+    expect(existsSync(pageTitlePath)).toBe(true);
+    const source = readFileSync(pageTitlePath, 'utf8');
+    expect(source).toMatch(/<h1\s+id="_top">/);
+    expect(source).toMatch(/<nav\s+aria-label="Breadcrumb"/);
+  });
+
+  it('Footer.astro renders default footer only when not landing', () => {
+    expect(existsSync(footerPath)).toBe(true);
+    const source = readFileSync(footerPath, 'utf8');
+    expect(source).toMatch(/!isLanding\s*&&\s*<Default\s*\/>/);
+  });
+});
+
+describe('attribution data', () => {
   it('derives the author profile from the canonical repo URL so it cannot drift', () => {
     expect(authorUrl).toBe('https://github.com/Meet-Miyani');
     expect(repoUrl.startsWith(authorUrl)).toBe(true);
@@ -867,76 +796,12 @@ describe('attribution and origin story data', () => {
     expect(studioName).toBe('Avinya');
     expect(authorName).toBe('Meet Miyani');
   });
-
-  it('tells the origin story in three paragraphs of real prose', () => {
-    expect(originStory.paragraphs).toHaveLength(3);
-    for (const paragraph of originStory.paragraphs) {
-      expect(paragraph.length).toBeGreaterThan(80);
-    }
-  });
-
-  it('makes no comparative quality claim — the capability table carries the comparison', () => {
-    const text = originStory.paragraphs.join(' ').toLowerCase();
-    const denylist = [
-      'best',
-      'better than',
-      'leading',
-      'superior',
-      'the only',
-      'powerful',
-      'amazing',
-      'fastest',
-      'easiest',
-      'revolutionary',
-      'ultimate',
-      'seamless',
-      'effortless',
-    ];
-    for (const word of denylist) {
-      expect(text.includes(word), `origin story must not contain '${word}'`).toBe(false);
-    }
-  });
-
-  it('does not name the origin app while it is still unreleased', () => {
-    // TODO(origin-app): drop this test and name the app once it ships.
-    const text = originStory.paragraphs.join(' ');
-    expect(text).not.toMatch(/ViewTube/i);
-  });
-});
-
-const originStoryPath = fileURLToPath(
-  new URL('../src/components/landing/OriginStory.astro', import.meta.url)
-);
-
-describe('OriginStory.astro contracts', () => {
-  const source = readFileSync(originStoryPath, 'utf8');
-
-  it('renders every paragraph from the data module without inlining copy', () => {
-    expect(existsSync(originStoryPath)).toBe(true);
-    expect(source).toMatch(
-      /import\s*\{[^}]*\boriginStory\b[^}]*\}\s*from\s*['"]\.\.\/\.\.\/data\/landing(?:\.ts)?['"]/
-    );
-    expect(source).toMatch(/originStory\.paragraphs\.map\(/);
-  });
-
-  it('is placed before compatibility on the landing page', () => {
-    const mdx = readFileSync(indexMdxPath, 'utf8');
-    const at = (tag: string) => mdx.indexOf(tag);
-    expect(at('<OriginStory')).toBeGreaterThan(-1);
-    expect(at('<OriginStory')).toBeLessThan(at('<CompatibilityList'));
-  });
 });
 
 describe('landing.css footer and roadmap rules', () => {
   const css = readFileSync(landingCssPath, 'utf8');
 
-  it('defines a border-top rule for the landing-footer class', () => {
-    const block = css.match(/\.landing-footer\s*\{([^}]*)\}/);
-    expect(block, '.landing-footer rule must be present').not.toBeNull();
-    expect(block![1]).toMatch(/border-top\s*:\s*1px\s+solid\s+var\(--admob-hair\)/);
-  });
-
-  it('defines a flex layout for the landing-footer__links list', () => {
+  it('defines flex display and wrap for landing-footer__links', () => {
     const block = css.match(/\.landing-footer__links\s*\{([^}]*)\}/);
     expect(block, '.landing-footer__links rule must be present').not.toBeNull();
     expect(block![1]).toMatch(/display\s*:\s*flex/);
@@ -944,69 +809,20 @@ describe('landing.css footer and roadmap rules', () => {
     expect(block![1]).toMatch(/list-style\s*:\s*none/);
   });
 
-  it('styles the roadmap item title semibold (no uppercase)', () => {
-    const block = css.match(/\.landing-roadmap__item-title\s*\{([^}]*)\}/);
-    expect(block, '.landing-roadmap__item-title rule must be present').not.toBeNull();
-    expect(block![1]).toMatch(/font-weight\s*:\s*600/);
-    expect(block![1]).not.toMatch(/text-transform\s*:\s*uppercase/i);
-  });
-
-  it('styles the roadmap item status with muted text and 400 weight', () => {
-    const block = css.match(/\.landing-roadmap__item-status\s*\{([^}]*)\}/);
-    expect(block, '.landing-roadmap__item-status rule must be present').not.toBeNull();
-    expect(block![1]).toMatch(/font-weight\s*:\s*400/);
-    expect(block![1]).toMatch(/color\s*:\s*var\(--admob-slate\)/);
-  });
-
-  it('gives roadmap items a bounded card with a token radius', () => {
+  it('gives roadmap items a top border', () => {
     const block = css.match(/\.landing-roadmap__item\s*\{([^}]*)\}/);
     expect(block, '.landing-roadmap__item rule must be present').not.toBeNull();
-    expect(block![1]).toMatch(/border\s*:\s*var\(--landing-rule\)/);
-    expect(block![1]).toMatch(/border-radius\s*:\s*var\(--admob-radius/);
+    expect(block![1]).toMatch(/border-top\s*:\s*1px\s+solid\s+var\(--admob-ink\)/);
   });
 
-  it('the hairline is defined once as a token-backed variable', () => {
+  it('the landing-rule token is defined as 1px solid var(--admob-hair)', () => {
     expect(css).toMatch(/--landing-rule\s*:\s*1px\s+solid\s+var\(--admob-hair\)/);
   });
 
-  it('widens the splash container without touching the docs reading measure', () => {
-    expect(css).toMatch(/\.content-panel:has\(\.landing-hero\)\s+\.sl-container/);
-    const block = css.match(/\.content-panel:has\(\.landing-hero\)[\s\S]*?\{([^}]*)\}/);
+  it('widens the splash container to the full content max without touching the docs reading measure', () => {
+    expect(css).toMatch(/\.content-panel:has\(\.landing\)\s*\.sl-container/);
+    const block = css.match(/\.content-panel:has\(\.landing\)[\s\S]*?\{([^}]*)\}/);
     expect(block![1]).toMatch(/max-width\s*:\s*var\(--admob-content-max\)/);
-  });
-
-  it('styles landing-meta dt with full opacity for WCAG AA contrast', () => {
-    const block = css.match(/\.landing-meta\s+dt\s*\{([^}]*)\}/);
-    expect(block, '.landing-meta dt rule must be present').not.toBeNull();
-    expect(block![1]).toMatch(/font-weight\s*:\s*500/);
-    expect(block![1]).not.toMatch(/opacity/);
-  });
-});
-
-const projectMetadataPath = fileURLToPath(
-  new URL('../src/components/landing/ProjectMetadata.astro', import.meta.url)
-);
-
-describe('ProjectMetadata.astro contracts', () => {
-  const source = readFileSync(projectMetadataPath, 'utf8');
-
-  it('renders every value from landingMeta rather than repeating literals', () => {
-    expect(source).toMatch(
-      /import\s*\{[^}]*\blandingMeta\b[^}]*\}\s*from\s*['"]\.\.\/\.\.\/data\/landing(?:\.ts)?['"]/
-    );
-    expect(source).not.toMatch(/dev\.avinya\.ads:admob-cmp/);
-    expect(source).not.toMatch(/Apache License/);
-  });
-
-  it('keeps the Maven coordinate focusable so it can be copied without a pointer', () => {
-    expect(source).toMatch(
-      /<code\s+class="admob-font-mono"\s+tabindex="0">\{landingMeta\.mavenCoordinate\}<\/code>/
-    );
-  });
-
-  it('no longer repeats the release version that the coordinate already carries', () => {
-    expect(source).not.toMatch(/<dt>Release<\/dt>/);
-    expect(source).not.toMatch(/mavenVersion/);
   });
 });
 
@@ -1027,18 +843,18 @@ describe('dist/index.html rendered landing contract', () => {
 
   it('contains exactly one <h1> whose text is the canonical hero title', () => {
     const h1Matches = [...builtIndex.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)];
-    expect(h1Matches, 'dist/index.html must contain at least one <h1>').toHaveLength(1);
+    expect(h1Matches, 'dist/index.html must contain exactly one <h1>').toHaveLength(1);
     const h1Text = h1Matches[0][1].replace(/<[^>]+>/g, '').trim();
     expect(h1Text).toBe('Compose Multiplatform AdMob SDK for Android and iOS');
   });
 
-  it('renders the trademark statement verbatim in the landing footer', () => {
+  it('renders the trademark statement verbatim', () => {
     expect(builtIndex).toContain(
       'Not affiliated with or endorsed by Google. AdMob and Google Mobile Ads are trademarks of Google LLC.'
     );
   });
 
-  it('lists the six format names in the canonical order on the home page', () => {
+  it('lists the six format names in canonical order', () => {
     const expected = [
       'Banner',
       'Interstitial',
@@ -1049,7 +865,7 @@ describe('dist/index.html rendered landing contract', () => {
     ];
     const positions = expected.map((name) => builtIndex.indexOf(name));
     for (const [index, name] of positions.map((pos, i) => [pos, expected[i]])) {
-      expect(index, `format name "${name}" must appear in dist/index.html`).toBeGreaterThan(-1);
+      expect(index, `format name "${name}" must appear`).toBeGreaterThan(-1);
     }
     for (let i = 1; i < positions.length; i += 1) {
       expect(
@@ -1059,14 +875,14 @@ describe('dist/index.html rendered landing contract', () => {
     }
   });
 
-  it('renders the two roadmap titles in the canonical order on the home page', () => {
+  it('renders the two roadmap titles in canonical order', () => {
     const expected = [
       'Swift Package Manager dependency import',
       'Native video events on Android',
     ];
     const positions = expected.map((title) => builtIndex.indexOf(title));
     for (const [index, title] of positions.map((pos, i) => [pos, expected[i]])) {
-      expect(index, `roadmap title "${title}" must appear in dist/index.html`).toBeGreaterThan(-1);
+      expect(index, `roadmap title "${title}" must appear`).toBeGreaterThan(-1);
     }
     expect(
       positions[1],

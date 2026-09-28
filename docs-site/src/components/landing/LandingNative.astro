@@ -1,0 +1,60 @@
+---
+/**
+ * 03 — Native. The typed layout DSL beside the ad it describes.
+ *
+ * The code is the column layout from the native format guide, drawn on the
+ * dark code surface like the stage's App.kt. The ad beside it is an
+ * illustration of that layout with neutral placeholder copy, hidden from
+ * assistive technology; the paragraph under the heading says what it shows.
+ */
+import '../../styles/landing.css';
+
+type Token = [kind: string, text: string];
+const t = (kind: string, text: string): Token => [kind, text];
+
+const dsl: Token[][] = [
+  [t('function', 'adLayout'), t('plain', ' {')],
+  [t('plain', '    '), t('function', 'column'), t('plain', '(modifier = AdModifier.'), t('function', 'fillMaxWidth'), t('plain', '()) {')],
+  [t('plain', '        '), t('function', 'media'), t('plain', '(modifier = AdModifier.'), t('function', 'aspectRatio'), t('plain', '('), t('string', '16f / 9f'), t('plain', '))')],
+  [t('plain', '        '), t('function', 'headline'), t('plain', '(maxLines = '), t('string', '2'), t('plain', ')')],
+  [t('plain', '        '), t('function', 'body'), t('plain', '(maxLines = '), t('string', '3'), t('plain', ')')],
+  [t('plain', '        '), t('function', 'row'), t('plain', '(spacing = '), t('string', '8'), t('plain', '.dp) {')],
+  [t('plain', '            '), t('function', 'icon'), t('plain', '(); '), t('function', 'advertiser'), t('plain', '(); '), t('function', 'adBadge'), t('plain', '()')],
+  [t('plain', '        }')],
+  [t('plain', '        '), t('function', 'callToAction'), t('plain', '(modifier = AdModifier.'), t('function', 'fillMaxWidth'), t('plain', '())')],
+  [t('plain', '    }')],
+  [t('plain', '}')],
+];
+---
+
+<section class="landing-section landing-native" aria-labelledby="landing-native-title">
+  <div class="landing-native__copy">
+    <div class="landing-section__title">
+      <p class="landing-eyebrow">03 — Native</p>
+      <h2 id="landing-native-title">Native ads,<br class="landing-br" /> laid out in Kotlin.</h2>
+      <p class="landing-section__lede landing-native__lede">
+        Describe the ad once with a typed DSL. It renders through Compose on Android and UIKit on
+        iOS, and shares your Compose-resource fonts.
+      </p>
+    </div>
+    <pre class="landing-code landing-native__code">{dsl.map((line) => (
+      <span class="landing-code__line">{line.map(([kind, text]) => (
+        <span class={`landing-code__${kind}`}>{text}</span>
+      ))}</span>
+    ))}</pre>
+  </div>
+
+  <div class="landing-native__preview" aria-hidden="true">
+    <div class="landing-native__card">
+      <span class="landing-native__media">media · 16:9</span>
+      <span class="landing-native__headline">Advertiser headline, up to two lines</span>
+      <span class="landing-native__body">Body copy from the creative, clamped to three lines by the layout.</span>
+      <span class="landing-native__row">
+        <span class="landing-native__icon"></span>
+        <span class="landing-native__advertiser">Advertiser</span>
+        <span class="landing-native__attribution">Ad</span>
+      </span>
+      <span class="landing-native__cta">Call to action</span>
+    </div>
+  </div>
+</section>

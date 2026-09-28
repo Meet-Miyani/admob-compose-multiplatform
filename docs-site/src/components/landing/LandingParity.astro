@@ -1,0 +1,87 @@
+---
+/**
+ * 04 — Parity. The five facts that decide whether the two platforms really
+ * share one surface, as a compact table. The complete matrix — every format and
+ * every cross-cutting capability, with notes — lives on
+ * /reference/compatibility/, linked from the heading row.
+ */
+import '../../styles/landing.css';
+
+type Status = 'supported' | 'na' | 'gap';
+
+const rows: { capability: string; android: [Status, string]; ios: [Status, string]; note: string }[] = [
+  {
+    capability: 'All six ad formats',
+    android: ['supported', 'Supported'],
+    ios: ['supported', 'Supported'],
+    note: 'GMA Next-Gen on Android, GMA 13.x on iOS',
+  },
+  {
+    capability: 'UMP consent and privacy form',
+    android: ['supported', 'Supported'],
+    ios: ['supported', 'Supported'],
+    note: 'canRequestAds gates every request',
+  },
+  {
+    capability: 'App Tracking Transparency',
+    android: ['na', 'Not applicable'],
+    ios: ['supported', 'Supported'],
+    note: 'Android reports AdTrackingAuthorization.NotApplicable',
+  },
+  {
+    capability: 'Mediation and paid events',
+    android: ['supported', 'Supported'],
+    ios: ['supported', 'Supported'],
+    note: 'Bring your own adapters; AdEvent.Paid carries AdValue',
+  },
+  {
+    capability: 'Native video events',
+    android: ['gap', 'Upstream gap'],
+    ios: ['supported', 'Five events'],
+    note: 'The Android SDK exposes no callback surface for these yet',
+  },
+];
+---
+
+<section class="landing-section" aria-labelledby="landing-parity-title">
+  <div class="landing-section__head landing-section__head--link">
+    <div class="landing-section__title">
+      <p class="landing-eyebrow">04 — Parity</p>
+      <h2 id="landing-parity-title">Same surface on both.</h2>
+    </div>
+    <a class="landing-link" href="/reference/compatibility/">Full compatibility matrix →</a>
+  </div>
+
+  <div class="landing-parity" tabindex="0" role="region" aria-label="Platform parity">
+    <table class="landing-parity__table">
+      <thead>
+        <tr>
+          <th scope="col">Capability</th>
+          <th scope="col">Android</th>
+          <th scope="col">iOS</th>
+          <th scope="col">Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          rows.map((row) => (
+            <tr>
+              <th scope="row">{row.capability}</th>
+              <td>
+                <span class={`landing-parity__status landing-parity__status--${row.android[0]}`}>
+                  {row.android[1]}
+                </span>
+              </td>
+              <td>
+                <span class={`landing-parity__status landing-parity__status--${row.ios[0]}`}>
+                  {row.ios[1]}
+                </span>
+              </td>
+              <td class="landing-parity__note">{row.note}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

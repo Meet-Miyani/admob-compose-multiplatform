@@ -1,67 +1,247 @@
 ---
 /**
- * Starlight `Hero` override, registered in astro.config.mjs.
+ * Starlight `Hero` override, registered in astro.config.mjs — and the whole
+ * landing page. The splash template renders this in place of the page title;
+ * index.mdx has no body of its own. Everything below mirrors the
+ * "Landing — desktop" and "Landing — phone" boards of the design canvas.
  *
- * Starlight's default hero is a centred title/tagline/actions stack with an
- * optional image. This replaces it with the landing page's opening: the
- * headline on the left, the pitch, the install facts and the two actions on
- * the right, then the placement plate — the dark stage with the code and both
- * phones — directly beneath.
- *
- * Three things here are load-bearing for the gates and must not drift:
- *   - the `<h1>` keeps `id="_top"` and `data-page-title`, and its text still
- *     comes from `hero.title` in frontmatter, so the page has exactly one h1
- *     with the canonical title (test/landing.test.ts);
- *   - `.hero` contains exactly the two frontmatter actions and nothing else
- *     that is focusable apart from the spec strip's coordinate, so the
- *     two-hero-action assertion still counts 2 (scripts/check-theme.mjs). The
- *     plate's six links are siblings of `.hero`, not descendants;
- *   - every action is a real anchor with a visible focus outline.
- *
- * `hero.image` is intentionally unsupported: this page's opening visual is the
- * plate, not an illustration. Setting `hero.image` in frontmatter would be
- * silently ignored, so don't.
+ * Load-bearing details:
+ *   - the <h1> is the keyword title from frontmatter (`hero.title`), drawn as
+ *     the small label beside the version pill. The big "Ship AdMob from
+ *     commonMain." line is display text, not a heading: search engines read the
+ *     keyword title, people read the display line;
+ *   - `.hero` contains exactly two links, the frontmatter actions
+ *     (scripts/check-theme.mjs counts them). The copy button is a button;
+ *   - the stage is aria-hidden: it illustrates the code and the formats that
+ *     the text of the page already states.
  */
 import { Icon } from '@astrojs/starlight/components';
-import ProjectMetadata from './landing/ProjectMetadata.astro';
-import PlacementPlate from './landing/PlacementPlate.astro';
+import { formats, landingMeta } from '../data/landing';
+import CopyScript from './landing/CopyScript.astro';
+import LandingFormats from './landing/LandingFormats.astro';
+import LandingConsent from './landing/LandingConsent.astro';
+import LandingNative from './landing/LandingNative.astro';
+import LandingParity from './landing/LandingParity.astro';
+import LandingRoadmap from './landing/LandingRoadmap.astro';
+import LandingCta from './landing/LandingCta.astro';
+import LandingFooter from './landing/LandingFooter.astro';
 import '../styles/landing.css';
 
 const { data } = Astro.locals.starlightRoute.entry;
 const { title = data.title, tagline, actions = [] } = data.hero || {};
+const version = landingMeta.mavenCoordinate.split(':').at(-1);
+
+type Token = [kind: string, text: string];
+const t = (kind: string, text: string): Token => [kind, text];
+
+// App.kt, token by token, so the stage can colour it without a highlighter.
+const code: Token[][] = [
+  [t('annotation', '@Composable')],
+  [t('keyword', 'fun '), t('function', 'App'), t('plain', '() {')],
+  [t('plain', '    '), t('keyword', 'val '), t('plain', 'adManager = '), t('function', 'rememberAdManager'), t('plain', '()')],
+  [],
+  [t('plain', '    '), t('function', 'LaunchedEffect'), t('plain', '(adManager) {')],
+  [t('plain', '        adManager.'), t('function', 'gatherConsentAndInitialize'), t('plain', '(')],
+  [t('plain', '            '), t('function', 'AdConfig'), t('plain', '(')],
+  [t('plain', '                androidAppId = TestAdIds.ANDROID_APP_ID,')],
+  [t('plain', '                iosAppId = TestAdIds.IOS_APP_ID,')],
+  [t('plain', '                testMode = '), t('keyword', 'true'), t('plain', ',')],
+  [t('plain', '            )')],
+  [t('plain', '        )')],
+  [t('plain', '    }')],
+  [],
+  [t('plain', '    '), t('comment', '// one composable, both platforms')],
+  [t('plain', '    '), t('function', 'BannerAdView'), t('plain', '(placement)')],
+  [t('plain', '}')],
+];
+
+// The same code, cut to fit a phone-width stage.
+const compact: Token[][] = [
+  [t('comment', '// commonMain · App.kt')],
+  [t('keyword', 'val '), t('plain', 'adManager = '), t('function', 'rememberAdManager'), t('plain', '()')],
+  [t('function', 'LaunchedEffect'), t('plain', '(adManager) {')],
+  [t('plain', '  adManager.'), t('function', 'gatherConsentAndInitialize'), t('plain', '(cfg)')],
+  [t('plain', '}')],
+  [t('function', 'BannerAdView'), t('plain', '(placement)')],
+];
+
+const rows = [
+  { title: 'Morning run', detail: '5.2 km along the river' },
+  { title: 'Reading', detail: 'Chapter 4, 38 pages' },
+  { title: 'Sketching', detail: 'Two studies of the balcony' },
+];
+
+const facts = [
+  {
+    label: 'Formats',
+    value: formats.map((format) => format.name).join(', '),
+    short: `All ${formats.length === 6 ? 'six' : formats.length} AdMob formats`,
+  },
+  {
+    label: 'Privacy',
+    value: 'UMP consent, then ATT, then initialize — ordered for you',
+    short: 'UMP → ATT → init',
+  },
+  {
+    label: 'Targets',
+    value: `Android ${landingMeta.androidMinSdk}+ and iOS ${landingMeta.iosDeploymentTarget}+ from one commonMain`,
+    short: `Android ${landingMeta.androidMinSdk}+ · iOS ${landingMeta.iosDeploymentTarget.split('.')[0]}+`,
+  },
+  {
+    label: 'Toolchain',
+    value: `Kotlin ${landingMeta.kotlinVersion} · Compose Multiplatform ${landingMeta.composeMultiplatformVersion}`,
+    short: `Kotlin ${landingMeta.kotlinVersion}`,
+  },
+];
 ---
 
-<div class="landing-opening">
-  <div class="hero landing-hero">
-    <div class="landing-hero__lead">
-      <p class="landing-hero__eyebrow">
-        <span class="landing-hero__dot" aria-hidden="true"></span>
-        Open source · Kotlin Multiplatform
-      </p>
-      <h1 id="_top" data-page-title set:html={title} />
+<div class="landing">
+  <section class="landing-opening" aria-labelledby="_top">
+    <div class="hero landing-hero">
+      <div class="landing-hero__lead">
+        <div class="landing-hero__eyebrow">
+          <span class="landing-hero__pill">
+            <span class="landing-hero__pill-dot" aria-hidden="true"></span>
+            v{version} · {landingMeta.licenseSpdx}
+          </span>
+          <h1 id="_top" data-page-title class="landing-hero__title" set:html={title} />
+        </div>
+        <p class="landing-hero__display">
+          Ship AdMob<br />from common<span class="landing-hero__accent">Main</span>.
+        </p>
+      </div>
+
+      <div class="landing-hero__aside">
+        {tagline && <p class="landing-hero__tagline" set:html={tagline} />}
+        <div class="landing-install">
+          <span class="landing-install__prompt" aria-hidden="true">$</span>
+          <code class="admob-font-mono landing-install__code" tabindex="0">{landingMeta.mavenCoordinate}</code>
+          <button
+            class="landing-copy"
+            type="button"
+            hidden
+            data-copy={landingMeta.mavenCoordinate}
+            aria-label="Copy the dependency coordinate"
+          >
+            <svg class="landing-copy__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+            <svg class="landing-copy__icon landing-copy__icon--done" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+          </button>
+        </div>
+        {
+          actions.length > 0 && (
+            <div class="landing-hero__actions">
+              {actions.map(({ icon, link: href, text, variant }) => (
+                <a
+                  href={href}
+                  class:list={[
+                    'landing-hero__action',
+                    variant === 'minimal' && 'landing-hero__action--quiet',
+                  ]}
+                >
+                  <span>{text}</span>
+                  {icon?.name && <Icon name={icon.name} />}
+                </a>
+              ))}
+            </div>
+          )
+        }
+      </div>
     </div>
-    <div class="landing-hero__aside">
-      {tagline && <p class="landing-hero__tagline" set:html={tagline} />}
-      <ProjectMetadata />
-      {
-        actions.length > 0 && (
-          <div class="landing-hero__actions">
-            {actions.map(({ icon, link: href, text, variant }) => (
-              <a
-                href={href}
-                class:list={[
-                  'landing-hero__action',
-                  variant === 'minimal' && 'landing-hero__action--quiet',
-                ]}
-              >
-                <span>{text}</span>
-                {icon?.name && <Icon name={icon.name} />}
-              </a>
-            ))}
+
+    <div class="landing-stage" aria-hidden="true">
+      <div class="landing-stage__code">
+        <div class="landing-stage__code-bar">
+          <span class="landing-stage__code-dots"><span></span><span></span><span></span></span>
+          <span class="landing-stage__code-file">App.kt</span>
+          <span class="landing-stage__code-path">shared/src/commonMain</span>
+        </div>
+        <pre class="landing-code landing-stage__code-body">{code.map((line) => (
+          <span class="landing-code__line">{line.map(([kind, text]) => (
+            <span class={`landing-code__${kind}`}>{text}</span>
+          ))}</span>
+        ))}</pre>
+        <pre class="landing-code landing-stage__code-body landing-stage__code-body--compact">{compact.map((line) => (
+          <span class="landing-code__line">{line.map(([kind, text]) => (
+            <span class={`landing-code__${kind}`}>{text}</span>
+          ))}</span>
+        ))}</pre>
+      </div>
+
+      <div class="landing-stage__bridge">
+        <span class="landing-stage__bridge-label">renders natively on</span>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+      </div>
+
+      <div class="landing-stage__devices">
+        <div class="landing-device landing-device--android">
+          <div class="landing-device__bezel">
+            <div class="landing-device__screen">
+              <div class="landing-device__appbar">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+                Journal
+              </div>
+              <div class="landing-device__list">
+                {rows.map((row) => (
+                  <div class="landing-device__row">
+                    <span class="landing-device__row-title">{row.title}</span>
+                    <span class="landing-device__row-detail">{row.detail}</span>
+                  </div>
+                ))}
+              </div>
+              <div class="landing-device__banner">
+                <span class="landing-device__banner-chip">Test Ad</span>
+                <span class="landing-device__banner-copy">This is a 320×50 test ad.</span>
+              </div>
+            </div>
           </div>
-        )
-      }
+          <span class="landing-device__label">Android · API {landingMeta.androidMinSdk}+</span>
+        </div>
+
+        <div class="landing-device landing-device--ios">
+          <div class="landing-device__bezel">
+            <div class="landing-device__screen">
+              <div class="landing-device__appbar">Journal</div>
+              <div class="landing-device__list">
+                {rows.map((row) => (
+                  <div class="landing-device__row">
+                    <span class="landing-device__row-title">{row.title}</span>
+                    <span class="landing-device__row-detail">{row.detail}</span>
+                  </div>
+                ))}
+              </div>
+              <div class="landing-device__banner">
+                <span class="landing-device__banner-chip">Test Ad</span>
+                <span class="landing-device__banner-copy">This is a 320×50 test ad.</span>
+              </div>
+            </div>
+          </div>
+          <span class="landing-device__label">iOS · {landingMeta.iosDeploymentTarget}+</span>
+        </div>
+      </div>
     </div>
-  </div>
-  <PlacementPlate />
+
+    <dl class="landing-facts">
+      {
+        facts.map((fact) => (
+          <div class="landing-facts__item">
+            <dt>{fact.label}</dt>
+            <dd>
+              <span class="landing-facts__long">{fact.value}</span>
+              <span class="landing-facts__short">{fact.short}</span>
+            </dd>
+          </div>
+        ))
+      }
+    </dl>
+  </section>
+
+  <LandingFormats />
+  <LandingConsent />
+  <LandingNative />
+  <LandingParity />
+  <LandingRoadmap />
+  <LandingCta />
+  <LandingFooter />
 </div>
+
+<CopyScript />

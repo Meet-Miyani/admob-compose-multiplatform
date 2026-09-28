@@ -1,0 +1,14 @@
+---
+/**
+ * Starlight `Footer` override, registered in astro.config.mjs.
+ *
+ * Docs pages keep Starlight's footer (edit link, last updated, pagination).
+ * The landing page draws its own footer as the last section of the page, so
+ * the default one would be a second, unrelated footer under it.
+ */
+import Default from '@astrojs/starlight/components/Footer.astro';
+
+const isLanding = Boolean(Astro.locals.starlightRoute.entry.data.hero);
+---
+
+{!isLanding && <Default />}

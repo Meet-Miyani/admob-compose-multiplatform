@@ -70,10 +70,11 @@ both axes in a single self-hosted file at `public/fonts/archivo-wdth.woff2`:
 
 - **Display** — Archivo at `--admob-stretch-display` (104%), weight 700–750.
   Headings, the site title. Never running text.
-- **Hero** — `--admob-stretch-hero` (112%), weight 800, on exactly two lines of
-  the landing page: the H1 and the closing call to action. A single display
-  line can afford the width that an outline of headings cannot; the docs pages
-  never use it. Landing section headings sit between the two, at 108%.
+- **Display lines** — 112–115% width, weight 800, on the landing page's big
+  lines only: "Ship AdMob from commonMain." (115%), the section headings
+  (112%) and the closing "One line in commonMain." (115%); docs page titles
+  use 112%. A single display line can afford the width that an outline of
+  running headings cannot.
 - **Body** — the same family at normal width.
 - **Utility** — JetBrains Mono, for content that genuinely *is* code or data:
   eyebrows, column headers, API signatures, version strings, dimensions.
@@ -82,17 +83,29 @@ The width axis is the thing that makes headings read as headings. Keep it
 modest: past roughly 106% the wide letterforms cost more in legibility than they
 return in character, and this is a reference site.
 
-Sizes are pinned by the theme gate at fixed viewports — landing H1 72px
-desktop / 36px mobile, landing H2 48px / 30px, docs H1 36px. Changing the
-scale means changing those numbers in the same commit.
+**The landing <h1> is deliberately small.** It is the keyword title from
+frontmatter ("Compose Multiplatform AdMob SDK for Android and iOS"), drawn as
+the 12px mono label beside the version pill, exactly where the design canvas
+puts its label. The big "Ship AdMob from commonMain." is a display paragraph,
+not a heading. Search engines read the keyword title; people read the display
+line. Do not promote the display line to the <h1> without re-deciding the
+keyword strategy (see the public-visibility spec).
+
+Sizes are pinned by the theme gate at fixed viewports — landing H1 12px, landing
+H2 60px desktop / 38px mobile, format card titles 22px / 18px; docs H1 48px /
+36px, docs H2 26px, sidebar 14px. Changing the scale means changing those
+numbers in the same commit.
 
 ### Radius, elevation, motion
 
 Scale: `--admob-radius-sm` 4px (inline code, chips) · `--admob-radius` 8px
 (controls, search) · `--admob-radius-lg` 12px (panels, code frames, tables,
 figures) · `--admob-radius-xl` 18px (format cards, phone screens, roadmap
-cards) · `--admob-radius-2xl` 28px (the three big panels — stage, consent band,
-closing call to action — and the phone bezels).
+cards) · `--admob-radius-2xl` 28px (the stage and the closing call to action).
+The stage phones are shape declarations for one object each, so they have
+their own tokens: `--admob-radius-device` 38px / `-device-screen` 30px for
+Android, `-device-ios` 44px / `-device-ios-screen` 36px for iOS (iOS hardware
+really is rounder).
 
 `0`, `50%` and `999px` are shape declarations rather than points on the scale
 and are allowed directly. Everything else must be a token — enforced in source
@@ -142,18 +155,39 @@ control that cannot work without JavaScript should not exist in the markup. It
 *moves* the scroll region into the dialog rather than cloning it, because the
 Mermaid SVGs carry id-scoped styles that a clone would duplicate.
 
-**The placement plate** (`landing/PlacementPlate.astro`) is the landing page's
-signature element: a dark stage holding the `commonMain` code and the two
-phones it renders on, then the six format cards. Hovering or focusing a card
-moves the ad region in both phones — same code, both platforms. Its geometry
-lives in `landing.css` keyed by format slug, because geometry is presentation;
-only the wording lives in `data/landing.ts`. It uses `:has()` with
-`:hover`/`:focus` and no JavaScript. `:focus`, not `:focus-visible` — the plate
-must follow keyboard focus whatever the browser decides about drawing a ring.
+**The landing page** is built to the "Landing — desktop" and "Landing — phone"
+boards of the design canvas, section by section, and should stay that way:
+compare against the canvas when changing it, not against the previous
+version. `Hero.astro` renders the whole page — `index.mdx` has no body — as
+the opening (hero, stage, facts) followed by `landing/Landing*.astro`: formats,
+consent, native, parity, roadmap, closing call to action, footer.
 
-The page has exactly two dark panels, the stage and the consent band, and one
-tinted one, the closing call to action. Everything else sits on paper. Adding a
-fourth big panel is the most likely way to make the page worse.
+- The **stage** is the dark panel with the `commonMain` code and the two phones
+  it renders on. It is `aria-hidden`: the page's text says everything it shows.
+  At phone width the phones are the same drawing at `zoom: 0.62`, not a second
+  simplified one, and the code swaps to a six-line compact version.
+- Each **format card** has its own illustration of where that format lands
+  (strip, takeover with close, countdown and reward, intro card, splash, feed
+  card). The orange region is always the ad.
+- The **consent band** is the page's one full-bleed element. It paints edge to
+  edge with `border-image` outset, which is ink overflow: it never widens the
+  document, and it needs no box-shadow.
+- **Copy buttons** ship `hidden` and are revealed by `CopyScript.astro` only
+  when the clipboard API exists.
+
+Two dark panels (stage, consent band) and one tinted panel (the closing call to
+action). Everything else sits on paper. A fourth big panel is the most likely
+way to make the page worse.
+
+**Chrome.** `Header.astro` is one component with two arrangements: on the
+landing page the wordmark and four links sit left and search and a GitHub
+button right, on the page's 80rem column; on docs pages search sits beside the
+wordmark and the links move right as quiet text. The header is solid paper with
+a hairline — a translucent header over the dark panels turns into a grey smear.
+Below 50rem the landing page gets a disclosure menu (docs pages already have
+Starlight's). `PageTitle.astro` gives docs pages a breadcrumb read from the
+sidebar, the title, and the page description as a lede. Code blocks are on the
+dark stage surface in both themes (one dark Expressive Code theme).
 
 **The logo** is the Slot mark: a phone-screen outline whose ad slot is the
 Avinya dot stretched into a banner. `SiteTitle.astro` draws it inline (small
