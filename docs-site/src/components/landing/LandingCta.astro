@@ -1,0 +1,30 @@
+---
+/**
+ * The closing call to action: the one Gradle line, a copy button, and the way
+ * into the quickstart. The Maven coordinate appears exactly twice on the page —
+ * here and in the hero's install bar — both read from `landingMeta`.
+ */
+import { landingMeta } from '../../data/landing';
+import '../../styles/landing.css';
+
+const dependency = `implementation("${landingMeta.mavenCoordinate}")`;
+---
+
+<section class="landing-cta" aria-labelledby="landing-cta-title">
+  <h2 id="landing-cta-title">One line in<br class="landing-br" /> commonMain.</h2>
+  <div class="landing-cta__row">
+    <div class="landing-install landing-install--cta">
+      <code class="admob-font-mono landing-install__code" tabindex="0"
+        >implementation(<span class="landing-code__string">"{landingMeta.mavenCoordinate}"</span>)</code
+      >
+      <button class="landing-copy" type="button" hidden data-copy={dependency} aria-label="Copy the Gradle line">
+        <svg class="landing-copy__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+        <svg class="landing-copy__icon landing-copy__icon--done" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+      </button>
+    </div>
+    <a class="landing-hero__action landing-cta__action" href="/start/quickstart/">
+      <span>Read the quickstart</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+    </a>
+  </div>
+</section>

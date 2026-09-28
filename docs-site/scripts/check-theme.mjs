@@ -267,7 +267,7 @@ async function inspectLanding({ theme, viewport, reducedMotion = 'no-preference'
     const main = document.querySelector('main');
     const h1 = document.querySelector('h1');
     const h2 = document.querySelector('h2');
-    const h3 = document.querySelector('.landing-compatibility h3');
+    const h3 = document.querySelector('.landing-format__name');
     const section = document.querySelector('.landing-section');
 
     // Resolve the design tokens the way the browser will serialise them, by
@@ -292,7 +292,7 @@ async function inspectLanding({ theme, viewport, reducedMotion = 'no-preference'
       '0px',
       '50%',
       '999px',
-      ...['--admob-radius-sm', '--admob-radius', '--admob-radius-lg', '--admob-radius-xl', '--admob-radius-2xl'].map(
+      ...['--admob-radius-sm', '--admob-radius', '--admob-radius-lg', '--admob-radius-xl', '--admob-radius-2xl', '--admob-radius-device', '--admob-radius-device-screen', '--admob-radius-device-ios', '--admob-radius-device-ios-screen'].map(
         (token) => resolve('border-top-left-radius', 'borderTopLeftRadius', token)
       ),
     ]);
@@ -327,7 +327,7 @@ async function inspectLanding({ theme, viewport, reducedMotion = 'no-preference'
       background: getComputedStyle(block).backgroundColor,
     }));
 
-    const metaCode = document.querySelector('.landing-meta code.admob-font-mono');
+    const metaCode = document.querySelector('.landing-hero .landing-install__code');
     const metaCodeFocusable = metaCode
       ? metaCode.tabIndex >= 0 || ['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(metaCode.tagName)
       : false;
@@ -375,15 +375,15 @@ async function inspectLanding({ theme, viewport, reducedMotion = 'no-preference'
     focusChecks.heroActions.push(await focusAndRead(page, link));
   }
 
-  const metaCode = page.locator('.landing-meta code.admob-font-mono');
-  if (await metaCode.count() > 0) {
+  const metaCode = page.locator('.landing-hero .landing-install__code');
+  if (await metaCode.count() === 1) {
     if (data.metaCodeFocusable) {
       focusChecks.metaCode = await focusAndRead(page, metaCode);
     } else {
       focusChecks.metaCode = { focusable: false };
     }
   } else {
-    focusChecks.metaCode = { found: false };
+    focusChecks.metaCode = { found: false, count: await metaCode.count() };
   }
 
   focusChecks.formatLinks = [];
@@ -454,28 +454,25 @@ try {
       selector: '.sl-markdown-content h3',
       property: 'fontSize',
     });
-    // --admob-surface, per theme, in tokens.css.
-    const codeBackground = {
-      light: 'rgb(235, 236, 234)',
-      dark: 'rgb(23, 24, 25)',
-    }[theme];
+    // Code sits on the dark stage surface in both themes (DESIGN.md).
+    const codeBackground = 'rgb(22, 24, 26)';
     // The display and body faces are one variable family; the display role is
     // the same font pushed along its width axis, so both must resolve to it.
     const usesArchivo = (fontFamily) => /Archivo Variable/.test(fontFamily ?? '');
     check(desktop.article?.fontSize === '16px', `${theme} body is 16px`);
     check(desktop.article?.lineHeight === '26.4px', `${theme} body uses 1.65 rhythm`);
     check(desktop.article?.width <= 928, `${theme} content width is at most 58rem`);
-    check(desktop.headings?.h1 === '36px', `${theme} desktop H1 is 36px`);
-    check(desktop.headings?.h2 === '24px', `${theme} H2 is 24px`);
+    check(desktop.headings?.h1 === '48px', `${theme} desktop H1 is 48px`);
+    check(desktop.headings?.h2 === '26px', `${theme} H2 is 26px`);
     check(roadmapH3 === '19px', `${theme} H3 is 19px`);
     check(
       usesArchivo(desktop.article?.fontFamily) && usesArchivo(desktop.headings?.h1Family),
       `${theme} prose and headings share the Archivo family`
     );
     check(usesArchivo(desktop.sidebar?.fontFamily), `${theme} sidebar uses the Archivo family`);
-    check(desktop.sidebar?.fontSize === '13px', `${theme} sidebar is 13px`);
+    check(desktop.sidebar?.fontSize === '14px', `${theme} sidebar is 14px`);
     check(desktop.link?.color !== desktop.link?.bodyColor && contrast(desktop.link?.color ?? '', desktop.link?.background ?? '') >= 4.5, `${theme} links use a distinct semantic accent`);
-    check(desktop.code?.background === codeBackground, `${theme} code follows the site theme`);
+    check(desktop.code?.background === codeBackground, `${theme} code sits on the dark stage surface`);
     check(desktop.code?.fontSize === '14px', `${theme} code is 14px`);
     check(desktop.code?.radius === '12px', `${theme} code frame radius is --admob-radius-lg`);
     check((desktop.code?.colors.length ?? 0) >= 5, `${theme} code exposes at least five syntax colors`);
@@ -488,12 +485,13 @@ try {
     check(desktop.motion?.name === 'none', `${theme} articles do not animate on entry`);
 
     const landingDesktop = await inspectLanding({ theme, viewport: { width: 1440, height: 1000 } });
-    check(landingDesktop.headings?.h1 === '72px', `${theme} landing H1 is 72px desktop`);
-    check(landingDesktop.headings?.h2 === '48px', `${theme} landing H2 is 48px desktop`);
-    check(landingDesktop.headings?.h3 === '19px', `${theme} landing H3 is 19px desktop`);
+    check(landingDesktop.headings?.h1 === '12px', `${theme} landing H1 is 12px desktop`);
+    check(landingDesktop.headings?.h2 === '60px', `${theme} landing H2 is 60px desktop`);
+    check(landingDesktop.headings?.h3 === '22px', `${theme} landing H3 (.landing-format__name) is 22px desktop`);
+    const usesJetBrainsMono = (fontFamily) => /JetBrains Mono/.test(fontFamily ?? '');
     check(
-      usesArchivo(landingDesktop.headings?.h1Family) && usesArchivo(landingDesktop.section?.fontFamily),
-      `${theme} landing body and H1 share the Archivo family`
+      usesJetBrainsMono(landingDesktop.headings?.h1Family) && usesArchivo(landingDesktop.section?.fontFamily),
+      `${theme} landing H1 uses JetBrains Mono while sections use Archivo family`
     );
     // Token conformance, not flatness. Corners and depth may exist; they just
     // have to come off the scale in tokens.css rather than being invented here.
@@ -610,14 +608,14 @@ try {
     );
 
     const mobile = await inspect({ theme, viewport: { width: 390, height: 844 } });
-    check(mobile.headings?.h1 === '28px', `${theme} mobile H1 is 28px`);
+    check(mobile.headings?.h1 === '36px', `${theme} mobile H1 is 36px`);
     check(mobile.documentWidth <= mobile.viewportWidth + 1, `${theme} mobile document does not overflow horizontally`);
     check((mobile.table?.scrollWidth ?? 0) >= (mobile.table?.clientWidth ?? 0), `${theme} mobile table remains contained in its scroll region`);
 
     const landingMobile = await inspectLanding({ theme, viewport: { width: 390, height: 844 } });
-    check(landingMobile.headings?.h1 === '36px', `${theme} landing H1 is 36px mobile`);
-    check(landingMobile.headings?.h2 === '30px', `${theme} landing H2 is 30px mobile`);
-    check(landingMobile.headings?.h3 === '19px', `${theme} landing H3 is 19px mobile`);
+    check(landingMobile.headings?.h1 === '12px', `${theme} landing H1 is 12px mobile`);
+    check(landingMobile.headings?.h2 === '38px', `${theme} landing H2 is 38px mobile`);
+    check(landingMobile.headings?.h3 === '18px', `${theme} landing H3 (.landing-format__name) is 18px mobile`);
     check(
       landingMobile.documentWidth <= landingMobile.viewportWidth + 1,
       `${theme} landing mobile does not overflow horizontally`

@@ -1,0 +1,24 @@
+---
+/**
+ * 05 — Next. The two roadmap items, each under a top rule, beside the section
+ * title. No status pills or badges: the sentence says the status.
+ */
+import { roadmapItems } from '../../data/landing';
+import '../../styles/landing.css';
+---
+
+<section class="landing-section landing-roadmap" aria-labelledby="landing-roadmap-title">
+  <div class="landing-roadmap__intro">
+    <p class="landing-eyebrow">05 — Next</p>
+    <h2 id="landing-roadmap-title">On the roadmap</h2>
+    <a class="landing-link" href="/project/roadmap/">Full roadmap →</a>
+  </div>
+  {
+    roadmapItems.map((item) => (
+      <div class="landing-roadmap__item">
+        <h3 class="landing-roadmap__item-title">{item.title}</h3>
+        <p class="landing-roadmap__item-status">{item.status}</p>
+      </div>
+    ))
+  }
+</section>

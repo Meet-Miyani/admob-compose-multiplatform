@@ -4,14 +4,13 @@ description: 'Open-source Compose Multiplatform AdMob SDK: single-coordinate fac
 template: splash
 hero:
   title: Compose Multiplatform AdMob SDK for Android and iOS
-  tagline: Six AdMob formats, UMP consent and ATT behind one Kotlin API in commonMain. Suspend functions and StateFlow in, platform glue out.
+  tagline: Six ad formats, UMP consent and ATT behind one Kotlin API — on Android and iOS. Suspend functions and StateFlow in, platform glue out.
   actions:
-    - text: Quickstart
+    - text: Read the quickstart
       link: /start/quickstart/
       icon: right-arrow
-    - text: View on GitHub
+    - text: View source
       link: https://github.com/Meet-Miyani/admob-compose-multiplatform
-      icon: external
       variant: minimal
 head:
   - tag: meta
@@ -20,75 +19,7 @@ head:
       content: website
 ---
 
-{/* The hero, the spec strip and the placement plate are rendered by the
-    Starlight `Hero` override in src/components/Hero.astro, driven by the
-    `hero:` frontmatter above. Everything below is page body. */}
-
-import OriginStory from '../../components/landing/OriginStory.astro';
-import CompatibilityList from '../../components/landing/CompatibilityList.astro';
-import RoadmapSummary from '../../components/landing/RoadmapSummary.astro';
-import LandingFooter from '../../components/landing/LandingFooter.astro';
-import ConsentSteps from '../../components/landing/ConsentSteps.astro';
-import NativeShowcase from '../../components/landing/NativeShowcase.astro';
-import ClosingCta from '../../components/landing/ClosingCta.astro';
-
-<section class="landing-section landing-quickstart">
-
-## Quick start
-
-The SDK provides a single-coordinate facade (`dev.avinya.ads:admob-cmp`) for Android and iOS supporting six formats: Banner, Interstitial, Rewarded, Rewarded Interstitial, App Open, and Native. It includes pre-initialization hooks and consent control APIs for ordering ATT and UMP consent before initialising Google Mobile Ads, while production consent policies, store disclosures, and unit IDs are configured by the application.
-
-<div class="landing-quickstart__pair">
-
-```kotlin
-// shared/build.gradle.kts
-kotlin {
-    sourceSets {
-        commonMain.dependencies {
-            implementation("dev.avinya.ads:admob-cmp:2.5.1")
-        }
-    }
-}
-```
-
-```kotlin
-// commonMain — initialize once at the root
-adManager.gatherConsentAndInitialize(
-    AdConfig(
-        androidAppId = TestAdIds.ANDROID_APP_ID,
-        iosAppId = TestAdIds.IOS_APP_ID,
-        testMode = true,
-    )
-)
-```
-
-</div>
-
-{/* Blank lines inside the div are required: MDX only parses markdown inside a
-    block element when the content is separated from the tags. Collapsing this
-    onto one line would render literal backticks and bracket syntax. */}
-<div class="landing-quickstart__note">
-
-On iOS, the SDK provides pre-initialization hooks and consent control APIs to order UMP consent and ATT tracking authorization before Mobile Ads initialization with `ConsentMode.InitializeOnlyIfAlreadyAllowed`. Applications configure production consent policies and store disclosures according to their requirements. See the [Quickstart guide](/start/quickstart/) and [iOS setup guide](/start/ios-setup/).
-
-</div>
-
-[Continue to the full Quickstart →](/start/quickstart/)
-
-Already have a hand-rolled `expect class AdManager`? [Migrate from expect/actual →](/start/migrate-from-expect-actual/)
-
-</section>
-
-<ConsentSteps />
-
-<NativeShowcase />
-
-<OriginStory />
-
-<CompatibilityList />
-
-<RoadmapSummary />
-
-<ClosingCta />
-
-<LandingFooter />
+{/* The whole landing page is rendered by the Starlight `Hero` override in
+    src/components/Hero.astro, driven by the `hero:` frontmatter above: the
+    hero, the stage, and every section down to the footer. It mirrors the
+    "Landing" boards of the design canvas. This body is intentionally empty. */}

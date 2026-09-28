@@ -2,14 +2,20 @@
 /**
  * Starlight `SiteTitle` override, registered in astro.config.mjs.
  *
- * Draws the Slot mark inline instead of as an <img>, so it takes currentColor
- * in both themes and its pill can animate: the Avinya dot stretching into the
- * ad slot (tokens.css, `.brand-mark__slot`). This is the small master from the
- * logo spec — stroke 9 on the 64-unit grid — because at nav size the display
- * master's stroke 6 reads as spindly next to the wordmark.
+ * The lockup: the Slot mark and the `admob-cmp` wordmark, plus the version on
+ * docs pages (the landing hero states the version in its own pill, so
+ * tokens.css hides it there). `siteTitle` — "AdMob CMP" — still names every
+ * page in <title> and in search results; the wordmark is the artifact id,
+ * which is what developers type.
  *
- * The file is named `logo`/`brand-mark`, never `ad-slot` or `ad-banner`:
- * content blockers hide elements with those names.
+ * The mark is drawn inline so it takes currentColor in both themes and its
+ * slot can animate from the Avinya dot into the ad slot (tokens.css,
+ * `.brand-mark__slot`). This is the small master from the logo spec — stroke
+ * 9 on the 64-unit grid — because at nav size the display master's stroke 6
+ * reads as spindly next to the wordmark.
+ *
+ * Named `brand-mark`, never `ad-slot` or `ad-banner`: content blockers hide
+ * elements with those names.
  */
 import { landingMeta } from '../data/landing';
 
@@ -17,7 +23,7 @@ const { siteTitle, siteTitleHref } = Astro.locals.starlightRoute;
 const version = landingMeta.mavenCoordinate.split(':').at(-1);
 ---
 
-<a href={siteTitleHref} class="site-title sl-flex">
+<a href={siteTitleHref} class="site-title" aria-label={`${siteTitle} home`}>
   <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
     <rect
       x="16.5"
@@ -37,6 +43,6 @@ const version = landingMeta.mavenCoordinate.split(':').at(-1);
       rx="5"
       fill="var(--admob-accent)"></rect>
   </svg>
-  <span translate="no">{siteTitle}</span>
-  {version && <span class="site-title__version" aria-label={`version ${version}`}>{version}</span>}
+  <span translate="no" aria-hidden="true">admob-cmp</span>
+  {version && <span class="site-title__version" aria-hidden="true">{version}</span>}
 </a>

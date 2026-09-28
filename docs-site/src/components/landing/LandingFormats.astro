@@ -1,0 +1,94 @@
+---
+/**
+ * 01 — Formats. Six cards, one per AdMob format, each with a small phone that
+ * shows where that format lands and how it looks: a bottom strip for the
+ * banner, a full-screen takeover with a close control for the interstitial, a
+ * countdown and a reward for rewarded, an intro card for rewarded
+ * interstitial, a branded splash for app-open, and an ad card inside a feed
+ * for native. The orange region is always the ad.
+ *
+ * Every card is a plain link to its format guide. The phones are decorative
+ * (aria-hidden); the card text carries the meaning.
+ */
+import { formats } from '../../data/landing';
+import '../../styles/landing.css';
+---
+
+<section class="landing-section" aria-labelledby="landing-formats-title">
+  <div class="landing-section__head">
+    <div class="landing-section__title">
+      <p class="landing-eyebrow">01 — Formats</p>
+      <h2 id="landing-formats-title">Every AdMob format.<br class="landing-br" /> One call each.</h2>
+    </div>
+    <p class="landing-section__lede">
+      Composables for the ads that live in your layout, controllers for the ones that take the
+      screen. The orange region is where the ad lands.
+    </p>
+  </div>
+
+  <ol class="landing-formats">
+    {
+      formats.map((format) => (
+        <li class="landing-format">
+          <a class="landing-format__card" href={format.href} data-format={format.slug}>
+            <span class="landing-format__phone" aria-hidden="true">
+              <span class={`landing-format__screen landing-format__screen--${format.slug}`}>
+                {format.slug === 'banner' && (
+                  <>
+                    <span class="landing-format__bar" />
+                    <span class="landing-format__block" />
+                    <span class="landing-format__block" />
+                    <span class="landing-format__spacer" />
+                    <span class="landing-format__ad landing-format__ad--banner" />
+                  </>
+                )}
+                {format.slug === 'interstitial' && (
+                  <span class="landing-format__ad landing-format__ad--full">
+                    <span class="landing-format__close">×</span>
+                    <span class="landing-format__creative" />
+                  </span>
+                )}
+                {format.slug === 'rewarded' && (
+                  <span class="landing-format__ad landing-format__ad--full landing-format__ad--spread">
+                    <span class="landing-format__timer">0:15</span>
+                    <span class="landing-format__reward">+1 reward</span>
+                  </span>
+                )}
+                {format.slug === 'rewarded-interstitial' && (
+                  <span class="landing-format__ad landing-format__ad--intro">
+                    <span class="landing-format__line landing-format__line--ink" />
+                    <span class="landing-format__line landing-format__line--muted" />
+                    <span class="landing-format__countdown">in 3…</span>
+                  </span>
+                )}
+                {format.slug === 'app-open' && (
+                  <span class="landing-format__ad landing-format__ad--full landing-format__ad--splash">
+                    <span class="landing-format__logo" />
+                    <span class="landing-format__continue">Continue to app ›</span>
+                  </span>
+                )}
+                {format.slug === 'native' && (
+                  <>
+                    <span class="landing-format__block landing-format__block--short" />
+                    <span class="landing-format__ad landing-format__ad--native">
+                      <span class="landing-format__media" />
+                      <span class="landing-format__line landing-format__line--ink" />
+                      <span class="landing-format__line landing-format__line--muted" />
+                      <span class="landing-format__button" />
+                    </span>
+                    <span class="landing-format__block landing-format__block--short" />
+                  </>
+                )}
+              </span>
+            </span>
+            <div class="landing-format__text">
+              <h3 class="landing-format__name">{format.name}</h3>
+              <p class="landing-format__blurb">{format.blurb}</p>
+              <code class="admob-font-mono landing-format__call" title={format.api}>{format.call}</code>
+            </div>
+          </a>
+        </li>
+      ))
+    }
+  </ol>
+</section>

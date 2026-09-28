@@ -1,281 +1,296 @@
 /* docs-site/src/styles/landing.css
  *
- * Layout and composition for the landing page. Every colour, face, radius and
- * shadow comes from an --admob-* token in tokens.css; this file declares no
- * literal colours and no literal font stacks. Spacing, grids and the placement
- * plate's geometry live here.
+ * The landing page, built to the "Landing — desktop" and "Landing — phone"
+ * boards of the design canvas. Measurements are the canvas's; every colour,
+ * face, radius and shadow is an --admob-* token from tokens.css, so this file
+ * declares no literal colours and no literal font stacks.
  *
- * Imported by Hero.astro, PlacementPlate.astro, and the landing body
- * components.
- *
- * Reading order of the page: headline and install facts → the stage (code and
- * both phones) → formats → quick start → consent → native → why → parity →
- * roadmap → closing call to action → footer. The stage and the consent band
- * are the two dark panels; everything else sits on paper.
+ * Page order: header (Header.astro) → opening (hero, stage, facts) →
+ * 01 formats → 02 consent (full-bleed dark band) → 03 native → 04 parity →
+ * 05 roadmap → closing call to action → footer.
  */
 
 :root {
-  --landing-section-gap: clamp(4rem, 2rem + 6vw, 8rem);
-  --landing-meta-gap: 1rem;
+  --landing-gap: clamp(5rem, 2rem + 8vw, 10rem);
   --landing-rule: 1px solid var(--admob-hair);
+  --landing-chip: color-mix(in srgb, var(--admob-stage-ink) 9%, var(--admob-stage-raised));
+  --landing-stage-muted: color-mix(in srgb, var(--admob-stage-ink) 76%, var(--admob-stage));
+  --landing-stage-line: color-mix(in srgb, var(--admob-stage-ink) 24%, var(--admob-stage));
+  --landing-tint: color-mix(in srgb, var(--admob-accent) 13%, var(--admob-raised));
+  --landing-strong-edge: color-mix(in srgb, var(--admob-ink) 22%, var(--admob-hair));
 }
 
-/* The splash template pins .sl-container to the 45rem reading measure. The
-   landing page is not prose, so widen it — scoped by :has() so no docs page is
-   affected. */
-.content-panel:has(.landing-hero) .sl-container,
-.content-panel:has(.landing-section) .sl-container {
+/* The splash template pins .sl-container to the reading measure. The landing
+   page is not prose: give it the full 80rem column. */
+.content-panel:has(.landing) .sl-container {
   max-width: var(--admob-content-max);
 }
 
-/* Starlight gives every element that follows a sibling inside
-   .sl-markdown-content a `margin-top: 1rem`. That is correct for prose and
-   wrong for the grids and flex rows below: it shrinks the second and later
-   children inside their grid track. Unlayered author rules beat Starlight's
-   @layer starlight.core, so a plain reset is enough. */
-.landing-meta > div,
-.landing-compatibility__list > div,
-.landing-compatibility__list dd,
-.landing-formats > li,
-.landing-roadmap__list > div,
-.landing-footer__links > li,
-.landing-plate__content > span,
-.landing-consent__steps > li,
-.landing-consent__step > *,
-.landing-native__preview,
-.landing-heading > *,
-.landing-cta__actions,
-.landing-origin__body {
-  margin-top: 0;
+.landing {
+  color: var(--admob-ink);
 }
+
+/* ------------------------------------------------------ shared section parts */
 
 .landing-section {
-  margin-block: var(--landing-section-gap);
+  margin-top: var(--landing-gap);
 }
 
-/* ---------------------------------------------------------------- headings
- *
- * One section heading for the whole page. The width axis pushed a little past
- * the docs headings (104%) because these are display lines, not a reference
- * page's outline.
- */
+.landing-section__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1.5rem 3rem;
+  margin-bottom: 3rem;
+}
 
-.landing-opening h2,
-.sl-markdown-content .landing-section h2 {
-  margin-block: 0 0.75rem;
-  font-family: var(--admob-font-display);
-  font-stretch: 108%;
-  font-size: clamp(1.875rem, 1rem + 3.2vw, 3rem);
-  font-weight: 800;
-  line-height: 1.02;
-  letter-spacing: var(--admob-tracking-tighter);
-  color: var(--admob-ink);
-  text-wrap: balance;
+.landing-section__title {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .landing-eyebrow {
-  margin: 0 0 0.875rem;
+  margin: 0;
   font-family: var(--admob-font-mono);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   line-height: 1.4;
   color: var(--admob-slate);
 }
 
-.landing-heading {
-  max-width: 46rem;
-  margin-bottom: 2.25rem;
+.landing h2 {
+  margin: 0;
+  font-family: var(--admob-font-display);
+  font-stretch: 112%;
+  font-size: clamp(2.375rem, 1rem + 3.4vw, 3.75rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: var(--admob-tracking-tighter);
+  color: var(--admob-ink);
 }
 
-.landing-heading--split {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 24rem);
-  align-items: end;
-  gap: 1.5rem 3rem;
-  max-width: none;
+.landing-section__lede {
+  max-width: 25rem;
+  margin: 0;
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  color: var(--admob-ink-2);
 }
 
-/* --------------------------------------------------------------- opening */
+.landing-link {
+  color: var(--admob-ink);
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  white-space: nowrap;
+}
+
+.landing-link:hover {
+  color: var(--admob-accent-text);
+}
+
+/* ----------------------------------------------------------------- opening */
 
 .landing-opening {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  row-gap: clamp(2.5rem, 1.5rem + 3vw, 4rem);
-  padding-block: clamp(2rem, 1rem + 4vw, 5rem) 0;
+  padding-top: clamp(1.5rem, 0.5rem + 4vw, 4rem);
 }
 
 .landing-hero {
   display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  grid-template-columns: minmax(0, 7fr) minmax(0, 1fr) minmax(0, 4fr);
   align-items: end;
-  gap: 2rem clamp(2rem, 1rem + 4vw, 5rem);
-  text-align: start;
+  column-gap: 1.5rem;
 }
 
 .landing-hero__lead {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.75rem;
 }
 
 .landing-hero__eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.landing-hero__pill {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  padding: 0.375rem 0.625rem;
+  border: var(--landing-rule);
+  border-radius: 999px;
+  background: var(--admob-raised);
+  color: var(--admob-ink);
+  font-family: var(--admob-font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+.landing-hero__pill-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--admob-mark-ok);
+}
+
+/* The page's <h1>: the keyword title, drawn as the canvas's small label. */
+.landing .landing-hero__title {
   margin: 0;
   font-family: var(--admob-font-mono);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
+  font-stretch: normal;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0;
   color: var(--admob-slate);
 }
 
-.landing-hero__dot {
-  width: 0.4375rem;
-  height: 0.4375rem;
-  border-radius: 50%;
-  background: var(--admob-accent);
-}
-
-.landing-hero h1 {
+.landing-hero__display {
   margin: 0;
   font-family: var(--admob-font-display);
-  font-stretch: var(--admob-stretch-hero);
-  font-size: clamp(2.25rem, 0.6rem + 4.6vw, 4.5rem);
+  font-stretch: 115%;
+  font-size: clamp(2.75rem, 1rem + 6.5vw, 6.5rem);
   font-weight: 800;
-  line-height: 0.96;
+  line-height: 0.94;
   letter-spacing: -0.045em;
   color: var(--admob-ink);
-  text-wrap: balance;
+  /* "commonMain." is one word: it may run into the spacer column, as on the
+     canvas, but it must never break inside the word. */
+  overflow-wrap: normal;
+  word-break: keep-all;
+  hyphens: none;
+}
+
+.landing-hero__accent {
+  color: var(--admob-accent-strong);
 }
 
 .landing-hero__aside {
+  grid-column: 3;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding-bottom: 0.25rem;
+  gap: 1.5rem;
+  padding-bottom: 0.5rem;
 }
 
 .landing-hero__tagline {
   margin: 0;
-  max-width: 44ch;
-  font-size: clamp(1.0625rem, 0.95rem + 0.4vw, 1.1875rem);
+  font-size: 1.1875rem;
   line-height: 1.55;
-  color: var(--admob-slate);
-  text-wrap: pretty;
+  color: var(--admob-ink-2);
 }
 
-/* --------------------------------------------------------- hero spec strip
- *
- * The Maven row is the dark install bar; the other three facts sit under it
- * as one quiet line, separated by hairlines.
- */
-
-.landing-meta {
+/* The install bar: the one line people copy. Dark in both themes. */
+.landing-install {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.625rem var(--landing-meta-gap);
-  margin: 0;
-  padding: 0;
-  font-family: var(--admob-font-mono);
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--admob-slate);
-}
-
-.landing-meta > div {
-  display: flex;
-  align-items: baseline;
-  gap: 0.4375rem;
-}
-
-.landing-meta > div:not(.landing-meta__install) + div::before {
-  content: '';
-  align-self: center;
-  width: 1px;
-  height: 0.75em;
-  margin-inline-end: 0.5rem;
-  background: var(--admob-hair);
-}
-
-.landing-meta dt {
-  color: var(--admob-slate);
-  font-weight: 500;
-}
-
-.landing-meta dd {
-  margin: 0;
-  color: var(--admob-ink);
-}
-
-.landing-meta .landing-meta__install {
-  flex-basis: 100%;
   align-items: center;
-  gap: 0.875rem;
-  padding: 0.9375rem 1.125rem;
-  border: 1px solid var(--admob-stage-hair);
+  gap: 0.75rem;
+  height: 3.25rem;
+  margin-bottom: -0.75rem;
+  padding: 0 0.5rem 0 1rem;
   border-radius: var(--admob-radius-lg);
   background: var(--admob-stage);
+  color: var(--admob-stage-ink);
+  font-family: var(--admob-font-mono);
+  font-size: 0.8125rem;
 }
 
-.landing-meta .landing-meta__install dt {
-  color: var(--admob-stage-slate);
+.landing-install__prompt {
+  color: var(--admob-syn-comment);
 }
 
-.landing-meta dd > code,
-.landing-meta code.admob-font-mono {
+.landing-install__code {
+  flex-grow: 1;
+  min-width: 0;
   padding: 0.125rem 0.25rem;
-  border: 0;
   border-radius: var(--admob-radius-sm);
   background: transparent;
-  font-family: var(--admob-font-mono);
-  font-size: 0.875rem;
-  line-height: 1.4;
   color: var(--admob-stage-ink);
-  overflow-wrap: anywhere;
+  font-family: var(--admob-font-mono);
+  font-size: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* ----------------------------------------------------------- hero actions */
+.landing-copy {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--admob-radius);
+  background: var(--landing-chip);
+  color: var(--admob-stage-ink);
+  cursor: pointer;
+}
+
+.landing-copy[hidden] {
+  display: none;
+}
+
+.landing-copy__icon {
+  transition: opacity 180ms var(--admob-ease);
+}
+
+.landing-copy__icon--done {
+  position: absolute;
+  color: var(--admob-syn-string);
+  opacity: 0;
+}
+
+.landing-copy[data-copied] .landing-copy__icon {
+  opacity: 0;
+}
+
+.landing-copy[data-copied] .landing-copy__icon--done {
+  opacity: 1;
+}
 
 .landing-hero__actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.625rem;
+  gap: 0.75rem;
 }
 
-.landing-hero__action,
-.landing-cta__action {
+.landing-hero__action {
   display: inline-flex;
+  flex-grow: 1;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.375rem;
-  border: 1px solid var(--admob-accent);
+  gap: 0.625rem;
+  height: 3.25rem;
+  padding: 0 1.25rem;
+  border: 1px solid var(--admob-accent-strong);
   border-radius: var(--admob-radius-lg);
-  background: var(--admob-accent);
-  /* 19px bold is large text, so white on the accent clears the 3:1 it needs. */
+  background: var(--admob-accent-strong);
   color: var(--admob-accent-contrast);
-  font-size: 1.1875rem;
+  font-size: 1rem;
   font-weight: 700;
-  letter-spacing: var(--admob-tracking-tight);
   text-decoration: none;
-  transition: background-color 160ms var(--admob-ease),
-    border-color 160ms var(--admob-ease), color 160ms var(--admob-ease),
+  white-space: nowrap;
+  transition: background-color 160ms var(--admob-ease), border-color 160ms var(--admob-ease),
     transform 160ms var(--admob-ease);
 }
 
-.landing-hero__action:hover,
-.landing-cta__action:hover {
-  background: color-mix(in srgb, var(--admob-accent) 82%, var(--admob-ink));
-  border-color: color-mix(in srgb, var(--admob-accent) 82%, var(--admob-ink));
+.landing-hero__action:hover {
+  border-color: color-mix(in srgb, var(--admob-accent-strong) 85%, var(--admob-ink));
+  background: color-mix(in srgb, var(--admob-accent-strong) 85%, var(--admob-ink));
   color: var(--admob-accent-contrast);
   transform: translateY(-1px);
 }
 
-.landing-hero__action:active,
-.landing-cta__action:active {
-  transform: translateY(0);
-}
-
 .landing-hero__action svg {
+  width: 1rem;
+  height: 1rem;
   transition: transform 160ms var(--admob-ease);
 }
 
@@ -283,81 +298,37 @@
   transform: translateX(2px);
 }
 
-.landing-hero__action--quiet,
-.landing-cta__action--quiet {
-  border-color: var(--admob-hair);
+.landing-hero__action--quiet {
+  flex-grow: 0;
+  border-color: var(--landing-strong-edge);
   background: transparent;
   color: var(--admob-ink);
+  font-weight: 600;
 }
 
-.landing-hero__action--quiet:hover,
-.landing-cta__action--quiet:hover {
+.landing-hero__action--quiet:hover {
   border-color: var(--admob-ink);
   background: var(--admob-surface);
   color: var(--admob-ink);
 }
 
-/* --------------------------------------------------------- placement plate
- *
- * Geometry of the ad region inside the stage phones, as percentages of the
- * phone viewport. Keyed by format slug. The resting state is the banner: an
- * inset strip at the bottom of the screen.
- *
- * Interaction is :has() + :hover / :focus only. There is no script.
- *
- * :focus, not :focus-visible — the plate must follow keyboard focus whatever
- * the browser's heuristic decides about drawing a ring. The ring itself is
- * still :focus-visible, in tokens.css, which is the correct split.
- */
+/* ------------------------------------------------------------------- stage */
 
-.landing-opening {
-  --ad-x: 4%;
-  --ad-y: 86%;
-  --ad-w: 92%;
-  --ad-h: 9%;
-}
-
-/* The four full-screen formats cover the viewport. Nothing distinguishes them
-   geometrically, because nothing does in the SDK either — what differs is when
-   they appear, which is what each card's blurb says. */
-.landing-opening:has([data-format='interstitial']:hover),
-.landing-opening:has([data-format='interstitial']:focus),
-.landing-opening:has([data-format='rewarded']:hover),
-.landing-opening:has([data-format='rewarded']:focus),
-.landing-opening:has([data-format='rewarded-interstitial']:hover),
-.landing-opening:has([data-format='rewarded-interstitial']:focus),
-.landing-opening:has([data-format='app-open']:hover),
-.landing-opening:has([data-format='app-open']:focus) {
-  --ad-x: 0%;
-  --ad-y: 0%;
-  --ad-w: 100%;
-  --ad-h: 100%;
-}
-
-/* Native sits inline in the content flow, sized by the layout DSL. */
-.landing-opening:has([data-format='native']:hover),
-.landing-opening:has([data-format='native']:focus) {
-  --ad-x: 5%;
-  --ad-y: 34%;
-  --ad-w: 90%;
-  --ad-h: 30%;
-}
-
-.landing-plate__stage {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-  align-items: center;
-  gap: clamp(1.5rem, 1rem + 2vw, 3rem);
-  padding: clamp(1.25rem, 0.5rem + 2.5vw, 2.5rem);
-  border: 1px solid var(--admob-stage-hair);
+.landing-stage {
+  display: flex;
+  align-items: stretch;
+  gap: 2rem;
+  min-height: 37.5rem;
+  margin-top: 3.5rem;
+  padding: 2.5rem;
   border-radius: var(--admob-radius-2xl);
   background: var(--admob-stage);
   color: var(--admob-stage-ink);
 }
 
-/* The code window. */
-.landing-plate__code {
+.landing-stage__code {
   display: flex;
+  flex: 0 1 37.5rem;
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
@@ -366,42 +337,40 @@
   background: var(--admob-stage-raised);
 }
 
-.landing-plate__code-bar {
+.landing-stage__code-bar {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 0.875rem;
   height: 2.75rem;
   padding: 0 1rem;
   border-bottom: 1px solid var(--admob-stage-hair);
+  color: var(--admob-stage-slate);
   font-family: var(--admob-font-mono);
   font-size: 0.75rem;
-  color: var(--admob-stage-slate);
 }
 
-.landing-plate__code-dots {
+.landing-stage__code-dots {
   display: flex;
   gap: 0.375rem;
 }
 
-.landing-plate__code-dots > span {
+.landing-stage__code-dots > span {
   width: 0.625rem;
   height: 0.625rem;
   border-radius: 50%;
-  background: var(--admob-stage-hair);
+  background: var(--admob-bezel-edge);
 }
 
-.landing-plate__code-file {
-  padding: 0.25rem 0.625rem;
+.landing-stage__code-file {
+  padding: 0.3125rem 0.625rem;
   border-radius: var(--admob-radius-sm);
-  background: var(--admob-stage);
+  background: var(--landing-chip);
   color: var(--admob-stage-ink);
 }
 
-.landing-plate__code-body {
+.landing-code {
   margin: 0;
-  padding: 1.25rem 1.5rem;
-  overflow: hidden;
-  background: transparent;
   font-family: var(--admob-font-mono);
   font-size: 0.875rem;
   line-height: 1.75;
@@ -409,327 +378,543 @@
   white-space: pre;
 }
 
-.landing-plate__code-line {
+.landing-code__line {
   display: block;
   min-height: 1.75em;
 }
 
-.landing-plate__syn--keyword {
+.landing-code__keyword {
   color: var(--admob-syn-keyword);
 }
 
-.landing-plate__syn--function {
+.landing-code__function {
   color: var(--admob-syn-function);
 }
 
-.landing-plate__syn--annotation {
+.landing-code__string {
+  color: var(--admob-syn-string);
+}
+
+.landing-code__annotation {
   color: var(--admob-syn-annotation);
 }
 
-.landing-plate__syn--comment {
+.landing-code__comment {
   color: var(--admob-syn-comment);
 }
 
-/* The two phones. */
-.landing-plate__devices {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  gap: clamp(1rem, 0.5rem + 1.5vw, 1.75rem);
+.landing-stage__code-body {
+  flex-grow: 1;
+  padding: 1.375rem 1.5rem;
+  overflow: hidden;
+  background: transparent;
 }
 
-.landing-plate__device {
+.landing-stage__code-body--compact {
+  display: none;
+}
+
+.landing-stage__bridge {
   display: flex;
+  flex: none;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
-  width: min(13.5rem, 46%);
+  justify-content: center;
+  gap: 0.875rem;
+  width: 4rem;
+  color: var(--admob-stage-slate);
 }
 
-.landing-plate__device--ios {
-  margin-top: 2.5rem;
+.landing-stage__bridge-label {
+  font-family: var(--admob-font-mono);
+  font-size: 0.6875rem;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
 }
 
-.landing-plate__bezel {
-  width: 100%;
-  padding: 0.4375rem;
-  border: 1px solid var(--admob-stage-hair);
-  border-radius: var(--admob-radius-2xl);
+.landing-stage__bridge svg {
+  color: var(--admob-accent);
+}
+
+.landing-stage__devices {
+  display: flex;
+  flex-grow: 1;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1.75rem;
+}
+
+/* ------------------------------------------------------------------ phones */
+
+.landing-device {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.landing-device--ios {
+  margin-top: 2.75rem;
+}
+
+.landing-device__bezel {
+  width: 14.75rem;
+  height: 29.375rem;
+  padding: 0.5625rem;
+  border: 1px solid var(--admob-bezel-edge);
+  border-radius: var(--admob-radius-device);
   background: var(--admob-bezel);
 }
 
-.landing-plate__viewport {
-  position: relative;
+.landing-device--ios .landing-device__bezel {
+  border-radius: var(--admob-radius-device-ios);
+}
+
+.landing-device__screen {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
-  aspect-ratio: 9 / 19.5;
-  border-radius: var(--admob-radius-xl);
+  /* An app screen, not a document: the page's 1.75 prose rhythm would make
+     every row half again as tall as the canvas draws it. */
+  line-height: 1.25;
+  border-radius: var(--admob-radius-device-screen);
   background: var(--admob-screen);
   color: var(--admob-screen-ink);
 }
 
-.landing-plate__content {
+.landing-device--ios .landing-device__screen {
+  border-radius: var(--admob-radius-device-ios-screen);
+}
+
+.landing-device__appbar {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  height: 100%;
-  padding: 1.75rem 0.75rem 0.75rem;
-}
-
-.landing-plate__appbar {
-  padding: 0 0.25rem 0.25rem;
-  font-size: 0.875rem;
+  flex: none;
+  align-items: center;
+  gap: 0.75rem;
+  height: 4rem;
+  padding: 1.625rem 1rem 0;
+  font-size: 1.0625rem;
   font-weight: 600;
 }
 
-.landing-plate__row {
-  display: block;
-  padding: 0.625rem 0.75rem;
-  border-radius: var(--admob-radius-lg);
-  background: var(--admob-screen-card);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-/* iOS draws its own idiom: a large title and separated rows, not cards. */
-.landing-plate__device--ios .landing-plate__content {
-  gap: 0;
-  padding: 2.5rem 1rem 0.75rem;
-}
-
-.landing-plate__device--ios .landing-plate__appbar {
-  padding: 0 0 0.5rem;
-  font-size: 1.375rem;
+.landing-device--ios .landing-device__appbar {
+  height: 6rem;
+  padding: 3rem 1rem 0;
+  font-size: 1.625rem;
   font-weight: 800;
   letter-spacing: var(--admob-tracking-tight);
 }
 
-.landing-plate__device--ios .landing-plate__row {
-  padding: 0.75rem 0;
+.landing-device__list {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
+}
+
+.landing-device--ios .landing-device__list {
+  gap: 0;
+  padding: 0.25rem 0.875rem;
+}
+
+.landing-device__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border-radius: var(--admob-radius-lg);
+  background: var(--admob-screen-card);
+}
+
+.landing-device--ios .landing-device__row {
+  gap: 0.1875rem;
+  padding: 0.6875rem 0.125rem;
   border-bottom: 1px solid var(--admob-screen-hair);
   border-radius: 0;
   background: transparent;
 }
 
-.landing-plate__ad {
-  position: absolute;
-  left: var(--ad-x);
-  top: var(--ad-y);
-  width: var(--ad-w);
-  height: var(--ad-h);
+.landing-device__row-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.landing-device__row-detail {
+  font-size: 0.6875rem;
+  color: var(--admob-screen-slate);
+}
+
+.landing-device__banner {
   display: flex;
+  flex: none;
   align-items: center;
-  justify-content: center;
-  border: 1.5px solid var(--admob-accent);
+  gap: 0.5rem;
+  height: 3.5rem;
+  margin: 0 0.625rem 0.875rem;
+  padding: 0 0.625rem;
+  border: 1.5px solid var(--admob-accent-strong);
   border-radius: var(--admob-radius);
-  background: color-mix(in srgb, var(--admob-accent) 16%, var(--admob-screen));
-  transition: left 460ms var(--admob-ease-out), top 460ms var(--admob-ease-out),
-    width 460ms var(--admob-ease-out), height 460ms var(--admob-ease-out);
+  background: color-mix(in srgb, var(--admob-accent) 8%, var(--admob-screen));
 }
 
-.landing-plate__ad-label {
-  padding: 0.1875rem 0.4375rem;
+.landing-device--ios .landing-device__banner {
+  margin-bottom: 1.375rem;
+}
+
+.landing-device__banner-chip {
+  padding: 0.125rem 0.3125rem;
   border-radius: var(--admob-radius-sm);
-  background: var(--admob-screen-ink);
-  color: var(--admob-screen);
+  background: var(--admob-accent-strong);
+  color: var(--admob-accent-contrast);
   font-family: var(--admob-font-mono);
-  font-size: 0.625rem;
-  font-weight: 500;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.landing-plate__device-label {
+.landing-device__banner-copy {
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: var(--admob-screen-slate);
+}
+
+.landing-device__label {
   font-family: var(--admob-font-mono);
   font-size: 0.75rem;
   color: var(--admob-stage-slate);
 }
 
-/* ---------------------------------------------------------------- formats */
+/* ------------------------------------------------------------------- facts */
 
-.landing-plate__formats {
-  margin-top: clamp(2rem, 1rem + 4vw, 5rem);
+.landing-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin: 3.5rem 0 0;
 }
 
-.landing-plate__lede,
-.landing-consent__lede,
-.landing-native__lede,
-.landing-cta__lede {
-  margin: 0;
-  max-width: 48ch;
-  font-size: 1.0625rem;
-  line-height: 1.6;
+.landing-facts__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 1.125rem;
+  border-top: 1px solid var(--admob-ink);
+}
+
+.landing-facts dt {
+  font-family: var(--admob-font-mono);
+  font-size: 0.75rem;
+  font-weight: 400;
   color: var(--admob-slate);
-  text-wrap: pretty;
 }
+
+.landing-facts__short {
+  display: none;
+}
+
+.landing-facts dd {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--admob-ink);
+}
+
+/* ----------------------------------------------------------------- formats */
 
 .landing-formats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 1.25rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .landing-format {
-  list-style: none;
+  display: flex;
 }
 
-.landing-format a {
+.landing-format__card {
   display: flex;
-  gap: 1.25rem;
-  height: 100%;
-  box-sizing: border-box;
-  padding: 1.25rem;
+  flex-grow: 1;
+  gap: 1.5rem;
+  padding: 1.5rem;
   border: var(--landing-rule);
   border-radius: var(--admob-radius-xl);
   background: var(--admob-raised);
   color: var(--admob-ink);
   text-decoration: none;
-  transition: border-color 200ms var(--admob-ease), box-shadow 200ms var(--admob-ease),
-    transform 200ms var(--admob-ease);
+  transition: transform 220ms var(--admob-ease), border-color 220ms var(--admob-ease);
 }
 
-.landing-format a:hover,
-.landing-format a:focus-visible {
-  border-color: color-mix(in srgb, var(--admob-accent) 45%, var(--admob-hair));
-  box-shadow: var(--admob-shadow);
-  transform: translateY(-2px);
+.landing-format__card:hover,
+.landing-format__card:focus-visible {
+  border-color: var(--landing-strong-edge);
+  transform: translateY(-4px);
 }
 
 .landing-format__phone {
-  position: relative;
+  display: block;
   flex: none;
-  width: 3.75rem;
-  aspect-ratio: 9 / 17;
+  width: 7rem;
+  height: 12.5rem;
+  padding: 0.3125rem;
+  border: 1.5px solid var(--admob-ink);
+  border-radius: var(--admob-radius-xl);
+}
+
+.landing-format__screen {
+  line-height: 1.2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  height: 100%;
   overflow: hidden;
-  border: 2px solid var(--admob-ink);
+  padding: 1.125rem 0.5rem 0.5rem;
   border-radius: var(--admob-radius-lg);
   background: var(--admob-surface);
 }
 
-.landing-format__ad {
-  position: absolute;
-  border: 1.5px solid var(--admob-accent);
+.landing-format__screen--interstitial,
+.landing-format__screen--rewarded,
+.landing-format__screen--app-open {
+  padding: 0;
+}
+
+.landing-format__screen--rewarded-interstitial {
+  justify-content: center;
+  padding: 0.625rem;
+}
+
+.landing-format__bar {
+  width: 60%;
+  height: 0.375rem;
   border-radius: var(--admob-radius-sm);
-  background: var(--admob-accent-soft);
+  background: var(--admob-hair);
 }
 
-/* Each card's phone is static: it shows where its own format lands. */
-.landing-format a[data-format='banner'] .landing-format__ad {
-  inset: auto 8% 6% 8%;
-  height: 12%;
+.landing-format__block {
+  height: 1.625rem;
+  border-radius: var(--admob-radius-sm);
+  background: color-mix(in srgb, var(--admob-hair) 70%, var(--admob-surface));
 }
 
-.landing-format a[data-format='interstitial'] .landing-format__ad,
-.landing-format a[data-format='rewarded'] .landing-format__ad,
-.landing-format a[data-format='rewarded-interstitial'] .landing-format__ad,
-.landing-format a[data-format='app-open'] .landing-format__ad {
-  inset: 0;
-  border-radius: 0;
+.landing-format__block--short {
+  height: 1.375rem;
 }
 
-.landing-format a[data-format='native'] .landing-format__ad {
-  inset: 30% 8% auto 8%;
-  height: 36%;
+.landing-format__spacer {
+  flex-grow: 1;
+}
+
+.landing-format__ad {
+  display: flex;
+  border: 1.5px solid var(--admob-accent-strong);
+  border-radius: var(--admob-radius-sm);
+  background: var(--landing-tint);
+}
+
+.landing-format__ad--banner {
+  height: 1.25rem;
+}
+
+.landing-format__ad--full {
+  flex-direction: column;
+  flex-grow: 1;
+  padding: 0.5rem;
+  border-radius: var(--admob-radius-lg);
+}
+
+.landing-format__ad--spread {
+  justify-content: space-between;
+}
+
+.landing-format__ad--splash {
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.875rem 0.5rem 0.625rem;
+}
+
+.landing-format__ad--intro {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.625rem 0.5rem;
+  border-radius: var(--admob-radius);
+}
+
+.landing-format__ad--native {
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.3125rem;
+}
+
+.landing-format__close {
+  align-self: flex-end;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--admob-ink);
+  color: var(--admob-raised);
+  font-size: 0.625rem;
+  line-height: 1rem;
+  text-align: center;
+}
+
+.landing-format__creative {
+  flex-grow: 1;
+  margin-top: 0.5rem;
+  border-radius: var(--admob-radius);
+  background: color-mix(in srgb, var(--admob-accent) 26%, var(--admob-raised));
+}
+
+.landing-format__timer {
+  align-self: flex-end;
+  padding: 0.125rem 0.3125rem;
+  border-radius: var(--admob-radius);
+  background: var(--admob-ink);
+  color: var(--admob-raised);
+  font-family: var(--admob-font-mono);
+  font-size: 0.5625rem;
+}
+
+.landing-format__reward {
+  align-self: center;
+  padding: 0.25rem 0.4375rem;
+  border-radius: 999px;
+  background: var(--admob-ink);
+  color: var(--admob-raised);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.landing-format__line {
+  height: 0.3125rem;
+  border-radius: var(--admob-radius-sm);
+}
+
+.landing-format__line--ink {
+  width: 80%;
+  background: var(--admob-ink);
+}
+
+.landing-format__line--muted {
+  width: 55%;
+  background: var(--admob-slate);
+}
+
+.landing-format__ad--native .landing-format__line {
+  height: 0.25rem;
+}
+
+.landing-format__countdown {
+  font-family: var(--admob-font-mono);
+  font-size: 0.5625rem;
+  font-weight: 600;
+}
+
+.landing-format__logo {
+  width: 2.125rem;
+  height: 2.125rem;
+  border-radius: var(--admob-radius);
+  background: var(--admob-ink);
+}
+
+.landing-format__continue {
+  width: 100%;
+  padding: 0.3125rem;
+  border-radius: var(--admob-radius-sm);
+  background: var(--admob-raised);
+  color: var(--admob-ink);
+  font-size: 0.5rem;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.landing-format__media {
+  height: 2.25rem;
+  border-radius: var(--admob-radius-sm);
+  background: color-mix(in srgb, var(--admob-accent) 26%, var(--admob-raised));
+}
+
+.landing-format__button {
+  height: 0.625rem;
+  border-radius: var(--admob-radius-sm);
+  background: var(--admob-ink);
 }
 
 .landing-format__text {
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: 0.625rem;
   min-width: 0;
 }
 
-.landing-format__name {
+.landing .landing-format__name {
+  margin: 0;
   font-family: var(--admob-font-display);
-  font-stretch: var(--admob-stretch-display);
-  font-size: 1.1875rem;
-  font-weight: 750;
+  font-size: 1.375rem;
+  font-weight: 800;
+  line-height: 1.2;
   letter-spacing: var(--admob-tracking-tight);
   color: var(--admob-ink);
 }
 
 .landing-format__blurb {
+  margin: 0;
   font-size: 0.875rem;
   line-height: 1.5;
-  color: var(--admob-slate);
+  color: var(--admob-ink-2);
 }
 
-.landing-format__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.375rem 0.75rem;
+.landing-format__call {
+  align-self: flex-start;
   margin-top: auto;
-  padding-top: 0.5rem;
-}
-
-.landing-format__dimension {
-  font-family: var(--admob-font-mono);
-  font-size: 0.6875rem;
-  color: var(--admob-accent-text);
-}
-
-.landing-format__api {
-  padding: 0.1875rem 0.4375rem;
-  border: var(--landing-rule);
+  padding: 0.375rem 0.5625rem;
   border-radius: var(--admob-radius-sm);
   background: var(--admob-surface);
+  color: var(--admob-ink);
   font-family: var(--admob-font-mono);
-  font-size: 0.6875rem;
-  line-height: 1.4;
-  color: var(--admob-slate);
-  overflow-wrap: anywhere;
-}
-
-/* -------------------------------------------------------------- quickstart */
-
-.landing-quickstart__pair {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  align-items: start;
-}
-
-.landing-quickstart__pair > * {
-  margin: 0;
-  min-width: 0;
-}
-
-.landing-quickstart__note {
-  padding: 1.125rem 1.25rem;
-  border: var(--landing-rule);
-  border-radius: var(--admob-radius-lg);
-  background: var(--admob-surface);
-}
-
-.landing-quickstart__note > p {
-  margin: 0;
-  max-width: var(--admob-reading);
-  font-size: 0.9375rem;
-  line-height: 1.6;
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 /* ----------------------------------------------------------------- consent
  *
- * The second dark panel. It uses the stage tokens, which are dark in both
- * themes, so everything inside reads from --admob-stage-*.
+ * Full-bleed: the background is painted past the column with border-image
+ * outset, which is ink overflow — it never widens the document.
  */
 
 .landing-consent {
-  padding: clamp(1.5rem, 0.5rem + 4vw, 4rem);
-  border: 1px solid var(--admob-stage-hair);
-  border-radius: var(--admob-radius-2xl);
-  background: var(--admob-stage);
+  margin-top: var(--landing-gap);
+  padding-block: clamp(4rem, 1rem + 6.5vw, 7.5rem);
+  border-image: linear-gradient(var(--admob-stage) 0 0) fill 0 / 0 / 0 100vmax;
   color: var(--admob-stage-ink);
 }
 
-.sl-markdown-content .landing-consent h2 {
-  color: var(--admob-stage-ink);
+.landing-consent .landing-section__head {
+  margin-bottom: 3.5rem;
 }
 
-.landing-consent .landing-eyebrow,
-.landing-consent__lede {
+.landing-consent .landing-eyebrow {
   color: var(--admob-stage-slate);
+}
+
+.landing-consent h2 {
+  color: var(--admob-stage-ink);
+}
+
+.landing-consent .landing-section__lede {
+  max-width: 26.25rem;
+  color: var(--landing-stage-muted);
 }
 
 .landing-consent__accent {
@@ -739,7 +924,7 @@
 .landing-consent__steps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 1.25rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -748,8 +933,8 @@
 .landing-consent__step {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 1.5rem;
+  gap: 1rem;
+  padding: 1.75rem;
   border: 1px solid var(--admob-stage-hair);
   border-radius: var(--admob-radius-xl);
   background: var(--admob-stage-raised);
@@ -757,16 +942,16 @@
 
 .landing-consent__number {
   font-family: var(--admob-font-mono);
-  font-size: 2.25rem;
+  font-size: 2.5rem;
+  font-weight: 500;
   line-height: 1;
   color: var(--admob-stage-accent);
 }
 
-.sl-markdown-content .landing-consent__title {
+.landing .landing-consent__title {
   margin: 0;
   font-family: var(--admob-font-display);
-  font-stretch: var(--admob-stretch-display);
-  font-size: 1.375rem;
+  font-size: 1.5rem;
   font-weight: 800;
   line-height: 1.2;
   letter-spacing: var(--admob-tracking-tight);
@@ -775,72 +960,83 @@
 
 .landing-consent__platform {
   display: inline-block;
-  margin-inline-start: 0.5rem;
-  padding: 0.125rem 0.5rem;
-  border: 1px solid var(--admob-stage-hair);
+  margin-inline-start: 0.375rem;
+  padding: 0.1875rem 0.4375rem;
+  border: 1px solid var(--landing-stage-line);
   border-radius: 999px;
+  color: var(--landing-stage-muted);
   font-family: var(--admob-font-mono);
-  font-size: 0.6875rem;
-  font-weight: 400;
+  font-size: 0.75rem;
+  font-weight: 500;
   letter-spacing: 0;
   vertical-align: middle;
-  color: var(--admob-stage-slate);
 }
 
 .landing-consent__body {
   margin: 0;
   font-size: 0.9375rem;
-  line-height: 1.6;
-  color: var(--admob-stage-slate);
+  line-height: 1.55;
+  color: var(--landing-stage-muted);
 }
 
-.sl-markdown-content .landing-consent__api {
+.landing-consent__api {
   align-self: flex-start;
-  margin-top: auto;
-  padding: 0.375rem 0.625rem;
-  border: 1px solid var(--admob-stage-hair);
+  margin-top: 0.5rem;
+  padding: 0.4375rem 0.625rem;
   border-radius: var(--admob-radius-sm);
-  background: var(--admob-stage);
-  font-family: var(--admob-font-mono);
-  font-size: 0.8125rem;
+  background: var(--landing-chip);
   color: var(--admob-stage-ink);
+  font-family: var(--admob-font-mono);
+  font-size: 0.78125rem;
 }
 
 .landing-consent__warning {
-  margin: 1.5rem 0 0;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--admob-stage-hair);
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  margin: 3.5rem 0 0;
+  padding: 1.125rem 1.375rem;
+  border: 1px solid var(--landing-stage-line);
   border-radius: var(--admob-radius-lg);
-  font-size: 0.9375rem;
-  line-height: 1.55;
   color: var(--admob-stage-ink);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.landing-consent__warning svg {
+  flex: none;
+  color: var(--admob-stage-accent);
 }
 
 /* ------------------------------------------------------------------ native */
 
 .landing-native {
   display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  grid-template-columns: minmax(0, 7fr) minmax(0, 1fr) minmax(0, 4fr);
   align-items: center;
-  gap: 2.5rem clamp(2rem, 1rem + 4vw, 5rem);
+  column-gap: 1.5rem;
 }
 
 .landing-native__copy {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 2rem;
   min-width: 0;
 }
 
-.landing-native__copy > .landing-heading {
-  margin-bottom: 0.5rem;
+.landing-native .landing-native__lede {
+  max-width: 35rem;
 }
 
-.landing-native__copy > * {
-  margin-top: 0;
+.landing-native__code {
+  padding: 1.625rem 1.75rem;
+  overflow-x: auto;
+  border-radius: var(--admob-radius-xl);
+  background: var(--admob-stage);
 }
 
 .landing-native__preview {
+  grid-column: 3;
   display: flex;
   justify-content: center;
 }
@@ -849,37 +1045,36 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  width: min(20rem, 100%);
+  width: min(18.75rem, 100%);
   padding: 1rem;
-  border: 1.5px solid var(--admob-accent);
+  border: 1.5px solid var(--admob-accent-strong);
   border-radius: var(--admob-radius-xl);
   background: var(--admob-raised);
-  box-shadow: var(--admob-shadow-lg);
 }
 
 .landing-native__media {
   display: flex;
   align-items: center;
   justify-content: center;
-  aspect-ratio: 16 / 9;
+  height: 10.5625rem;
   border-radius: var(--admob-radius-lg);
-  background: var(--admob-surface);
-  font-family: var(--admob-font-mono);
-  font-size: 0.75rem;
+  background: color-mix(in srgb, var(--admob-accent) 10%, var(--admob-surface));
   color: var(--admob-slate);
+  font-family: var(--admob-font-mono);
+  font-size: 0.6875rem;
 }
 
 .landing-native__headline {
   font-size: 1.125rem;
   font-weight: 800;
   line-height: 1.25;
-  color: var(--admob-ink);
+  letter-spacing: -0.01em;
 }
 
 .landing-native__body {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
-  color: var(--admob-slate);
+  color: var(--admob-ink-2);
 }
 
 .landing-native__row {
@@ -897,241 +1092,251 @@
 
 .landing-native__advertiser {
   flex-grow: 1;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--admob-ink);
 }
 
 .landing-native__attribution {
   padding: 0.125rem 0.375rem;
   border-radius: var(--admob-radius-sm);
-  background: var(--admob-ink);
-  color: var(--admob-paper);
+  background: var(--admob-accent-strong);
+  color: var(--admob-accent-contrast);
   font-family: var(--admob-font-mono);
   font-size: 0.625rem;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .landing-native__cta {
-  display: block;
-  padding: 0.75rem;
-  border-radius: var(--admob-radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.75rem;
+  border-radius: var(--admob-radius);
   background: var(--admob-ink);
   color: var(--admob-paper);
   font-size: 0.875rem;
   font-weight: 700;
-  text-align: center;
 }
 
-/* ------------------------------------------------------------ origin story */
+/* ------------------------------------------------------------------ parity */
 
-.landing-origin {
-  display: grid;
-  grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
-  gap: 1.5rem clamp(2rem, 1rem + 4vw, 5rem);
-  align-items: start;
+.landing-section__head--link {
+  margin-bottom: 2.5rem;
 }
 
-.landing-origin__body {
-  display: grid;
-  gap: 1rem;
-  max-width: 62ch;
-}
-
-.landing-origin__body p {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.7;
-  color: var(--admob-slate);
-  text-wrap: pretty;
-}
-
-/* The opening sentence carries the problem statement; give it the ink weight
-   and a larger size so a reader skimming the section still gets the point. */
-.landing-origin__body p:first-child {
-  font-size: 1.25rem;
-  line-height: 1.5;
-  color: var(--admob-ink);
-}
-
-/* ---------------------------------------------------------- compatibility */
-
-.landing-compatibility__list {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1.5rem;
-  margin-block: 2rem 1rem;
-  padding: 0;
-}
-
-.landing-compatibility__list > div {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding-top: 1rem;
+.landing-parity {
+  overflow-x: auto;
   border-top: 1px solid var(--admob-ink);
 }
 
-.landing-compatibility__list dt {
+.landing-parity__table {
+  width: 100%;
+  min-width: 46rem;
+  border-collapse: collapse;
+  font-size: 1rem;
+}
+
+.landing-parity__table th,
+.landing-parity__table td {
+  padding: 1rem 1.5rem 1rem 0;
+  border-bottom: var(--landing-rule);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.landing-parity__table thead th {
+  padding-block: 0.875rem;
+  color: var(--admob-slate);
   font-family: var(--admob-font-mono);
   font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--admob-slate);
+  font-weight: 400;
 }
 
-.landing-compatibility__list dd {
-  margin: 0;
-  padding: 0;
-  font-family: var(--admob-font-display);
-  font-stretch: var(--admob-stretch-display);
-  font-size: 1.375rem;
-  font-weight: 750;
-  letter-spacing: var(--admob-tracking-tight);
+.landing-parity__table thead th:first-child,
+.landing-parity__table tbody th {
+  width: 17.5rem;
+}
+
+.landing-parity__table thead th:nth-child(2),
+.landing-parity__table thead th:nth-child(3) {
+  width: 11.25rem;
+}
+
+.landing-parity__table tbody th {
   color: var(--admob-ink);
+  font-weight: 700;
 }
 
-.landing-compatibility__klib-caveat {
-  margin-top: 0;
-  max-width: var(--admob-reading);
-  font-size: 0.8125rem;
-  line-height: 1.6;
-  color: var(--admob-slate);
-}
-
-.landing-compatibility__sub {
-  margin-top: 2.5rem;
-}
-
-.landing-compatibility__sub h3 {
-  margin-block: 0 0.75rem;
-  font-family: var(--admob-font-display);
-  font-size: 1.1875rem;
-  font-weight: 600;
-  letter-spacing: var(--admob-tracking-tight);
-  color: var(--admob-ink);
-}
-
-.landing-compatibility__details > summary {
-  display: flex;
-  flex-wrap: wrap;
+.landing-parity__status {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  padding: 1rem 1.25rem;
-  border: var(--landing-rule);
-  border-radius: var(--admob-radius-lg);
-  background: var(--admob-raised);
-  cursor: pointer;
-  list-style: none;
+  gap: 0.5rem;
+  white-space: nowrap;
 }
 
-.landing-compatibility__details > summary::-webkit-details-marker {
-  display: none;
+.landing-parity__status::before {
+  content: '';
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--admob-mark-ok);
 }
 
-.landing-compatibility__details > summary h3 {
-  margin: 0;
-}
-
-.landing-compatibility__summary-hint {
-  font-family: var(--admob-font-mono);
-  font-size: 0.75rem;
-  color: var(--admob-accent-text);
-}
-
-.landing-compatibility__details[open] > summary {
-  margin-bottom: 1rem;
-}
-
-.landing-compatibility__details[open] .landing-compatibility__summary-hint {
+.landing-parity__status--na,
+.landing-parity__status--gap {
   color: var(--admob-slate);
 }
 
-/* ---------------------------------------------------------------- roadmap */
+.landing-parity__status--na::before {
+  height: 2px;
+  border-radius: 0;
+  background: var(--admob-slate);
+}
 
-.landing-roadmap__list {
+.landing-parity__status--gap::before {
+  border: 1.5px solid var(--admob-slate);
+  background: transparent;
+}
+
+.landing-parity__note {
+  color: var(--admob-ink-2);
+}
+
+/* ----------------------------------------------------------------- roadmap */
+
+.landing-roadmap {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: 1.5rem;
+  row-gap: 2rem;
+}
+
+.landing-roadmap__intro {
+  grid-column: span 4;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 1rem;
-  margin: 1.5rem 0 0;
-  padding: 0;
+}
+
+.landing .landing-roadmap__intro h2 {
+  font-size: clamp(2rem, 1rem + 2.2vw, 2.75rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
 }
 
 .landing-roadmap__item {
-  padding: 1.5rem;
-  border: var(--landing-rule);
-  border-radius: var(--admob-radius-xl);
-  background: var(--admob-raised);
+  grid-column: span 4;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--admob-ink);
 }
 
-.landing-roadmap__item-title {
+.landing .landing-roadmap__item-title {
+  margin: 0;
   font-family: var(--admob-font-display);
-  font-size: 1.125rem;
-  font-weight: 600;
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.25;
   letter-spacing: var(--admob-tracking-tight);
   color: var(--admob-ink);
 }
 
 .landing-roadmap__item-status {
-  margin: 0.5rem 0 0;
+  margin: 0;
   font-size: 0.9375rem;
   font-weight: 400;
-  line-height: 1.6;
-  color: var(--admob-slate);
+  line-height: 1.55;
+  color: var(--admob-ink-2);
 }
 
-/* ----------------------------------------------------------- closing CTA */
+/* ------------------------------------------------------------- closing CTA */
 
 .landing-cta {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding: clamp(2rem, 1rem + 4vw, 4.5rem);
-  border: var(--landing-rule);
+  justify-content: center;
+  gap: 2rem;
+  margin-top: var(--landing-gap);
+  padding: clamp(2.5rem, 1rem + 5vw, 5.5rem) clamp(1.5rem, 0.5rem + 5vw, 4.5rem);
   border-radius: var(--admob-radius-2xl);
   background: var(--admob-surface);
 }
 
-.sl-markdown-content .landing-cta h2 {
-  margin: 0;
-  font-stretch: var(--admob-stretch-hero);
-  font-size: clamp(2.25rem, 1rem + 4.5vw, 4.25rem);
-  line-height: 0.98;
+.landing .landing-cta h2 {
+  font-stretch: 115%;
+  font-size: clamp(2.375rem, 1rem + 5vw, 5rem);
+  line-height: 0.96;
   letter-spacing: -0.045em;
+  overflow-wrap: normal;
+  word-break: keep-all;
 }
 
-.landing-cta__actions {
+.landing-cta__row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.625rem;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-.sl-markdown-content .landing-cta__action {
-  color: var(--admob-accent-contrast);
-  text-decoration: none;
+.landing-install--cta {
+  gap: 0.875rem;
+  height: 3.5rem;
+  margin: 0;
+  padding: 0 0.5rem 0 1.125rem;
+  font-size: 0.875rem;
 }
 
-.sl-markdown-content .landing-cta__action--quiet {
-  color: var(--admob-ink);
+.landing-install--cta .landing-install__code {
+  flex-grow: 0;
+  overflow: visible;
 }
 
-/* ----------------------------------------------------------------- footer */
+.landing-install--cta .landing-copy {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.landing-cta__action {
+  flex-grow: 0;
+  height: 3.5rem;
+  padding: 0 1.5rem;
+}
+
+/* ------------------------------------------------------------------ footer */
 
 .landing-footer {
-  border-top: 1px solid var(--admob-hair);
-  margin-top: var(--landing-section-gap);
-  padding-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  padding: 4rem 0 3rem;
+}
+
+.landing-footer__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 3rem;
+}
+
+.landing-footer__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
 }
 
 .landing-footer__brand {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin: 0 0 1.25rem;
+  gap: 0.625rem;
+  margin: 0;
   font-family: var(--admob-font-display);
-  font-stretch: var(--admob-stretch-display);
-  font-size: 1.125rem;
-  font-weight: 750;
+  font-stretch: 112%;
+  font-size: 1.25rem;
+  font-weight: 800;
   letter-spacing: var(--admob-tracking-tight);
   color: var(--admob-ink);
 }
@@ -1141,129 +1346,319 @@
   height: 1.375rem;
 }
 
-.landing-footer__links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.5rem;
-  padding: 0;
-  margin: 0 0 1.25rem;
-  list-style: none;
-}
-
-.landing-footer__links a,
-.sl-markdown-content .landing-footer__links a {
-  font-size: 0.875rem;
-  color: var(--admob-slate);
-  text-decoration: none;
-  transition: color 150ms var(--admob-ease);
-}
-
-.landing-footer__links a:hover,
-.sl-markdown-content .landing-footer__links a:hover {
-  color: var(--admob-ink);
-}
-
 .landing-footer__author {
-  margin: 0 0 0.5rem;
+  margin: 0;
   font-size: 0.875rem;
-  color: var(--admob-ink);
+  color: var(--admob-ink-2);
 }
 
 .landing-footer__author a {
   color: var(--admob-ink);
+  text-decoration: none;
+}
+
+.landing-footer__author a:last-child {
+  font-weight: 600;
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--admob-accent) 55%, transparent);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;
-  transition: text-decoration-color 150ms var(--admob-ease), color 150ms var(--admob-ease);
 }
 
 .landing-footer__author a:hover {
   color: var(--admob-accent-text);
-  text-decoration-color: var(--admob-accent-text);
+}
+
+.landing-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landing-footer__links a {
+  color: var(--admob-ink);
+  font-size: 0.9375rem;
+  text-decoration: none;
+}
+
+.landing-footer__links a:hover {
+  color: var(--admob-accent-text);
 }
 
 .landing-footer__legal {
-  max-width: var(--admob-reading);
+  margin: 0;
+  padding-top: 1.5rem;
+  border-top: var(--landing-rule);
   font-size: 0.8125rem;
-  line-height: 1.6;
   color: var(--admob-slate);
 }
 
-/* ------------------------------------------------------------- responsive */
+/* -------------------------------------------------------------- responsive */
+
+@media (max-width: 72rem) {
+  .landing-stage {
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .landing-stage__code {
+    flex-basis: auto;
+  }
+
+  .landing-stage__bridge {
+    display: none;
+  }
+}
 
 @media (max-width: 64rem) {
-  .landing-formats,
-  .landing-consent__steps {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .landing-compatibility__list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 60rem) {
   .landing-hero,
-  .landing-plate__stage,
-  .landing-native,
-  .landing-origin,
-  .landing-heading--split {
+  .landing-native {
     grid-template-columns: minmax(0, 1fr);
+    row-gap: 2.5rem;
   }
 
-  .landing-hero {
-    align-items: start;
+  .landing-hero__aside,
+  .landing-native__preview {
+    grid-column: 1;
+  }
+
+  .landing-formats,
+  .landing-consent__steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .landing-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .landing-roadmap__intro,
+  .landing-roadmap__item {
+    grid-column: span 12;
+  }
+
+  .landing-section__head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 
+/* The phone board of the canvas. */
 @media (max-width: 45rem) {
-  .landing-quickstart__pair,
-  .landing-formats,
-  .landing-consent__steps {
-    grid-template-columns: minmax(0, 1fr);
+  .landing-opening {
+    padding-top: 1rem;
   }
 
-  .landing-meta {
-    font-size: 0.6875rem;
-  }
-
-  .landing-meta code.admob-font-mono {
-    font-size: 0.8125rem;
-  }
-
-  /* The code window cannot be read at phone width without scrolling inside a
-     decorative, aria-hidden panel. The Quick start below shows the same code
-     as real, copyable text. */
-  .landing-plate__code {
+  .landing-hero__pill {
     display: none;
   }
 
-  .landing-plate__device--ios {
-    margin-top: 1.5rem;
+  /* Section headings wrap naturally at phone width; the desktop line
+     breaks would strand single words. */
+  .landing-br {
+    display: none;
   }
-}
 
-/* ----------------------------------------------------------- entrance
- *
- * One orchestrated sequence on the opening: the copy rises, the stage follows,
- * and then the test banners arrive in both phones — Android first, iOS a beat
- * later — the way a banner actually loads after the screen does.
- * Fully disabled under prefers-reduced-motion below.
- */
-
-@keyframes landing-rise {
-  from {
-    opacity: 0;
-    transform: translateY(0.75rem);
+  .landing-hero__lead {
+    gap: 1.375rem;
   }
-  to {
-    opacity: 1;
+
+  .landing-hero__aside {
+    gap: 1.375rem;
+  }
+
+  .landing-hero__tagline {
+    font-size: 1.0625rem;
+  }
+
+  .landing-hero__actions {
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .landing-hero__action--quiet {
+    flex-grow: 1;
+  }
+
+  .landing-install {
+    margin-bottom: 0;
+    font-size: 0.75rem;
+  }
+
+  .landing-stage {
+    gap: 1.25rem;
+    margin-top: 2rem;
+    padding: 1.25rem;
+    border-radius: var(--admob-radius-xl);
+  }
+
+  .landing-stage__code-bar,
+  .landing-stage__code-body:not(.landing-stage__code-body--compact) {
+    display: none;
+  }
+
+  .landing-stage__code-body--compact {
+    display: block;
+    padding: 1rem;
+    font-size: 0.71875rem;
+    line-height: 1.7;
+  }
+
+  .landing-stage__devices {
+    gap: 0.875rem;
+  }
+
+  .landing-device--ios {
+    margin-top: 0;
+  }
+
+  .landing-device__bezel {
+    zoom: 0.62;
+  }
+
+  .landing-device__label {
+    font-size: 0.6875rem;
+  }
+
+  .landing-facts {
+    gap: 1.25rem 1rem;
+    margin-top: 2rem;
+  }
+
+  .landing-facts__item {
+    padding-top: 0.75rem;
+  }
+
+  .landing-facts dd {
+    font-size: 1rem;
+  }
+
+  .landing-facts__long {
+    display: none;
+  }
+
+  .landing-facts__short {
+    display: inline;
+  }
+
+  .landing-section__head {
+    margin-bottom: 1.5rem;
+  }
+
+  .landing-formats {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    border-top: var(--landing-rule);
+  }
+
+  .landing-format__card {
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 0;
+    border: 0;
+    border-bottom: var(--landing-rule);
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .landing-format__card:hover,
+  .landing-format__card:focus-visible {
     transform: none;
   }
+
+  .landing-format__phone {
+    zoom: 0.39;
+  }
+
+  .landing-format__text {
+    gap: 0.375rem;
+  }
+
+  .landing .landing-format__name {
+    font-size: 1.125rem;
+  }
+
+  .landing-format__blurb {
+    display: none;
+  }
+
+  .landing-format__call {
+    margin-top: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--admob-ink-2);
+    font-size: 0.71875rem;
+  }
+
+  .landing-consent__steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .landing-consent__step {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 1rem;
+    row-gap: 0.375rem;
+    padding: 1.25rem;
+  }
+
+  .landing-consent__number {
+    grid-row: span 2;
+    font-size: 1.375rem;
+  }
+
+  .landing .landing-consent__title {
+    font-size: 1.125rem;
+  }
+
+  .landing-consent__body {
+    font-size: 0.875rem;
+  }
+
+  .landing-consent__api {
+    display: none;
+  }
+
+  .landing-consent__warning {
+    margin-top: 1.5rem;
+  }
+
+  .landing-install--cta {
+    display: none;
+  }
+
+  .landing-cta__action {
+    flex-grow: 1;
+  }
+
+  .landing-footer__top {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .landing-footer__links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.25rem 1rem;
+  }
+
+  .landing-footer__links a {
+    display: block;
+    padding: 0.625rem 0;
+  }
 }
 
-@keyframes landing-ad-arrive {
+/* ------------------------------------------------------------------ motion
+ *
+ * The canvas's "once" choreography: the test banners slide into both phones
+ * after the page settles (Android first, iOS a beat later); the consent steps
+ * rise in order as their band scrolls in. Every move answers
+ * prefers-reduced-motion and print below.
+ */
+
+@keyframes landing-banner-in {
   from {
     opacity: 0;
     transform: translateY(0.875rem);
@@ -1274,128 +1669,92 @@
   }
 }
 
-.landing-hero__lead,
-.landing-hero__aside,
-.landing-plate__stage {
-  animation: landing-rise 600ms var(--admob-ease-out) backwards;
+.landing-device__banner {
+  animation: landing-banner-in 420ms var(--admob-ease-out) 900ms backwards;
 }
 
-.landing-hero__aside {
-  animation-delay: 120ms;
-}
-
-.landing-plate__stage {
-  animation-delay: 220ms;
-}
-
-.landing-plate__ad {
-  animation: landing-ad-arrive 420ms var(--admob-ease-out) 900ms backwards;
-}
-
-.landing-plate__device--ios .landing-plate__ad {
+.landing-device--ios .landing-device__banner {
   animation-delay: 1020ms;
 }
 
-/* Scroll-driven reveal for the sections below the fold. Uses a view timeline,
-   so there is no JavaScript and no observer: the browser drives it or it does
-   nothing at all. Wrapped in @supports because not every engine ships
-   scroll-driven animations yet — there, sections simply render, which is the
-   correct fallback rather than content that never appears.
-
-   Deliberately translate-only, with no opacity. A scroll-driven animation holds
-   its `from` state whenever the timeline does not resolve — printing, a
-   full-page screenshot, a reader-mode pass. With `opacity: 0` in the `from`
-   state that means the section is simply not there. */
-@keyframes landing-reveal {
+/* Scroll-driven, translate and colour only: a scroll timeline holds its
+   `from` state when it cannot resolve (print, full-page screenshots), so it
+   must never start invisible. */
+@keyframes landing-step-in {
   from {
-    transform: translateY(14px);
+    transform: translateY(10px);
   }
   to {
     transform: none;
   }
 }
 
-@keyframes landing-step-reveal {
+@keyframes landing-number-in {
   from {
-    transform: translateY(18px);
-  }
-  to {
-    transform: none;
+    color: var(--admob-stage-slate);
   }
 }
 
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
-    .landing-section,
-    .landing-consent__step {
-      animation-name: landing-reveal;
+    .landing-consent__step,
+    .landing-consent__number {
       animation-duration: 1ms;
       animation-timing-function: linear;
       animation-fill-mode: both;
     }
 
     .landing-consent__step {
-      animation-name: landing-step-reveal;
+      animation-name: landing-step-in;
     }
 
-    /* Deliberately a second rule with a different selector shape. When the
-       timeline sits beside the longhands above, the CSS minifier folds them all
-       into the `animation` shorthand — which cannot carry a timeline, so the
-       whole declaration becomes invalid and is dropped. */
-    :where(.landing-section) {
+    .landing-consent__number {
+      animation-name: landing-number-in;
+    }
+
+    /* A separate rule with a different selector shape: beside the longhands
+       above, the minifier would fold the timeline into the `animation`
+       shorthand, which cannot carry one, and drop the whole declaration. */
+    :where(.landing-consent__step, .landing-consent__number) {
       animation-timeline: view();
-      animation-range: entry 0% entry 40%;
+      animation-range: entry 0% entry 60%;
     }
 
-    /* The three consent steps arrive in order: each one's range starts a
-       little later into the band's entry. */
-    :where(.landing-consent__step) {
-      animation-timeline: view();
-      animation-range: entry 0% entry 55%;
+    :where(.landing-consent__step:nth-child(2), .landing-consent__step:nth-child(2) .landing-consent__number) {
+      animation-range: entry 12% entry 72%;
     }
 
-    :where(.landing-consent__step:nth-child(2)) {
-      animation-range: entry 10% entry 70%;
-    }
-
-    :where(.landing-consent__step:nth-child(3)) {
-      animation-range: entry 20% entry 85%;
+    :where(.landing-consent__step:nth-child(3), .landing-consent__step:nth-child(3) .landing-consent__number) {
+      animation-range: entry 24% entry 84%;
     }
   }
 }
 
 @media print {
-  .landing-hero__lead,
-  .landing-hero__aside,
-  .landing-plate__stage,
-  .landing-plate__ad,
-  .landing-section,
-  .landing-consent__step {
+  .landing-device__banner,
+  .landing-consent__step,
+  .landing-consent__number {
     animation: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-hero__lead,
-  .landing-hero__aside,
-  .landing-plate__stage,
-  .landing-plate__ad,
-  .landing-section,
+  .landing-device__banner,
   .landing-consent__step,
-  .landing-plate__formats {
+  .landing-consent__number {
     animation: none;
   }
 
-  .landing-plate__ad,
+  .landing-format__card,
   .landing-hero__action,
   .landing-hero__action svg,
-  .landing-cta__action,
-  .landing-format a {
+  .landing-copy__icon {
     transition: none;
   }
 
-  .landing-format a:hover,
-  .landing-format a:focus-visible {
+  .landing-format__card:hover,
+  .landing-format__card:focus-visible,
+  .landing-hero__action:hover {
     transform: none;
   }
 }

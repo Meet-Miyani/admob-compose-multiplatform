@@ -1,0 +1,78 @@
+---
+/**
+ * 02 — Consent. The full-width dark band: consent, then ATT, then initialize.
+ * The ordering is the part hand-rolled integrations get wrong, so it gets the
+ * page's one full-bleed panel.
+ *
+ * The band paints edge to edge with border-image outset rather than a 100vw
+ * box: outset is ink overflow, so it never creates a horizontal scrollbar, and
+ * it needs no box-shadow (the theme gate allows only token shadows).
+ *
+ * The three steps arrive in order as the band scrolls in — translate and the
+ * number's colour only, never opacity (DESIGN.md, scroll-animation trap) — and
+ * not at all under reduced motion.
+ */
+import '../../styles/landing.css';
+
+const steps = [
+  {
+    title: 'Gather consent',
+    body: 'UMP decides whether ads may be requested at all. canRequestAds gates every request on both platforms.',
+    api: 'consent.gatherConsent(config)',
+    platform: undefined,
+  },
+  {
+    title: 'Ask for tracking',
+    body: 'ATT on iOS 14.5+. Android reports NotApplicable, so your shared code never branches.',
+    api: 'tracking.requestAuthorization()',
+    platform: 'iOS',
+  },
+  {
+    title: 'Initialize',
+    body: 'Mobile Ads starts only once both answers are in. Status flows back as StateFlow.',
+    api: 'AdManagerStatus.Ready',
+    platform: undefined,
+  },
+];
+---
+
+<section class="landing-consent" aria-labelledby="landing-consent-title">
+  <div class="landing-section__head">
+    <div class="landing-section__title">
+      <p class="landing-eyebrow">02 — Consent</p>
+      <h2 id="landing-consent-title">
+        Consent, then ATT,<br class="landing-br" /> then ads. <span class="landing-consent__accent">In that order.</span>
+      </h2>
+    </div>
+    <p class="landing-section__lede">
+      The ordering is the part hand-rolled integrations get wrong. One call runs it; the steps stay
+      open if you need to own them.
+    </p>
+  </div>
+
+  <ol class="landing-consent__steps">
+    {
+      steps.map((step, index) => (
+        <li class="landing-consent__step">
+          <span class="landing-consent__number" aria-hidden="true">
+            0{index + 1}
+          </span>
+          <h3 class="landing-consent__title">
+            {step.title}
+            {step.platform && <span class="landing-consent__platform">{step.platform}</span>}
+          </h3>
+          <p class="landing-consent__body">{step.body}</p>
+          <code class="admob-font-mono landing-consent__api">{step.api}</code>
+        </li>
+      ))
+    }
+  </ol>
+
+  <p class="landing-consent__warning">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg>
+    <span>
+      Requesting ads before ATT resolves permanently forfeits the IDFA. admob-cmp won't let the first
+      request race the prompt.
+    </span>
+  </p>
+</section>
