@@ -65,11 +65,21 @@ const compact: Token[][] = [
   [t('function', 'BannerAdView'), t('plain', '(placement)')],
 ];
 
+// The line that places the banner. It lights up whenever the stage's banners
+// refresh (landing.css, "stage motion"), tying the code to what it renders.
+const placedLine = (lines: Token[][]) =>
+  lines.findIndex((line) => line.some(([, text]) => text === 'BannerAdView'));
+const placedFull = placedLine(code);
+const placedCompact = placedLine(compact);
+
 const rows = [
   { title: 'Morning run', detail: '5.2 km along the river' },
   { title: 'Reading', detail: 'Chapter 4, 38 pages' },
   { title: 'Sketching', detail: 'Two studies of the balcony' },
 ];
+
+// Three copies, so the feed can scroll by exactly one copy and loop without a seam.
+const feedRows = [...rows, ...rows, ...rows];
 
 const facts = [
   {
@@ -155,13 +165,13 @@ const facts = [
           <span class="landing-stage__code-file">App.kt</span>
           <span class="landing-stage__code-path">shared/src/commonMain</span>
         </div>
-        <pre class="landing-code landing-stage__code-body">{code.map((line) => (
-          <span class="landing-code__line">{line.map(([kind, text]) => (
+        <pre class="landing-code landing-stage__code-body">{code.map((line, i) => (
+          <span class:list={['landing-code__line', i === placedFull && 'landing-code__line--placed']}>{line.map(([kind, text]) => (
             <span class={`landing-code__${kind}`}>{text}</span>
           ))}</span>
         ))}</pre>
-        <pre class="landing-code landing-stage__code-body landing-stage__code-body--compact">{compact.map((line) => (
-          <span class="landing-code__line">{line.map(([kind, text]) => (
+        <pre class="landing-code landing-stage__code-body landing-stage__code-body--compact">{compact.map((line, i) => (
+          <span class:list={['landing-code__line', i === placedCompact && 'landing-code__line--placed']}>{line.map(([kind, text]) => (
             <span class={`landing-code__${kind}`}>{text}</span>
           ))}</span>
         ))}</pre>
@@ -181,16 +191,19 @@ const facts = [
                 Journal
               </div>
               <div class="landing-device__list">
-                {rows.map((row) => (
-                  <div class="landing-device__row">
-                    <span class="landing-device__row-title">{row.title}</span>
-                    <span class="landing-device__row-detail">{row.detail}</span>
-                  </div>
-                ))}
+                <div class="landing-device__rows">
+                  {feedRows.map((row) => (
+                    <div class="landing-device__row">
+                      <span class="landing-device__row-title">{row.title}</span>
+                      <span class="landing-device__row-detail">{row.detail}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div class="landing-device__banner">
                 <span class="landing-device__banner-chip">Test Ad</span>
                 <span class="landing-device__banner-copy">This is a 320×50 test ad.</span>
+                <span class="landing-device__sheen"></span>
               </div>
             </div>
           </div>
@@ -202,16 +215,19 @@ const facts = [
             <div class="landing-device__screen">
               <div class="landing-device__appbar">Journal</div>
               <div class="landing-device__list">
-                {rows.map((row) => (
-                  <div class="landing-device__row">
-                    <span class="landing-device__row-title">{row.title}</span>
-                    <span class="landing-device__row-detail">{row.detail}</span>
-                  </div>
-                ))}
+                <div class="landing-device__rows">
+                  {feedRows.map((row) => (
+                    <div class="landing-device__row">
+                      <span class="landing-device__row-title">{row.title}</span>
+                      <span class="landing-device__row-detail">{row.detail}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div class="landing-device__banner">
                 <span class="landing-device__banner-chip">Test Ad</span>
                 <span class="landing-device__banner-copy">This is a 320×50 test ad.</span>
+                <span class="landing-device__sheen"></span>
               </div>
             </div>
           </div>

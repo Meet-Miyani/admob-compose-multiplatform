@@ -383,6 +383,25 @@
   min-height: 1.75em;
 }
 
+.landing-code__line--placed {
+  position: relative;
+  z-index: 0;
+}
+
+.landing-code__line--placed::before {
+  content: '';
+  position: absolute;
+  inset: 0 -1.5rem;
+  z-index: -1;
+  border-inline-start: 2px solid var(--admob-accent);
+  background: color-mix(in srgb, var(--admob-accent) 16%, transparent);
+  opacity: 0;
+}
+
+.landing-stage__code-body--compact .landing-code__line--placed::before {
+  inset: 0 -1rem;
+}
+
 .landing-code__keyword {
   color: var(--admob-syn-keyword);
 }
@@ -509,30 +528,45 @@
 }
 
 .landing-device__list {
-  display: flex;
+  position: relative;
   flex-grow: 1;
-  flex-direction: column;
-  gap: 0.625rem;
-  padding: 0.75rem 0.875rem;
+  overflow: hidden;
 }
 
-.landing-device--ios .landing-device__list {
+/* Three copies of the rows; the stage motion scrolls the track by exactly one
+   copy (198px Android, 165px iOS), so the loop has no seam. Row heights are
+   fixed for that reason. */
+.landing-device__rows {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.875rem;
+  left: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.landing-device--ios .landing-device__rows {
+  top: 0.25rem;
   gap: 0;
-  padding: 0.25rem 0.875rem;
 }
 
 .landing-device__row {
   display: flex;
+  flex: none;
   flex-direction: column;
+  justify-content: center;
   gap: 0.25rem;
-  padding: 0.75rem;
+  height: 3.5rem;
+  padding: 0 0.75rem;
   border-radius: var(--admob-radius-lg);
   background: var(--admob-screen-card);
 }
 
 .landing-device--ios .landing-device__row {
   gap: 0.1875rem;
-  padding: 0.6875rem 0.125rem;
+  height: 3.4375rem;
+  padding: 0 0.125rem;
   border-bottom: 1px solid var(--admob-screen-hair);
   border-radius: 0;
   background: transparent;
@@ -549,8 +583,10 @@
 }
 
 .landing-device__banner {
+  position: relative;
   display: flex;
   flex: none;
+  overflow: hidden;
   align-items: center;
   gap: 0.5rem;
   height: 3.5rem;
@@ -580,6 +616,19 @@
   font-size: 0.6875rem;
   line-height: 1.3;
   color: var(--admob-screen-slate);
+}
+
+.landing-device__sheen {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--admob-screen) 85%, transparent),
+    transparent
+  );
+  transform: translateX(-150%);
 }
 
 .landing-device__label {
@@ -670,36 +719,47 @@
 }
 
 .landing-format__screen {
-  line-height: 1.2;
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
+  position: relative;
+  display: block;
   height: 100%;
   overflow: hidden;
-  padding: 1.125rem 0.5rem 0.5rem;
   border-radius: var(--admob-radius-lg);
+  background: var(--admob-surface);
+  line-height: 1.2;
+}
+
+/* ---- pieces every story is drawn from (the resting state is the still) */
+
+.landing-story__head {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+  height: 1.125rem;
   background: var(--admob-surface);
 }
 
-.landing-format__screen--interstitial,
-.landing-format__screen--rewarded,
-.landing-format__screen--app-open {
-  padding: 0;
-}
-
-.landing-format__screen--rewarded-interstitial {
-  justify-content: center;
-  padding: 0.625rem;
-}
-
 .landing-format__bar {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
   width: 60%;
   height: 0.375rem;
   border-radius: var(--admob-radius-sm);
   background: var(--admob-hair);
 }
 
+.landing-story__feed {
+  position: absolute;
+  top: 1.25rem;
+  left: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
 .landing-format__block {
+  flex: none;
   height: 1.625rem;
   border-radius: var(--admob-radius-sm);
   background: color-mix(in srgb, var(--admob-hair) 70%, var(--admob-surface));
@@ -709,53 +769,57 @@
   height: 1.375rem;
 }
 
-.landing-format__spacer {
-  flex-grow: 1;
-}
-
 .landing-format__ad {
   display: flex;
+  flex: none;
   border: 1.5px solid var(--admob-accent-strong);
   border-radius: var(--admob-radius-sm);
   background: var(--landing-tint);
 }
 
-.landing-format__ad--banner {
-  height: 1.25rem;
+.landing-format__creative {
+  flex-grow: 1;
+  margin-top: 0.5rem;
+  border-radius: var(--admob-radius);
+  background: color-mix(in srgb, var(--admob-accent) 26%, var(--admob-raised));
 }
 
-.landing-format__ad--full {
+.landing-story__sheen {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 45%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--admob-raised) 85%, transparent),
+    transparent
+  );
+  transform: translateX(-150%);
+}
+
+/* banner */
+.landing-story__banner {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  left: 0.5rem;
+  z-index: 3;
+  height: 1.25rem;
+  overflow: hidden;
+}
+
+/* interstitial, rewarded: the ad takes the whole screen */
+.landing-story__takeover {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
   flex-direction: column;
-  flex-grow: 1;
   padding: 0.5rem;
   border-radius: var(--admob-radius-lg);
 }
 
-.landing-format__ad--spread {
-  justify-content: space-between;
-}
-
-.landing-format__ad--splash {
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.875rem 0.5rem 0.625rem;
-}
-
-.landing-format__ad--intro {
-  flex-direction: column;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.625rem 0.5rem;
-  border-radius: var(--admob-radius);
-}
-
-.landing-format__ad--native {
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.3125rem;
-}
-
 .landing-format__close {
+  position: relative;
   align-self: flex-end;
   width: 1rem;
   height: 1rem;
@@ -767,32 +831,114 @@
   text-align: center;
 }
 
-.landing-format__creative {
-  flex-grow: 1;
-  margin-top: 0.5rem;
-  border-radius: var(--admob-radius);
-  background: color-mix(in srgb, var(--admob-accent) 26%, var(--admob-raised));
+.landing-story__tap {
+  position: absolute;
+  inset: -0.375rem;
+  border-radius: 50%;
+  background: var(--admob-ink);
+  opacity: 0;
 }
 
-.landing-format__timer {
+/* rewarded */
+.landing-story__progress {
+  position: absolute;
+  top: 0.8125rem;
+  right: 2.125rem;
+  left: 0.5rem;
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--admob-radius-sm);
+  background: color-mix(in srgb, var(--admob-ink) 15%, transparent);
+}
+
+.landing-story__fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--admob-ink);
+}
+
+.landing-story__timer {
+  position: relative;
   align-self: flex-end;
-  padding: 0.125rem 0.3125rem;
+  width: 1.75rem;
+  height: 0.9375rem;
+}
+
+.landing-story__time {
+  position: absolute;
+  inset: 0;
   border-radius: var(--admob-radius);
   background: var(--admob-ink);
   color: var(--admob-raised);
   font-family: var(--admob-font-mono);
   font-size: 0.5625rem;
+  line-height: 0.9375rem;
+  text-align: center;
+  opacity: 0;
 }
 
-.landing-format__reward {
-  align-self: center;
-  padding: 0.25rem 0.4375rem;
+.landing-story__time--1 {
+  opacity: 1;
+}
+
+.landing-story__reward {
+  position: absolute;
+  bottom: 0.875rem;
+  left: 50%;
+  z-index: 5;
+  padding: 0.25rem 0.5rem;
   border-radius: 999px;
   background: var(--admob-ink);
   color: var(--admob-raised);
   font-size: 0.5625rem;
   font-weight: 700;
   white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.landing-story__reward--late {
+  opacity: 0;
+}
+
+.landing-story__sparks {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 50%;
+  z-index: 5;
+  width: 0;
+  height: 0;
+}
+
+.landing-story__spark {
+  position: absolute;
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-radius: 50%;
+  background: var(--admob-accent);
+  opacity: 0;
+}
+
+/* rewarded interstitial */
+.landing-story__intro-card {
+  position: absolute;
+  top: 3.625rem;
+  left: 0.625rem;
+  z-index: 3;
+  width: calc(100% - 1.25rem);
+  height: 4.375rem;
+  overflow: hidden;
+  border-radius: var(--admob-radius);
+}
+
+.landing-story__intro {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
 }
 
 .landing-format__line {
@@ -810,14 +956,80 @@
   background: var(--admob-slate);
 }
 
-.landing-format__ad--native .landing-format__line {
-  height: 0.25rem;
+.landing-story__count {
+  position: relative;
+  width: 2.125rem;
+  height: 0.75rem;
 }
 
-.landing-format__countdown {
+.landing-story__count-step {
+  position: absolute;
+  inset: 0;
   font-family: var(--admob-font-mono);
   font-size: 0.5625rem;
   font-weight: 600;
+  text-align: center;
+  opacity: 0;
+}
+
+.landing-story__count-step--3 {
+  opacity: 1;
+}
+
+.landing-story__skip {
+  color: var(--admob-ink-2);
+  font-size: 0.5rem;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.landing-story__full {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+  opacity: 0;
+}
+
+/* app-open */
+.landing-story__home {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1.125rem);
+  grid-auto-rows: 1.125rem;
+  gap: 0.625rem;
+  justify-content: center;
+  align-content: center;
+  opacity: 0;
+}
+
+.landing-story__app-icon {
+  border-radius: var(--admob-radius-sm);
+  background: var(--admob-hair);
+}
+
+.landing-story__app-icon--ours {
+  background: var(--admob-ink);
+}
+
+.landing-story__app {
+  position: absolute;
+  inset: 0;
+  background: var(--admob-surface);
+  opacity: 0;
+}
+
+.landing-story__splash {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.875rem 0.5rem 0.625rem;
+  border-radius: var(--admob-radius-lg);
 }
 
 .landing-format__logo {
@@ -839,13 +1051,35 @@
   white-space: nowrap;
 }
 
+/* native: the ad is a card in the feed. The pattern — short block, ad card,
+   two short blocks — is exactly 169px tall, which is what the scroll moves. */
+.landing-format__ad--native {
+  flex-direction: column;
+  gap: 0.25rem;
+  height: 4.9375rem;
+  padding: 0.3125rem;
+}
+
 .landing-format__media {
+  position: relative;
+  flex: none;
   height: 2.25rem;
+  overflow: hidden;
   border-radius: var(--admob-radius-sm);
   background: color-mix(in srgb, var(--admob-accent) 26%, var(--admob-raised));
 }
 
+.landing-story__sheen--media {
+  width: 60%;
+}
+
+.landing-format__ad--native .landing-format__line {
+  flex: none;
+  height: 0.25rem;
+}
+
 .landing-format__button {
+  flex: none;
   height: 0.625rem;
   border-radius: var(--admob-radius-sm);
   background: var(--admob-ink);
@@ -1730,8 +1964,725 @@
   }
 }
 
+/* ------------------------------------------------------------ stage motion
+ *
+ * Both feeds scroll slowly under their anchored banners. Every 6 s the banners
+ * refresh with a sheen, and in the same beat the code line that placed them
+ * lights up and the bridge arrow nudges toward the phones. All the 6 s loops
+ * start together, so they stay in step.
+ *
+ * ---------------------------------------------------------- format stories
+ *
+ * One 4.8 s story per format card (see LandingFormats.astro). A card plays
+ * while it has `is-playing` (the one-at-a-time sequence: once, then it rests
+ * on its still) or while it is hovered or keyboard-focused (looping).
+ */
+
+@keyframes landing-feed-android {
+  to {
+    transform: translateY(-198px);
+  }
+}
+
+@keyframes landing-feed-ios {
+  to {
+    transform: translateY(-165px);
+  }
+}
+
+@keyframes landing-banner-sheen {
+  0%,
+  54% {
+    transform: translateX(-150%);
+  }
+  72%,
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@keyframes landing-placed {
+  0%,
+  50% {
+    opacity: 0;
+  }
+  58%,
+  70% {
+    opacity: 1;
+  }
+  82%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes landing-nudge {
+  0%,
+  52% {
+    transform: none;
+  }
+  58% {
+    transform: translateX(6px);
+  }
+  66%,
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes landing-story-feed {
+  to {
+    transform: translateY(-96px);
+  }
+}
+
+@keyframes landing-story-banner {
+  0% {
+    transform: translateY(1.875rem);
+  }
+  10%,
+  88% {
+    transform: none;
+  }
+  98%,
+  100% {
+    transform: translateY(1.875rem);
+  }
+}
+
+@keyframes landing-story-sheen {
+  0%,
+  52% {
+    transform: translateX(-150%);
+  }
+  72%,
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+@keyframes landing-story-take {
+  0%,
+  12% {
+    transform: translateY(105%);
+  }
+  26%,
+  74% {
+    transform: none;
+  }
+  84%,
+  100% {
+    transform: translateY(105%);
+  }
+}
+
+@keyframes landing-story-close {
+  0%,
+  38% {
+    transform: scale(0);
+  }
+  44% {
+    transform: scale(1.2);
+  }
+  48%,
+  64% {
+    transform: none;
+  }
+  68% {
+    transform: scale(0.78);
+  }
+  72%,
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes landing-story-tap {
+  0%,
+  65% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  68% {
+    opacity: 0.35;
+    transform: none;
+  }
+  76%,
+  100% {
+    opacity: 0;
+    transform: scale(2);
+  }
+}
+
+@keyframes landing-story-fill {
+  0%,
+  6% {
+    width: 0;
+  }
+  66%,
+  100% {
+    width: 100%;
+  }
+}
+
+@keyframes landing-story-t1 {
+  0%,
+  24% {
+    opacity: 1;
+  }
+  25%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes landing-story-t2 {
+  0%,
+  24% {
+    opacity: 0;
+  }
+  25%,
+  43% {
+    opacity: 1;
+  }
+  44%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes landing-story-t3 {
+  0%,
+  43% {
+    opacity: 0;
+  }
+  44%,
+  62% {
+    opacity: 1;
+  }
+  63%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes landing-story-t4 {
+  0%,
+  62% {
+    opacity: 0;
+  }
+  63%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes landing-story-reward {
+  0%,
+  66% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.3);
+  }
+  72% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.18);
+  }
+  76%,
+  94% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.9);
+  }
+}
+
+@keyframes landing-story-spark-1 {
+  0%,
+  68% {
+    opacity: 0;
+    transform: none;
+  }
+  72% {
+    opacity: 1;
+  }
+  86%,
+  100% {
+    opacity: 0;
+    transform: translate(-22px, -16px);
+  }
+}
+
+@keyframes landing-story-spark-2 {
+  0%,
+  68% {
+    opacity: 0;
+    transform: none;
+  }
+  72% {
+    opacity: 1;
+  }
+  86%,
+  100% {
+    opacity: 0;
+    transform: translate(22px, -16px);
+  }
+}
+
+@keyframes landing-story-spark-3 {
+  0%,
+  68% {
+    opacity: 0;
+    transform: none;
+  }
+  72% {
+    opacity: 1;
+  }
+  86%,
+  100% {
+    opacity: 0;
+    transform: translate(-14px, -30px);
+  }
+}
+
+@keyframes landing-story-spark-4 {
+  0%,
+  68% {
+    opacity: 0;
+    transform: none;
+  }
+  72% {
+    opacity: 1;
+  }
+  86%,
+  100% {
+    opacity: 0;
+    transform: translate(14px, -30px);
+  }
+}
+
+@keyframes landing-story-intro-card {
+  0% {
+    top: 3.625rem;
+    left: 0.625rem;
+    width: calc(100% - 1.25rem);
+    height: 4.375rem;
+    border-radius: var(--admob-radius);
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  8%,
+  48% {
+    top: 3.625rem;
+    left: 0.625rem;
+    width: calc(100% - 1.25rem);
+    height: 4.375rem;
+    border-radius: var(--admob-radius);
+    opacity: 1;
+    transform: none;
+  }
+  58%,
+  90% {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--admob-radius-lg);
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--admob-radius-lg);
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes landing-story-intro {
+  0%,
+  46% {
+    opacity: 1;
+  }
+  52%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes landing-story-count-3 {
+  0%,
+  20% {
+    opacity: 1;
+  }
+  21%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes landing-story-count-2 {
+  0%,
+  20% {
+    opacity: 0;
+  }
+  21%,
+  33% {
+    opacity: 1;
+  }
+  34%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes landing-story-count-1 {
+  0%,
+  33% {
+    opacity: 0;
+  }
+  34%,
+  48% {
+    opacity: 1;
+  }
+  49%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes landing-story-full {
+  0%,
+  54% {
+    opacity: 0;
+  }
+  60%,
+  94% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes landing-story-reward-late {
+  0%,
+  76% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.3);
+  }
+  82% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.18);
+  }
+  86%,
+  94% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.9);
+  }
+}
+
+@keyframes landing-story-app {
+  0%,
+  8% {
+    opacity: 1;
+    transform: none;
+  }
+  20%,
+  78% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  88%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes landing-story-home {
+  0%,
+  10% {
+    opacity: 0;
+  }
+  20%,
+  40% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes landing-story-icon {
+  0%,
+  30% {
+    transform: none;
+  }
+  34% {
+    transform: scale(0.78);
+  }
+  38%,
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes landing-story-splash {
+  0%,
+  36% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  46%,
+  78% {
+    opacity: 1;
+    transform: none;
+  }
+  88%,
+  100% {
+    opacity: 1;
+    transform: translateY(-105%);
+  }
+}
+
+@keyframes landing-story-continue {
+  0%,
+  66% {
+    background: var(--admob-raised);
+    color: var(--admob-ink);
+  }
+  70% {
+    background: var(--admob-ink);
+    color: var(--admob-raised);
+  }
+  74%,
+  100% {
+    background: var(--admob-raised);
+    color: var(--admob-ink);
+  }
+}
+
+@keyframes landing-story-native-feed {
+  to {
+    transform: translateY(-169px);
+  }
+}
+
+@keyframes landing-story-media {
+  0%,
+  8% {
+    background: color-mix(in srgb, var(--admob-hair) 70%, var(--admob-surface));
+  }
+  36%,
+  100% {
+    background: color-mix(in srgb, var(--admob-accent) 26%, var(--admob-raised));
+  }
+}
+
+@keyframes landing-story-media-sheen {
+  0%,
+  4% {
+    transform: translateX(-150%);
+  }
+  34%,
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+@keyframes landing-story-cta {
+  0%,
+  56% {
+    transform: none;
+  }
+  62% {
+    transform: scaleX(1.08) scaleY(1.2);
+  }
+  68%,
+  100% {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* stage */
+  .landing-device__rows {
+    animation: landing-feed-android 9s linear infinite;
+  }
+
+  .landing-device--ios .landing-device__rows {
+    animation-name: landing-feed-ios;
+  }
+
+  .landing-device__sheen {
+    animation: landing-banner-sheen 6s ease-in-out infinite;
+  }
+
+  .landing-device--ios .landing-device__sheen {
+    animation-delay: 120ms;
+  }
+
+  .landing-code__line--placed::before {
+    animation: landing-placed 6s ease infinite;
+  }
+
+  .landing-stage__bridge svg {
+    animation: landing-nudge 6s var(--admob-ease-out) infinite;
+  }
+
+  /* format stories */
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__feed--scroll {
+    animation: landing-story-feed 4.8s linear infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__banner {
+    animation: landing-story-banner 4.8s var(--admob-ease-out) infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__banner .landing-story__sheen {
+    animation: landing-story-sheen 4.8s ease-in-out infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__takeover--dismissible {
+    animation: landing-story-take 4.8s var(--admob-ease-out) infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__takeover--dismissible .landing-format__close {
+    animation: landing-story-close 4.8s ease infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__tap {
+    animation: landing-story-tap 4.8s ease-out infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__fill {
+    animation: landing-story-fill 4.8s linear infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__time--1 {
+    animation: landing-story-t1 4.8s step-end infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__time--2 {
+    animation: landing-story-t2 4.8s step-end infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__time--3 {
+    animation: landing-story-t3 4.8s step-end infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__time--4 {
+    animation: landing-story-t4 4.8s step-end infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-format__screen--rewarded .landing-story__reward {
+    animation: landing-story-reward 4.8s var(--admob-ease-out) infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__spark--1 {
+    animation: landing-story-spark-1 4.8s ease-out infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__spark--2 {
+    animation: landing-story-spark-2 4.8s ease-out infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__spark--3 {
+    animation: landing-story-spark-3 4.8s ease-out infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__spark--4 {
+    animation: landing-story-spark-4 4.8s ease-out infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__intro-card {
+    animation: landing-story-intro-card 4.8s var(--admob-ease-out) infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__intro {
+    animation: landing-story-intro 4.8s ease infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__count-step--3 {
+    animation: landing-story-count-3 4.8s step-end infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__count-step--2 {
+    animation: landing-story-count-2 4.8s step-end infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__count-step--1 {
+    animation: landing-story-count-1 4.8s step-end infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__full {
+    animation: landing-story-full 4.8s ease infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__reward--late {
+    animation: landing-story-reward-late 4.8s var(--admob-ease-out) infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__app {
+    animation: landing-story-app 4.8s var(--admob-ease-out) infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__home {
+    animation: landing-story-home 4.8s ease infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__app-icon--ours {
+    animation: landing-story-icon 4.8s ease infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__splash {
+    animation: landing-story-splash 4.8s var(--admob-ease-out) infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__splash .landing-format__continue {
+    animation: landing-story-continue 4.8s ease infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__feed--native {
+    animation: landing-story-native-feed 4.8s linear infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-format__media {
+    animation: landing-story-media 4.8s ease infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-story__sheen--media {
+    animation: landing-story-media-sheen 4.8s ease-in-out infinite;
+  }
+
+  .landing-format__card:is(.is-playing, :hover, :focus-visible) .landing-format__button {
+    animation: landing-story-cta 4.8s ease infinite;
+  }
+
+  /* In the one-at-a-time sequence each story plays once, then the card rests
+     on its still until its turn comes round again. */
+  .landing-format__card.is-playing:not(:hover, :focus-visible) * {
+    animation-iteration-count: 1;
+  }
+}
+
 @media print {
   .landing-device__banner,
+  .landing-device__rows,
+  .landing-device__sheen,
+  .landing-code__line--placed::before,
+  .landing-stage__bridge svg,
+  .landing-format__screen *,
   .landing-consent__step,
   .landing-consent__number {
     animation: none;
