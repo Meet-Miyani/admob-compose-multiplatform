@@ -46,13 +46,13 @@ export default defineConfig({
               // Keep them in sync by hand — nothing checks this pairing.
               themeVariables: {
                 background: '#ffffff',
-                primaryColor: '#f7f5f3',
-                primaryTextColor: '#171310',
-                primaryBorderColor: '#e3deda',
+                primaryColor: '#ebecea',
+                primaryTextColor: '#16181a',
+                primaryBorderColor: '#d8dad6',
                 secondaryColor: '#ffffff',
-                tertiaryColor: '#f7f5f3',
-                lineColor: '#6b625c',
-                textColor: '#171310',
+                tertiaryColor: '#ebecea',
+                lineColor: '#5a5f63',
+                textColor: '#16181a',
               },
             },
           },
@@ -79,6 +79,7 @@ export default defineConfig({
       components: {
         Head: './src/components/Head.astro',
         Hero: './src/components/Hero.astro',
+        SiteTitle: './src/components/SiteTitle.astro',
         ThemeSelect: './src/components/ThemeSelect.astro',
       },
       expressiveCode: {
@@ -133,7 +134,7 @@ export default defineConfig({
           },
         },
         // Must track --admob-paper in tokens.css. It drifted once already.
-        { tag: 'meta', attrs: { name: 'theme-color', content: '#0c0a09' } },
+        { tag: 'meta', attrs: { name: 'theme-color', content: '#0e0f10' } },
         // Google Search Console ownership verification. Inert until
         // PUBLIC_GSC_VERIFICATION is set as a Cloudflare Pages env var.
         ...(GSC_VERIFICATION_TOKEN

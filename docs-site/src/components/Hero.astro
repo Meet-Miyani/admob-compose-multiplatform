@@ -3,17 +3,19 @@
  * Starlight `Hero` override, registered in astro.config.mjs.
  *
  * Starlight's default hero is a centred title/tagline/actions stack with an
- * optional image. This replaces it with the landing page's two-part opening:
- * the copy column, then the placement plate directly beneath it.
+ * optional image. This replaces it with the landing page's opening: the
+ * headline on the left, the pitch, the install facts and the two actions on
+ * the right, then the placement plate — the dark stage with the code and both
+ * phones — directly beneath.
  *
  * Three things here are load-bearing for the gates and must not drift:
  *   - the `<h1>` keeps `id="_top"` and `data-page-title`, and its text still
  *     comes from `hero.title` in frontmatter, so the page has exactly one h1
  *     with the canonical title (test/landing.test.ts);
  *   - `.hero` contains exactly the two frontmatter actions and nothing else
- *     that is focusable, so the two-hero-action assertion still counts 2
- *     (scripts/check-theme.mjs). The plate's six links are siblings of `.hero`,
- *     not descendants;
+ *     that is focusable apart from the spec strip's coordinate, so the
+ *     two-hero-action assertion still counts 2 (scripts/check-theme.mjs). The
+ *     plate's six links are siblings of `.hero`, not descendants;
  *   - every action is a real anchor with a visible focus outline.
  *
  * `hero.image` is intentionally unsupported: this page's opening visual is the
@@ -31,28 +33,35 @@ const { title = data.title, tagline, actions = [] } = data.hero || {};
 
 <div class="landing-opening">
   <div class="hero landing-hero">
-    <ProjectMetadata />
-    <h1 id="_top" data-page-title set:html={title} />
-    {tagline && <p class="landing-hero__tagline" set:html={tagline} />}
-    {
-      actions.length > 0 && (
-        <div class="landing-hero__actions">
-          {actions.map(({ icon, link: href, text, variant }) => (
-            <a
-              href={href}
-              class:list={[
-                'landing-hero__action',
-                variant === 'minimal' && 'landing-hero__action--quiet',
-              ]}
-            >
-              <span>{text}</span>
-              {icon?.name && <Icon name={icon.name} />}
-            </a>
-          ))}
-        </div>
-      )
-    }
+    <div class="landing-hero__lead">
+      <p class="landing-hero__eyebrow">
+        <span class="landing-hero__dot" aria-hidden="true"></span>
+        Open source · Kotlin Multiplatform
+      </p>
+      <h1 id="_top" data-page-title set:html={title} />
+    </div>
+    <div class="landing-hero__aside">
+      {tagline && <p class="landing-hero__tagline" set:html={tagline} />}
+      <ProjectMetadata />
+      {
+        actions.length > 0 && (
+          <div class="landing-hero__actions">
+            {actions.map(({ icon, link: href, text, variant }) => (
+              <a
+                href={href}
+                class:list={[
+                  'landing-hero__action',
+                  variant === 'minimal' && 'landing-hero__action--quiet',
+                ]}
+              >
+                <span>{text}</span>
+                {icon?.name && <Icon name={icon.name} />}
+              </a>
+            ))}
+          </div>
+        )
+      }
+    </div>
   </div>
-
   <PlacementPlate />
 </div>

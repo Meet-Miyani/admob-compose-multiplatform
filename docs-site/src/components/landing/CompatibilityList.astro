@@ -2,14 +2,19 @@
 /**
  * Compatibility facts as a compact definition list: Kotlin, Compose
  * Multiplatform, Android minSdk, iOS deployment target. Followed by the
- * consent/ATT/initialize sequence diagram and the platform support matrix,
- * both imported by their fixed names from Plan 4 so their SVG/table markup is
- * not duplicated here.
+ * platform support matrix and the consent/ATT/initialize sequence diagram,
+ * both imported by their fixed names so their SVG/table markup is not
+ * duplicated here.
+ *
+ * The matrix stays open: it is the "same surface on both" proof, and the theme
+ * gate focuses its scroll region. The sequence diagram sits in a closed
+ * <details> — ConsentSteps already tells that story in three cards, so the
+ * full diagram is there for the reader who wants the proof, not in everyone's
+ * way.
  *
  * The Maven coordinate is deliberately NOT here. It is an identity fact, not a
  * compatibility fact, and the page already states it twice: in the hero spec
- * strip and in the Quick start dependency block. A third copy added nothing and
- * was the one cell narrow enough to wrap mid-coordinate.
+ * strip and in the Quick start dependency block.
  */
 import { landingMeta } from '../../data/landing';
 import InitSequence from '../diagrams/InitSequence.astro';
@@ -18,7 +23,8 @@ import '../../styles/landing.css';
 ---
 
 <section class="landing-section landing-compatibility">
-  <h2>Compatibility and ordering</h2>
+  <p class="landing-eyebrow">04 · Parity</p>
+  <h2>Same surface on Android and iOS</h2>
   <dl class="landing-compatibility__list">
     <div>
       <dt>Kotlin</dt>
@@ -43,12 +49,15 @@ import '../../styles/landing.css';
   </p>
 
   <div class="landing-compatibility__sub">
-    <h3>Consent, ATT, and initialize sequence</h3>
-    <InitSequence />
-  </div>
-
-  <div class="landing-compatibility__sub">
     <h3>Platform support matrix</h3>
     <PlatformMatrix />
   </div>
+
+  <details class="landing-compatibility__sub landing-compatibility__details">
+    <summary>
+      <h3>Consent, ATT, and initialize sequence</h3>
+      <span class="landing-compatibility__summary-hint">Show the full diagram</span>
+    </summary>
+    <InitSequence />
+  </details>
 </section>

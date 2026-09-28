@@ -1,5 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="AdMob CMP">
-  <rect width="32" height="32" rx="8" fill="#ee3a20"/>
-  <path d="M9 23 16 9l7 14" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M12.2 18.4h7.6" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" role="img" aria-label="AdMob CMP">
+  <style>
+    .body { stroke: #16181a; }
+    @media (prefers-color-scheme: dark) { .body { stroke: #edeeec; } }
+  </style>
+  <rect class="body" x="4" y="1" width="8" height="14" rx="2.5" fill="none" stroke-width="2"/>
+  <rect x="6" y="10" width="4" height="2" rx="1" fill="#ee3a20"/>
 </svg>

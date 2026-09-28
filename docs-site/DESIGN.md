@@ -33,9 +33,18 @@ names, so renaming one is a breaking change.
 
 ### Colour
 
-Two themes, switched by `data-theme` on `<html>`. Dark is the default and is a
-warm near-black; light is near-neutral paper. The accent `#ee3a20` is the brand
-constant and is the same in both.
+Two themes, switched by `data-theme` on `<html>`. Both are the avinya.dev
+palette, so the docs and the studio site read as one family: dark is the default
+and is a cool near-black (`#0e0f10`), light is paper `#f3f4f2` with ink
+`#16181a`. The accent `#ee3a20` is the brand constant and is the same in both.
+
+Some surfaces deliberately do **not** re-skin with the theme. The landing
+stage and the consent band are dark in both themes (`--admob-stage*`), and the
+phones inside the stage always show a light app screen (`--admob-screen*`) —
+they read as physical objects, not page chrome. Anything placed on them reads
+from those tokens, never from `--admob-ink`/`--admob-slate`, and
+`--admob-stage-accent` is the accent on dark (the page's `--admob-accent-text`
+is a dark red in the light theme and fails on the stage).
 
 Four pairings are enforced by `test/diagram-contrast.test.ts` **in both themes**:
 
@@ -61,6 +70,10 @@ both axes in a single self-hosted file at `public/fonts/archivo-wdth.woff2`:
 
 - **Display** — Archivo at `--admob-stretch-display` (104%), weight 700–750.
   Headings, the site title. Never running text.
+- **Hero** — `--admob-stretch-hero` (112%), weight 800, on exactly two lines of
+  the landing page: the H1 and the closing call to action. A single display
+  line can afford the width that an outline of headings cannot; the docs pages
+  never use it. Landing section headings sit between the two, at 108%.
 - **Body** — the same family at normal width.
 - **Utility** — JetBrains Mono, for content that genuinely *is* code or data:
   eyebrows, column headers, API signatures, version strings, dimensions.
@@ -69,15 +82,17 @@ The width axis is the thing that makes headings read as headings. Keep it
 modest: past roughly 106% the wide letterforms cost more in legibility than they
 return in character, and this is a reference site.
 
-Sizes are pinned by the theme gate at fixed viewports — see the checks around
-`landing H1 is 56px desktop` and `desktop H1 is 36px`. Changing the scale means
-changing those numbers in the same commit.
+Sizes are pinned by the theme gate at fixed viewports — landing H1 72px
+desktop / 36px mobile, landing H2 48px / 30px, docs H1 36px. Changing the
+scale means changing those numbers in the same commit.
 
 ### Radius, elevation, motion
 
 Scale: `--admob-radius-sm` 4px (inline code, chips) · `--admob-radius` 8px
-(controls, search) · `--admob-radius-lg` 12px (panels, cards, code frames,
-tables, figures) · `--admob-radius-xl` 18px (the placement plate).
+(controls, search) · `--admob-radius-lg` 12px (panels, code frames, tables,
+figures) · `--admob-radius-xl` 18px (format cards, phone screens, roadmap
+cards) · `--admob-radius-2xl` 28px (the three big panels — stage, consent band,
+closing call to action — and the phone bezels).
 
 `0`, `50%` and `999px` are shape declarations rather than points on the scale
 and are allowed directly. Everything else must be a token — enforced in source
@@ -128,13 +143,25 @@ control that cannot work without JavaScript should not exist in the markup. It
 Mermaid SVGs carry id-scoped styles that a clone would duplicate.
 
 **The placement plate** (`landing/PlacementPlate.astro`) is the landing page's
-one bold element. Everything around it stays quiet — that is deliberate, and
-adding a second attention-grabbing element is the most likely way to make the
-page worse. Its geometry lives in `landing.css` keyed by format slug, because
-geometry is presentation; only the wording lives in `data/landing.ts`. It uses
-`:has()` with `:hover`/`:focus` and no JavaScript. `:focus`, not
-`:focus-visible` — the plate must follow keyboard focus whatever the browser
-decides about drawing a ring.
+signature element: a dark stage holding the `commonMain` code and the two
+phones it renders on, then the six format cards. Hovering or focusing a card
+moves the ad region in both phones — same code, both platforms. Its geometry
+lives in `landing.css` keyed by format slug, because geometry is presentation;
+only the wording lives in `data/landing.ts`. It uses `:has()` with
+`:hover`/`:focus` and no JavaScript. `:focus`, not `:focus-visible` — the plate
+must follow keyboard focus whatever the browser decides about drawing a ring.
+
+The page has exactly two dark panels, the stage and the consent band, and one
+tinted one, the closing call to action. Everything else sits on paper. Adding a
+fourth big panel is the most likely way to make the page worse.
+
+**The logo** is the Slot mark: a phone-screen outline whose ad slot is the
+Avinya dot stretched into a banner. `SiteTitle.astro` draws it inline (small
+master, stroke 9 on a 64-unit grid) so it takes `currentColor` and its slot can
+animate from dot to bar on load and hover. `public/favicon.svg` is a separate
+16-unit drawing with no tile that swaps its stroke with `prefers-color-scheme`;
+`src/assets/logo.svg` is the ink tile, used by the OG cards. Never name a logo
+file or class `ad-slot`, `ad-banner` or similar: content blockers hide those.
 
 ## What enforces this
 
@@ -150,7 +177,7 @@ together with the palette:
 
 - the Mermaid `themeVariables` in `astro.config.mjs` (must be the **light**
   values; `mermaid.css` re-tints for dark)
-- `<meta name="theme-color">` in `astro.config.mjs` (must equal
+- `<meta name="theme-color">` in `astro.config.mjs` (must equal the dark
   `--admob-paper`; it had already drifted once)
 - the OG image colours in `src/pages/og/[...route].ts`
 

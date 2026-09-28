@@ -292,7 +292,7 @@ async function inspectLanding({ theme, viewport, reducedMotion = 'no-preference'
       '0px',
       '50%',
       '999px',
-      ...['--admob-radius-sm', '--admob-radius', '--admob-radius-lg', '--admob-radius-xl'].map(
+      ...['--admob-radius-sm', '--admob-radius', '--admob-radius-lg', '--admob-radius-xl', '--admob-radius-2xl'].map(
         (token) => resolve('border-top-left-radius', 'borderTopLeftRadius', token)
       ),
     ]);
@@ -456,8 +456,8 @@ try {
     });
     // --admob-surface, per theme, in tokens.css.
     const codeBackground = {
-      light: 'rgb(247, 245, 243)',
-      dark: 'rgb(21, 17, 15)',
+      light: 'rgb(235, 236, 234)',
+      dark: 'rgb(23, 24, 25)',
     }[theme];
     // The display and body faces are one variable family; the display role is
     // the same font pushed along its width axis, so both must resolve to it.
@@ -488,8 +488,8 @@ try {
     check(desktop.motion?.name === 'none', `${theme} articles do not animate on entry`);
 
     const landingDesktop = await inspectLanding({ theme, viewport: { width: 1440, height: 1000 } });
-    check(landingDesktop.headings?.h1 === '56px', `${theme} landing H1 is 56px desktop`);
-    check(landingDesktop.headings?.h2 === '30px', `${theme} landing H2 is 30px desktop`);
+    check(landingDesktop.headings?.h1 === '72px', `${theme} landing H1 is 72px desktop`);
+    check(landingDesktop.headings?.h2 === '48px', `${theme} landing H2 is 48px desktop`);
     check(landingDesktop.headings?.h3 === '19px', `${theme} landing H3 is 19px desktop`);
     check(
       usesArchivo(landingDesktop.headings?.h1Family) && usesArchivo(landingDesktop.section?.fontFamily),
@@ -499,7 +499,7 @@ try {
     // have to come off the scale in tokens.css rather than being invented here.
     const allowedRadii = new Set(landingDesktop.allowedRadii ?? []);
     const allowedShadows = new Set(landingDesktop.allowedShadows ?? []);
-    check(allowedRadii.size >= 5, `${theme} landing resolved the radius scale from tokens`);
+    check(allowedRadii.size >= 6, `${theme} landing resolved the radius scale from tokens`);
     check(allowedShadows.size >= 3, `${theme} landing resolved the elevation scale from tokens`);
     for (const el of landingDesktop.landing ?? []) {
       const offScale = (el.radii ?? []).filter((radius) => !allowedRadii.has(radius));
@@ -616,7 +616,7 @@ try {
 
     const landingMobile = await inspectLanding({ theme, viewport: { width: 390, height: 844 } });
     check(landingMobile.headings?.h1 === '36px', `${theme} landing H1 is 36px mobile`);
-    check(landingMobile.headings?.h2 === '26px', `${theme} landing H2 is 26px mobile`);
+    check(landingMobile.headings?.h2 === '30px', `${theme} landing H2 is 30px mobile`);
     check(landingMobile.headings?.h3 === '19px', `${theme} landing H3 is 19px mobile`);
     check(
       landingMobile.documentWidth <= landingMobile.viewportWidth + 1,

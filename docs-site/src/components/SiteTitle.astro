@@ -1,0 +1,42 @@
+---
+/**
+ * Starlight `SiteTitle` override, registered in astro.config.mjs.
+ *
+ * Draws the Slot mark inline instead of as an <img>, so it takes currentColor
+ * in both themes and its pill can animate: the Avinya dot stretching into the
+ * ad slot (tokens.css, `.brand-mark__slot`). This is the small master from the
+ * logo spec — stroke 9 on the 64-unit grid — because at nav size the display
+ * master's stroke 6 reads as spindly next to the wordmark.
+ *
+ * The file is named `logo`/`brand-mark`, never `ad-slot` or `ad-banner`:
+ * content blockers hide elements with those names.
+ */
+import { landingMeta } from '../data/landing';
+
+const { siteTitle, siteTitleHref } = Astro.locals.starlightRoute;
+const version = landingMeta.mavenCoordinate.split(':').at(-1);
+---
+
+<a href={siteTitleHref} class="site-title sl-flex">
+  <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+    <rect
+      x="16.5"
+      y="5.5"
+      width="31"
+      height="53"
+      rx="11"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="9"></rect>
+    <rect
+      class="brand-mark__slot"
+      x="23"
+      y="39"
+      width="18"
+      height="10"
+      rx="5"
+      fill="var(--admob-accent)"></rect>
+  </svg>
+  <span translate="no">{siteTitle}</span>
+  {version && <span class="site-title__version" aria-label={`version ${version}`}>{version}</span>}
+</a>

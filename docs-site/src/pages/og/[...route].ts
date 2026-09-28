@@ -24,8 +24,8 @@ export const { getStaticPaths, GET } = await OGImageRoute({
     // towards --admob-accent in the far corner. Nothing checks this pairing, so
     // it has to be updated by hand whenever the palette moves.
     bgGradient: [
-      [12, 10, 9], // --admob-paper
-      [32, 20, 17],
+      [14, 15, 16], // --admob-paper
+      [34, 22, 20],
     ],
     border: { color: [238, 58, 32], width: 12, side: 'inline-start' }, // --admob-accent
     padding: 60,
@@ -37,14 +37,14 @@ export const { getStaticPaths, GET } = await OGImageRoute({
       title: {
         families: ['Noto Sans'],
         weight: 'SemiBold',
-        color: [245, 241, 238], // --admob-ink
+        color: [237, 238, 236], // --admob-ink
         size: 66,
         lineHeight: 1.1,
       },
       description: {
         families: ['Noto Sans'],
         weight: 'Normal',
-        color: [163, 155, 150], // --admob-slate
+        color: [154, 159, 156], // --admob-slate
         size: 32,
         lineHeight: 1.4,
       },

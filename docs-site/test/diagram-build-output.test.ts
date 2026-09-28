@@ -5,12 +5,17 @@ import descriptions from '../src/components/diagrams/descriptions.json';
 
 const GALLERY = new URL('../dist/dev/diagram-gallery/index.html', import.meta.url);
 let html = '';
+let figureSource = '';
 
 beforeAll(() => {
   if (!existsSync(GALLERY)) {
     throw new Error('dist/dev/diagram-gallery/index.html is missing — run `npm run build` first');
   }
   html = readFileSync(GALLERY, 'utf8');
+  figureSource = readFileSync(
+    fileURLToPath(new URL('../src/components/diagrams/DiagramFigure.astro', import.meta.url)),
+    'utf8'
+  );
 });
 
 const ids = Object.keys(descriptions);
@@ -78,12 +83,21 @@ describe('overflow contract', () => {
   });
 });
 
-describe('expand-to-dialog is progressive enhancement', () => {
-  const figureSource = readFileSync(
-    fileURLToPath(new URL('../src/components/diagrams/DiagramFigure.astro', import.meta.url)),
-    'utf8'
-  );
+describe('caption text never names the internal instructions file', () => {
+  it('the source component does not contain "CLAUDE.md invariants"', () => {
+    expect(figureSource).not.toContain('CLAUDE.md invariants');
+  });
 
+  it('the built site does not contain "CLAUDE.md invariants" in diagram captions', () => {
+    const mainIndex = readFileSync(
+      fileURLToPath(new URL('../dist/index.html', import.meta.url)),
+      'utf8'
+    );
+    expect(mainIndex).not.toContain('CLAUDE.md invariants');
+  });
+});
+
+describe('expand-to-dialog is progressive enhancement', () => {
   it('renders no Expand control server-side — a control that cannot work must not exist', () => {
     // The class names DO appear in the built HTML, inside the bundled script
     // that creates them. What must not exist is a rendered element.

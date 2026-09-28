@@ -9,6 +9,7 @@
  */
 import '../../styles/diagrams.css';
 import { getDiagram } from './descriptions';
+import { repoUrl } from '../../data/landing';
 
 interface Props {
   /** Key in descriptions.json. */
@@ -37,7 +38,12 @@ const scrollStyle = minWidth ? `--dg-min-w:${minWidth}px` : undefined;
   </div>
   <figcaption class="dg-caption">
     <span class="dg-caption-title">{diagram.title}</span>
-    <span class="dg-caption-invariants">CLAUDE.md invariants {invariants}</span>
+    {/* The numbers cite the library's hard invariants. Linked to the file that
+        states them rather than naming it, so the caption reads as a citation
+        instead of internal shorthand. */}
+    <a class="dg-caption-invariants" href={`${repoUrl}/blob/master/admob-cmp/CLAUDE.md`}>
+      Invariants {invariants}
+    </a>
     <a class="dg-alt-link" href={`/reference/diagrams-in-words/#${id}`}>
       Read this diagram in words
     </a>

@@ -126,8 +126,12 @@
 }
 
 .dg-caption-invariants {
+  color: inherit;
   font-family: var(--admob-font-mono);
   font-size: 0.78rem;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
 }
 
 /* Ink, not accent: this is normal-size text and accent fails AA in light. */
