@@ -33,6 +33,15 @@ release is **2.5.1**.
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
 
+## Unreleased
+
+Merged to `master` and not yet published. Nothing below resolves from Maven Central
+yet; the current release is still 2.5.1.
+
+### Added
+
+**Opt-in reuse of unshown native ads: `NativeAdManager.reuseUnshownAds`.** Off by default. When on, native ads that were loaded but never shown — because their slot left the window, their screen was deactivated or closed, or they finished loading after their slot was cancelled — are kept and given to the next slot of an identical placement instead of being destroyed and replaced with a new request. Only ads that never reached a view and never reported an impression, click or paid event qualify; at most two are kept per placement, for the first three quarters of their native TTL; they count toward the native memory limits and are the first to go under pressure. Matching is on the whole `AdPlacement`, so different ad units never share. One additive property; no existing API changed.
+
 ## 2.5.1
 
 A fix release for one Android crash, seen in production. No public API changed:

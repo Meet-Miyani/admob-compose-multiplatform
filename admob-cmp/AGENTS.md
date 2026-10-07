@@ -169,6 +169,16 @@ minutes inactive. `NativeAdSession.state` supplies `Empty`, `Loading`, `Ready`, 
 `Retained`, and `Failed` slot states; preserve row geometry for loading and failure rather than
 removing an ad row.
 
+**Reusing unshown ads (opt-in, off by default).** `adManager.nativeAds.reuseUnshownAds = true` keeps
+native ads that were loaded but never shown — dropped by a window change, a deactivation or a close,
+or landing after their slot was cancelled — and gives them to the next slot of an equal `AdPlacement`
+instead of requesting new ones. At most two per placement, only within the first three quarters of
+`nativeTtl`, never an ad that reached a view or reported an impression, click or paid event. Kept
+ads count toward the governor limits and go first under memory pressure or competing demand;
+consent revocation, a serving-affecting configuration change, `clear()` and turning the switch off
+destroy them. Turn it on for feeds that prefetch ahead or screens that close sessions with unseen
+prefetched ads.
+
 For custom native-ad typography, prefer
 `AdFontFamily.FromCompose(resourceBackedFontFamily)`. Preview uses the Compose family directly;
 Android applies Compose's resolved `Typeface`, and iOS registers loaded resource bytes with

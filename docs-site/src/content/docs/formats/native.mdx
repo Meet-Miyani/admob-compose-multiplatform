@@ -161,6 +161,28 @@ demand.
 
 <NativeSessionLifecycle />
 
+## Reusing unshown ads
+
+A feed that prefetches ahead loads some ads the user never reaches. By default the SDK destroys an
+ad when its slot leaves the window, its screen closes, or it lands after its slot was cancelled, and
+the next slot makes a new request. Turn on reuse to keep those ads for the next slot instead:
+
+```kotlin
+// Once, for the whole app. It can be set before or after initialize().
+adManager.nativeAds.reuseUnshownAds = true
+```
+
+- Only ads that never reached a view and never reported an impression, click, or paid event are kept.
+- Only a slot whose `AdPlacement` is equal in every field can use a kept ad, so different ad units,
+  or different request options on one unit, never share.
+- At most two ads are kept per placement, and only during the first three quarters of
+  `nativeTtl` (45 minutes with the default one hour).
+- Kept ads count toward the same soft and hard limits as every native ad and are the first to go
+  under memory pressure. Consent revocation, `clear()`, and turning reuse off destroy them.
+
+With reuse on, a slot can go straight from `Empty` to `Ready`, and you will see fewer ad requests and
+load events. It is off by default so that upgrading never changes how an app loads ads.
+
 ## Layout DSL and media
 
 Build custom layouts once with `remember`; DSL nodes are functions with named arguments, and
