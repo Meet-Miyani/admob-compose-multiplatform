@@ -954,6 +954,241 @@ class NativeAdCoordinatorCoreTest {
         )
     }
 
+    // --- Unshown-ad reuse: session drops ---------------------------------------
+
+    private val otherPlacement = nativePlacement.copy(id = "q", adUnitIds = AdUnitIds(android = "x2", ios = "y2"))
+
+    private fun countingPlatform(): FakePlatform {
+        var next = 0
+        return fakePlatform { _, count, _ ->
+            AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map { FakeAd(next++) }, null))
+        }
+    }
+
+    @Test fun `with reuse on a slot that leaves the window unseen gives its ad to the next slot`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        val session = coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        advanceUntilIdle()
+        assertTrue(platform.destroyed.isEmpty(), "an unseen ad must be kept, not destroyed")
+
+        coord.updateWindow("s1", windowWith("b"))
+        advanceUntilIdle()
+
+        assertEquals(1, platform.loadCalls.size, "the next slot must reuse the kept ad instead of loading")
+        assertTrue(session.state.value.slots["b"] is NativeAdSlotState.Ready)
+        val generation = coord.sessionGeneration("s1")!!
+        assertEquals(0, coord.acquireForRender("s1", generation, "b", nativePlacement, "r")?.ad?.id)
+    }
+
+    @Test fun `with reuse on a deactivated session gives its dropped ad to another session`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a", "b"))
+        advanceUntilIdle()
+
+        coord.deactivateSession("s1")
+        assertTrue(platform.destroyed.isEmpty(), "the ad dropped past the inactive anchor must be kept")
+
+        val other = coord.session("s2")
+        coord.updateWindow("s2", windowWith("c"))
+        advanceUntilIdle()
+        assertEquals(1, platform.loadCalls.size)
+        assertTrue(other.state.value.slots["c"] is NativeAdSlotState.Ready)
+    }
+
+    @Test fun `with reuse on a closed session gives its ad to the next session`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+
+        coord.closeSession("s1")
+        val next = coord.session("s2")
+        coord.updateWindow("s2", windowWith("b"))
+        advanceUntilIdle()
+
+        assertEquals(1, platform.loadCalls.size)
+        assertTrue(next.state.value.slots["b"] is NativeAdSlotState.Ready)
+        assertTrue(platform.destroyed.isEmpty())
+    }
+
+    @Test fun `an ad that reached a renderer is destroyed rather than kept`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        val generation = coord.sessionGeneration("s1")!!
+        coord.updateWindow("s1", generation, windowWith("a"))
+        advanceUntilIdle()
+        val lease = coord.acquireForRender("s1", generation, "a", nativePlacement, "r")!!
+        coord.releaseRenderer("s1", generation, "a", nativePlacement, lease.recordId, "r")
+
+        coord.updateWindow("s1", generation, NativeAdWindow(visible = emptyList()))
+
+        assertEquals(listOf(0), platform.destroyed.map { it.id })
+        coord.updateWindow("s1", generation, windowWith("b"))
+        advanceUntilIdle()
+        assertEquals(2, platform.loadCalls.size)
+    }
+
+    @Test fun `an ad that reported an impression is destroyed rather than kept`() = runTest(dispatcher) {
+        val ad = FakeAd(0)
+        val platform = fakePlatform { _, _, _ -> AdAttemptResult.Success(NativeAdPlatformBatch(listOf(ad), null)) }
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        platform.emit(ad, AdEvent.Impression("p"))
+
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+
+        assertEquals(listOf(ad), platform.destroyed)
+    }
+
+    @Test fun `an ad that reported a click is destroyed rather than kept`() = runTest(dispatcher) {
+        val ad = FakeAd(0)
+        val platform = fakePlatform { _, _, _ -> AdAttemptResult.Success(NativeAdPlatformBatch(listOf(ad), null)) }
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        platform.emit(ad, AdEvent.Clicked("p"))
+
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+
+        assertEquals(listOf(ad), platform.destroyed)
+    }
+
+    @Test fun `a kept ad is never given to a slot of a different placement`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+
+        coord.session("s2")
+        coord.updateWindow("s2", NativeAdWindow(visible = listOf(NativeAdSlot("b", otherPlacement))))
+        advanceUntilIdle()
+        assertEquals(2, platform.loadCalls.size, "a different ad unit must load its own ad")
+
+        val sameUnitOtherOptions = nativePlacement.copy(nativeOptions = NativeAdOptions(disableImageLoading = true))
+        coord.updateWindow("s2", NativeAdWindow(visible = listOf(NativeAdSlot("c", sameUnitOtherOptions))))
+        advanceUntilIdle()
+        assertEquals(3, platform.loadCalls.size, "the same unit with other options must load its own ad")
+        assertTrue(platform.destroyed.isEmpty(), "every unseen ad stays kept for its own placement")
+    }
+
+    @Test fun `a third kept ad of one placement destroys the oldest`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        coord.tickForTest(1.minutes)
+        coord.updateWindow("s1", windowWith("a", "b"))
+        advanceUntilIdle()
+        coord.tickForTest(1.minutes)
+        coord.updateWindow("s1", windowWith("a", "b", "c"))
+        advanceUntilIdle()
+
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+
+        assertEquals(listOf(0), platform.destroyed.map { it.id }, "the oldest of three kept ads is dropped")
+        assertEquals(2, coord.managerState().loadedAds)
+    }
+
+    @Test fun `an ad past three quarters of its lifetime is destroyed rather than kept`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        coord.tickForTest(46.minutes)
+
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+
+        assertEquals(listOf(0), platform.destroyed.map { it.id })
+    }
+
+    @Test fun `a reused ad keeps routing its events`() = runTest(dispatcher) {
+        val ad = FakeAd(0)
+        var loads = 0
+        val platform = fakePlatform { _, _, _ ->
+            loads += 1
+            AdAttemptResult.Success(NativeAdPlatformBatch(listOf(ad), null))
+        }
+        val emitted = mutableListOf<AdEvent>()
+        val coord = coordinator(platform = platform, eventSink = emitted::add)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        coord.updateWindow("s1", windowWith("b"))
+        advanceUntilIdle()
+
+        platform.emit(ad, AdEvent.Impression("p"))
+
+        assertEquals(listOf<AdEvent>(AdEvent.Impression("p")), emitted)
+        assertEquals(1, loads)
+    }
+
+    // Regression guards: with reuse off (the default) every drop destroys, exactly as before.
+
+    @Test fun `with reuse off a slot that leaves the window destroys its ad`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        coord.updateWindow("s1", windowWith("b"))
+        advanceUntilIdle()
+
+        assertEquals(listOf(0), platform.destroyed.map { it.id })
+        assertEquals(2, platform.loadCalls.size)
+    }
+
+    @Test fun `with reuse off a deactivation destroys the ad past the anchor`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a", "b"))
+        advanceUntilIdle()
+
+        coord.deactivateSession("s1")
+
+        assertEquals(1, platform.destroyed.size)
+    }
+
+    @Test fun `with reuse off closing a session destroys its ad`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+
+        coord.closeSession("s1")
+
+        assertEquals(listOf(0), platform.destroyed.map { it.id })
+    }
+
 }
 
 internal class FakePlatform(

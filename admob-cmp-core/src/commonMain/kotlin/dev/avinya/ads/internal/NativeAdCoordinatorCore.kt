@@ -5,6 +5,7 @@ package dev.avinya.ads.internal
 import dev.avinya.ads.AdAttemptResult
 import dev.avinya.ads.AdError
 import dev.avinya.ads.AdEvent
+import dev.avinya.ads.AdLogger
 import dev.avinya.ads.AdPlacement
 import dev.avinya.ads.INTERNAL_LOAD_ERROR_CODE
 import dev.avinya.ads.isRetryableLoadFailure
@@ -93,6 +94,9 @@ internal fun sessionRegistryFullMessage(maxSessionRecords: Int, key: String): St
  * [scope] so platform calls and `platform.destroy` happen outside the
  * lock.
  */
+/** Most spares kept per placement. Google's own NativeAdPreloader buffers two by default. */
+internal const val MAX_SPARES_PER_PLACEMENT: Int = 2
+
 internal class NativeAdCoordinatorCore<A : Any>(
     private val memoryPolicy: NativeAdMemoryPolicy,
     private val platform: NativeAdPlatform<A>,
@@ -100,6 +104,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
     private val clock: () -> Instant = { Clock.System.now() },
     private val canRequestAds: () -> Boolean = { true },
     private val eventSink: (AdEvent) -> Unit = {},
+    reuseUnshownAds: Boolean = false,
 ) {
     private val lock = FullScreenStateLock()
     private val governor = NativeAdGovernor(memoryPolicy)
@@ -109,6 +114,11 @@ internal class NativeAdCoordinatorCore<A : Any>(
     // Sole record of every admitted platform ad. Destroyed exactly once.
     private val records = mutableMapOf<NativeAdRecordId, RecordEntry>()
     private val reservationOwners = mutableMapOf<NativeAdRecordId, ReservationOwner>()
+    // NativeAdManager.reuseUnshownAds. Off unless the app opts in.
+    private var reuseUnshownAds: Boolean = reuseUnshownAds
+    // Spares by placement, oldest load first. Every id here is also in [records] with a null
+    // owner; removeRecordLocked, the single exit for records, keeps the two in step.
+    private val spares = mutableMapOf<AdPlacement, MutableList<NativeAdRecordId>>()
     private var nextSessionGeneration = 1L
     // Test-only override for "now". Production uses the real clock.
     private var testNow: Instant? = null
@@ -128,6 +138,12 @@ internal class NativeAdCoordinatorCore<A : Any>(
         val adInstanceId: String,
         val loadedAt: Instant,
         var rendererId: String? = null,
+        // Set the first time a renderer takes the record. A record that reached a view is never a
+        // spare: moving it would need every mediation adapter to re-register cleanly, and Google's
+        // Meta adapter destroys its ad when a view is untracked.
+        var everRendered: Boolean = false,
+        // Set by an impression, click or paid event. Showing such an ad again earns nothing.
+        var impressed: Boolean = false,
     )
 
     private inner class SessionHolder(
@@ -246,7 +262,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
     private fun closeSessionLocked(key: String, effects: Effects) {
         val holder = sessions.remove(key) ?: return
         inactiveOrder.remove(key)
-        applySessionMutationLocked(holder, holder.core.close(), effects)
+        applySessionMutationLocked(holder, holder.core.close(), effects, poolable = true)
         schedulers.values.toList().forEach { it.cancelForSessionLocked(key, effects) }
         cleanupSchedulersLocked()
     }
@@ -312,7 +328,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 holder.active = true
                 inactiveOrder.remove(sessionKey)
             }
-            applySessionMutationLocked(holder, holder.core.updateWindow(window), effects)
+            applySessionMutationLocked(holder, holder.core.updateWindow(window), effects, poolable = true)
             effects
         }
         effects.run()
@@ -328,7 +344,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 holder.active = true
                 inactiveOrder.remove(sessionKey)
             }
-            applySessionMutationLocked(holder, holder.core.updateWindow(window), effects)
+            applySessionMutationLocked(holder, holder.core.updateWindow(window), effects, poolable = true)
             effects
         }
         effects.run()
@@ -355,7 +371,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
             val effects = Effects()
             tickLocked(effects)
             sessions[sessionKey]?.let { holder ->
-                applySessionMutationLocked(holder, holder.core.deactivate(), effects)
+                applySessionMutationLocked(holder, holder.core.deactivate(), effects, poolable = true)
                 holder.active = false
                 inactiveOrder.remove(sessionKey)
                 inactiveOrder[sessionKey] = nowLocked()
@@ -372,7 +388,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
             val effects = Effects()
             tickLocked(effects)
             currentHolderLocked(sessionKey, sessionGeneration)?.let { holder ->
-                applySessionMutationLocked(holder, holder.core.deactivate(), effects)
+                applySessionMutationLocked(holder, holder.core.deactivate(), effects, poolable = true)
                 holder.active = false
                 inactiveOrder.remove(sessionKey)
                 inactiveOrder[sessionKey] = nowLocked()
@@ -398,6 +414,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
         if (owner.sessionKey != sessionKey || owner.slotKey != slotKey || owner.generation != holder.core.slotGenerationFor(slotKey) || entry.placement != placement) return@withLock null
         if (entry.rendererId != null && entry.rendererId != rendererId) return@withLock null
         entry.rendererId = rendererId
+        entry.everRendered = true
         applySessionMutationLocked(holder, holder.core.setMounted(slotKey, recordId, true), Effects())
         governor.setMounted(recordId, true)
         NativeAdRenderRecord(recordId, entry.adInstanceId, entry.ad, entry.mediaInfo)
@@ -490,6 +507,18 @@ internal class NativeAdCoordinatorCore<A : Any>(
         )
     }
 
+    /** Turns unshown-ad reuse on or off. Turning it off destroys every spare. */
+    fun setReuseUnshownAds(enabled: Boolean) {
+        val effects = lock.withLock {
+            val effects = Effects()
+            reuseUnshownAds = enabled
+            if (!enabled) spares.values.flatten().toList().forEach { removeRecordLocked(it, effects) }
+            reconsiderDeferredLocked(effects)
+            effects
+        }
+        effects.run()
+    }
+
     // -----------------------------------------------------------------------
     // Internal helpers (must be called under `lock`)
     // -----------------------------------------------------------------------
@@ -540,6 +569,9 @@ internal class NativeAdCoordinatorCore<A : Any>(
         holder: SessionHolder,
         mutation: NativeAdSessionMutation,
         effects: Effects,
+        // True only where a session lets go of a slot it no longer needs: a window change, a
+        // deactivation, or the app closing it. Expiry, reaping, purges and renderer release stay false.
+        poolable: Boolean = false,
     ) {
         mutation.invalidateLoads.forEach { invalidation ->
             schedulers.values.forEach { scheduler ->
@@ -547,13 +579,15 @@ internal class NativeAdCoordinatorCore<A : Any>(
             }
         }
         mutation.reclassifications.forEach { governor.reclassify(it.recordId, it.priority) }
-        mutation.retireRecordIds.forEach { removeRecordLocked(it, effects) }
+        mutation.retireRecordIds.forEach { retireLocked(it, effects, poolable) }
         submitDemand(holder, mutation, effects)
     }
 
     private fun submitDemand(holder: SessionHolder, demand: NativeAdSessionMutation, effects: Effects) {
         if (demand.demands.isEmpty()) return
-        val byPlacement = demand.demands.groupBy { it.placement.id }
+        val unmet = demand.demands.filterNot { adoptSpareLocked(holder, it, effects) }
+        if (unmet.isEmpty()) return
+        val byPlacement = unmet.groupBy { it.placement.id }
         for ((placementId, entries) in byPlacement) {
             val scheduler = schedulers.getOrPut(placementId) { PlacementScheduler(placementId) }
             scheduler.submit(holder, entries, effects)
@@ -576,6 +610,59 @@ internal class NativeAdCoordinatorCore<A : Any>(
         records.keys.toList().forEach { removeRecordLocked(it, effects) }
     }
 
+    /** A spare may be handed out only during the first three quarters of its TTL, so it can still be shown in time. */
+    private fun usableUntil(record: RecordEntry): Instant =
+        record.loadedAt + record.placement.cachePolicy.expirationPolicy.nativeTtl * 3 / 4
+
+    /**
+     * Retires a record its session let go of. With reuse on, an ad that never reached a view,
+     * never reported an impression, click or paid event, and is young enough becomes a spare for
+     * its placement. Anything else is destroyed as before.
+     */
+    private fun retireLocked(recordId: NativeAdRecordId, effects: Effects, poolable: Boolean) {
+        val record = records[recordId] ?: return
+        if (poolable && reuseUnshownAds && !record.everRendered && !record.impressed && nowLocked() < usableUntil(record)) {
+            poolLocked(recordId, record, effects)
+        } else {
+            removeRecordLocked(recordId, effects)
+        }
+    }
+
+    /** Makes [record] a spare for its placement. The caller has already detached it from its slot. */
+    private fun poolLocked(recordId: NativeAdRecordId, record: RecordEntry, effects: Effects) {
+        record.owner = null
+        record.rendererId = null
+        governor.reclassify(recordId, NativeAdPriority.Spare)
+        val pool = spares.getOrPut(record.placement) { mutableListOf() }
+        pool += recordId
+        pool.sortBy { records.getValue(it).loadedAt }
+        AdLogger.d("Native spare kept. placement=${record.placementId} spares=${pool.size}")
+        while (pool.size > MAX_SPARES_PER_PLACEMENT) removeRecordLocked(pool.first(), effects)
+    }
+
+    /**
+     * Gives [entry]'s slot the oldest usable spare of an identical placement instead of a new
+     * request. Returns false when there is none, or when the session no longer wants the slot.
+     */
+    private fun adoptSpareLocked(holder: SessionHolder, entry: SlotDemandEntry, effects: Effects): Boolean {
+        if (!reuseUnshownAds) return false
+        val now = nowLocked()
+        spares[entry.placement]?.filter { now >= usableUntil(records.getValue(it)) }
+            ?.forEach { removeRecordLocked(it, effects) }
+        val recordId = spares[entry.placement]?.firstOrNull() ?: return false
+        val record = records.getValue(recordId)
+        if (!holder.core.recordAdmitted(entry.key, recordId, record.mediaInfo, entry.generation)) return false
+        spares[entry.placement]?.let { pool ->
+            pool.remove(recordId)
+            if (pool.isEmpty()) spares.remove(entry.placement)
+        }
+        record.owner = SlotOwner(holder.core.key, entry.key, entry.generation)
+        governor.reclassify(recordId, entry.admittedPriority)
+        governor.touch(recordId)
+        AdLogger.d("Native spare adopted. placement=${record.placementId} slot=${entry.key}")
+        return true
+    }
+
     /**
      * Destroy and remove the records for [retiredRecordIds] belonging
      * to [sessionKey]. Safe to call when the records are not present
@@ -588,6 +675,13 @@ internal class NativeAdCoordinatorCore<A : Any>(
         freesCapacity: Boolean = true,
     ) {
         val entry = records.remove(recordId) ?: return
+        if (entry.owner == null) {
+            spares[entry.placement]?.let { pool ->
+                pool.remove(recordId)
+                if (pool.isEmpty()) spares.remove(entry.placement)
+            }
+            AdLogger.d("Native spare dropped. placement=${entry.placementId}")
+        }
         entry.rendererId = null
         entry.owner?.let { sessions[it.sessionKey]?.core?.recordEvicted(it.slotKey, recordId) }
         schedulers[entry.placementId]?.activeRecordIds?.remove(recordId)
@@ -629,7 +723,13 @@ internal class NativeAdCoordinatorCore<A : Any>(
 
     /** Platform callbacks are accepted only while their owned record is current. */
     private fun routeEvent(recordId: NativeAdRecordId, instanceId: String, event: AdEvent) {
-        val current = lock.withLock { records.containsKey(recordId) && recordId.value.toString() == instanceId }
+        val current = lock.withLock {
+            val entry = records[recordId]?.takeIf { recordId.value.toString() == instanceId }
+            if (entry != null && (event is AdEvent.Impression || event is AdEvent.Clicked || event is AdEvent.Paid)) {
+                entry.impressed = true
+            }
+            entry != null
+        }
         if (current) eventSink(event)
     }
 
