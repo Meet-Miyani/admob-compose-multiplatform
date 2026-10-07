@@ -598,4 +598,30 @@ class NativeAdGovernorTest {
         assertEquals(1, decision.reservations.size)
         assertEquals(listOf(ids[1]), decision.retiredRecordIds)
     }
+
+    @Test fun `moderate trim retires a spare before cancelling a pending speculative reservation`() {
+        val gov = governor(NativeAdMemoryPolicy(softLimit = 2, hardLimit = 4))
+        val speculative = reserveSpeculative(gov, NativeAdPriority.Speculative, 2).reservations
+        val spare = admitOne(gov, speculative[0])
+        gov.reclassify(spare, NativeAdPriority.Spare)
+        admitAll(gov, reserveVisible(gov, NativeAdPriority.ActiveReadyAhead, 1).reservations)
+
+        val result = gov.trim(NativeMemoryPressure.Moderate)
+
+        assertEquals(listOf(spare), result.retiredRecordIds)
+        assertTrue(result.cancelledReservations.isEmpty(), "a wanted pending load outranks an idle spare")
+    }
+
+    @Test fun `visible demand at the hard limit retires a spare before cancelling a pending speculative reservation`() {
+        val gov = governor(NativeAdMemoryPolicy(softLimit = 2, hardLimit = 2))
+        val speculative = reserveSpeculative(gov, NativeAdPriority.Speculative, 2).reservations
+        val spare = admitOne(gov, speculative[0])
+        gov.reclassify(spare, NativeAdPriority.Spare)
+
+        val decision = reserveVisible(gov, NativeAdPriority.ActiveReadyAhead, 1)
+
+        assertEquals(1, decision.reservations.size)
+        assertEquals(listOf(spare), decision.retiredRecordIds)
+        assertTrue(decision.cancelledReservations.isEmpty())
+    }
 }

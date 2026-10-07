@@ -60,6 +60,7 @@ internal fun sessionRegistryFullMessage(maxSessionRecords: Int, key: String): St
  * [destroyRecord] on any of the invalidation paths:
  *  - [closeSession] / [closeAll] / [clear] / [onConsentRevoked]
  *  - per-record 1-hour native TTL (the [tickLocked] pass)
+ *  - spares past ¾ of their native TTL (the same [tickLocked] pass, via [sweepAgedSparesLocked])
  *  - inactive-session reap at [NativeAdMemoryPolicy.inactiveSessionTtl]
  *  - inactive-session LRU eviction at [NativeAdMemoryPolicy.maxInactiveSessions]
  *
@@ -83,6 +84,9 @@ internal fun sessionRegistryFullMessage(maxSessionRecords: Int, key: String): St
  *    mutator. Expired records destroy their platform ad, retire the
  *    governor accounting, and submit the [NativeAdSessionCore.expireSlot]
  *    reload demand to the right scheduler.
+ *  - The same pass first destroys every spare (unshown-ad reuse) that has
+ *    reached ¾ of its native TTL, so no slot is handed an ad too old to
+ *    be shown in time.
  *  - Inactive-session TTL is [NativeAdMemoryPolicy.inactiveSessionTtl]
  *    (default 30 minutes). The coordinator tracks the inactive set in
  *    insertion order (LinkedHashMap) so eviction is LRU.
@@ -165,11 +169,19 @@ internal class NativeAdCoordinatorCore<A : Any>(
         val reservation: NativeAdLoadReservation,
     )
 
-    /** A launched platform load's immutable reservation-to-slot association. */
+    /** A launched platform load's reservation-to-slot association. */
     private inner class ReservationSlotPair(
         val reservation: NativeAdLoadReservation,
         val entry: SlotDemandEntry,
-    )
+    ) {
+        /**
+         * Set when the governor cancelled this reservation (a memory trim, or visible demand at the
+         * hard cap). Such a load was taken away to lower the footprint or to make room, so its ad
+         * must never come back as a spare: only loads the session abandoned may. Lives on the pair,
+         * so it is forgotten with the launch and needs no cleanup.
+         */
+        var cancelledByGovernor: Boolean = false
+    }
 
     private inner class Effects {
         val destroy = mutableListOf<A>()
@@ -496,7 +508,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
      */
     private fun settleCancelledReservationLocked(reservation: NativeAdLoadReservation) {
         val owner = reservationOwners.remove(reservation.id) ?: return
-        schedulers[owner.placementId]?.forgetReservationLocked(reservation)
+        schedulers[owner.placementId]?.forgetCancelledReservationLocked(reservation)
         sessions[owner.sessionKey]?.core?.recordDeferred(owner.slotKey, owner.slotGeneration)
     }
 
@@ -773,6 +785,11 @@ internal class NativeAdCoordinatorCore<A : Any>(
     private inner class PlacementScheduler(val placementId: String) {
         private val queue = mutableListOf<Batch>()
         private var currentJob: Job? = null
+        // True while startNextLocked runs. Between taking the batch off the queue and setting
+        // currentJob, a governor reserve can retire a spare, whose removeRecordLocked runs
+        // cleanupSchedulersLocked; this scheduler then looks idle and would be dropped, leaving
+        // its load running detached from every purge and from schedulerCount().
+        private var starting = false
         val activeRecordIds = mutableSetOf<NativeAdRecordId>()
         private val activeReservations = mutableListOf<ReservationSlotPair>()
         private var generation: Long = 0L
@@ -803,8 +820,12 @@ internal class NativeAdCoordinatorCore<A : Any>(
             generation++
         }
 
-        /** Drops a reservation this scheduler launched, without touching the queue. */
-        fun forgetReservationLocked(reservation: NativeAdLoadReservation) {
+        /**
+         * Drops a reservation this scheduler launched that the governor cancelled, without
+         * touching the queue, and marks its pair so a late ad for it is destroyed, never kept.
+         */
+        fun forgetCancelledReservationLocked(reservation: NativeAdLoadReservation) {
+            activeReservations.filter { it.reservation === reservation }.forEach { it.cancelledByGovernor = true }
             activeReservations.removeAll { it.reservation === reservation }
         }
 
@@ -852,54 +873,33 @@ internal class NativeAdCoordinatorCore<A : Any>(
             // of them left the viewport threw away the siblings' loads as well — they were then
             // deferred and resubmitted, spending a second network request each for slots that had
             // done nothing wrong. The dropped slot has already been removed from
-            // `activeReservations` above, so its ad is destroyed on arrival (isPairLiveLocked)
-            // whether or not the job keeps running; letting the batch finish costs nothing and
-            // saves every sibling still in it. This matters more the deeper a consumer prefetches,
-            // because deeper prefetch means larger batches.
-            // With reuse on, a load whose slots are all gone runs on: its ad lands as a late arrival
-            // and can become a spare. Cancelling does not stop the network request; it only
-            // guarantees the ad is thrown away.
+            // `activeReservations` above, so it no longer binds on arrival (isPairLiveLocked):
+            // with reuse off its ad is destroyed; with reuse on it may be kept as a spare if a
+            // spare permit fits. Letting the batch finish costs nothing and saves every sibling
+            // still in it. This matters more the deeper a consumer prefetches, because deeper
+            // prefetch means larger batches.
+            // With reuse on, even a load whose slots are all gone runs on, so its ad can land as a
+            // late arrival and become a spare; it just stops retrying (isLaunchAbandoned).
+            // Cancelling does not stop the network request; it only guarantees the ad is thrown away.
             if (owners.isNotEmpty() && activeReservations.isEmpty() && !reuseUnshownAds) currentJob?.let(effects.cancel::add)
             processNextOrCleanupLocked(effects)
         }
 
         private fun startNextLocked(effects: Effects) {
+            val wasStarting = starting
+            starting = true
+            try {
+                launchNextLocked(effects)
+            } finally {
+                starting = wasStarting
+            }
+        }
+
+        /** Takes the next batch off the queue, reserves for it, and launches its load. Only [startNextLocked] calls this. */
+        private fun launchNextLocked(effects: Effects) {
             val requested = queue.removeAt(0)
-            val maxChunk = if (requested.entries.first().placement.nativeOptions.batching == NativeAdBatching.GoogleOnly) 5 else requested.entries.size
-            val candidateEntries = requested.entries.take(maxChunk)
-            if (candidateEntries.size < requested.entries.size) {
-                queue.add(0, Batch(requested.holder, requested.entries.drop(candidateEntries.size)))
-            }
-            val grantedPairs = mutableListOf<ReservationSlotPair>()
-            candidateEntries.forEach { entry ->
-                // A spare may have landed while this batch waited, such as a late arrival from the
-                // load ahead of it. Adopting it here saves a request.
-                if (adoptSpareLocked(requested.holder, entry, effects)) return@forEach
-                val decision = governor.reserve(
-                    demandClass = entry.demandClass,
-                    priority = entry.admittedPriority,
-                    count = 1,
-                    allowPartial = false,
-                )
-            // Consume both retired records and cancelled reservations
-            // from the decision — they are the platform objects /
-            // permits the prior call already accounted for.
-                decision.retiredRecordIds.forEach { removeRecordLocked(it, effects, freesCapacity = false) }
-                // Same settlement as the memory-pressure path, through one helper. These two
-                // sites handled the identical event differently for a while — this one
-                // correctly, the other not at all — which is exactly the divergence that made
-                // the memory-pressure defect invisible.
-                decision.cancelledReservations.forEach(::settleCancelledReservationLocked)
-                val reservation = decision.reservations.singleOrNull()
-                if (reservation == null) {
-                    requested.holder.core.recordDeferred(entry.key, entry.generation)
-                } else {
-                    val pair = ReservationSlotPair(reservation, entry)
-                    activeReservations += pair
-                    grantedPairs += pair
-                    reservationOwners[reservation.id] = ReservationOwner(placementId, requested.holder.core.key, entry.key, entry.generation, reservation)
-                }
-            }
+            val candidateEntries = takeChunkLocked(requested)
+            val grantedPairs = reserveLocked(requested.holder, candidateEntries, effects)
             val genAtSubmit = generation
             val placement = candidateEntries.first().placement
             // Load the **granted** count, not the original demand. When
@@ -943,6 +943,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                         retryAdLoad(placement.retryPolicy, { it.isRetryableLoadFailure() }) {
                             if (!canRequestAds()) AdAttemptResult.Failure(AdError.consentRequired())
                             else if (attempted && !isGenerationCurrent(genAtSubmit)) AdAttemptResult.Failure(AdError.message("Native ad load was invalidated."))
+                            else if (attempted && isLaunchAbandoned(launchedPairs)) AdAttemptResult.Failure(AdError.message("Native ad load was abandoned."))
                             else {
                                 attempted = true
                                 try {
@@ -1000,8 +1001,72 @@ internal class NativeAdCoordinatorCore<A : Any>(
             }
         }
 
+        /**
+         * The entries of [requested] one load may carry. A Google-only batch is capped at five per
+         * request; the remainder goes back to the head of the queue.
+         */
+        private fun takeChunkLocked(requested: Batch): List<SlotDemandEntry> {
+            val maxChunk = if (requested.entries.first().placement.nativeOptions.batching == NativeAdBatching.GoogleOnly) 5 else requested.entries.size
+            val candidateEntries = requested.entries.take(maxChunk)
+            if (candidateEntries.size < requested.entries.size) {
+                queue.add(0, Batch(requested.holder, requested.entries.drop(candidateEntries.size)))
+            }
+            return candidateEntries
+        }
+
+        /**
+         * Reserves a permit for each entry and records its pair, adopting a spare instead where one
+         * fits. Returns this call's own grants; a denied entry is settled as deferred.
+         */
+        private fun reserveLocked(
+            holder: SessionHolder,
+            entries: List<SlotDemandEntry>,
+            effects: Effects,
+        ): List<ReservationSlotPair> {
+            val grantedPairs = mutableListOf<ReservationSlotPair>()
+            entries.forEach { entry ->
+                // A spare may have landed while this batch waited, such as a late arrival from the
+                // load ahead of it. Adopting it here saves a request.
+                if (adoptSpareLocked(holder, entry, effects)) return@forEach
+                val decision = governor.reserve(
+                    demandClass = entry.demandClass,
+                    priority = entry.admittedPriority,
+                    count = 1,
+                    allowPartial = false,
+                )
+                // Consume both retired records and cancelled reservations
+                // from the decision — they are the platform objects /
+                // permits the prior call already accounted for.
+                decision.retiredRecordIds.forEach { removeRecordLocked(it, effects, freesCapacity = false) }
+                // Same settlement as the memory-pressure path, through one helper. These two
+                // sites handled the identical event differently for a while — this one
+                // correctly, the other not at all — which is exactly the divergence that made
+                // the memory-pressure defect invisible.
+                decision.cancelledReservations.forEach(::settleCancelledReservationLocked)
+                val reservation = decision.reservations.singleOrNull()
+                if (reservation == null) {
+                    holder.core.recordDeferred(entry.key, entry.generation)
+                } else {
+                    val pair = ReservationSlotPair(reservation, entry)
+                    activeReservations += pair
+                    grantedPairs += pair
+                    reservationOwners[reservation.id] =
+                        ReservationOwner(placementId, holder.core.key, entry.key, entry.generation, reservation)
+                }
+            }
+            return grantedPairs
+        }
+
         private fun isGenerationCurrent(submittedGen: Long): Boolean = lock.withLock {
             generation == submittedGen && schedulers[placementId] === this
+        }
+
+        /**
+         * True once no slot this launch loads for is wanted any more. Only a retry asks this: a
+         * first attempt that succeeds still delivers, so its ads can land as late arrivals.
+         */
+        private fun isLaunchAbandoned(launchedPairs: List<ReservationSlotPair>): Boolean = lock.withLock {
+            launchedPairs.none(::isPairLiveLocked)
         }
 
         private fun handleResult(
@@ -1224,7 +1289,9 @@ internal class NativeAdCoordinatorCore<A : Any>(
         /**
          * Reserves a spare-priority permit for each ad that arrived after its slot was cancelled,
          * so the ad can be kept rather than destroyed. Granted only below the soft limit and never
-         * by evicting anything. An ad without a permit is destroyed as before.
+         * by evicting anything, and only for a slot the session abandoned: a load the governor
+         * cancelled (a trim, or visible demand at the hard cap) never gets one, or keeping it would
+         * undo that cancellation. An ad without a permit is destroyed as before.
          */
         private fun sparePermitsLocked(
             launchedPairs: List<ReservationSlotPair>,
@@ -1235,7 +1302,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
             if (!reuseUnshownAds || generation != submittedGen) return emptyMap()
             val permits = mutableMapOf<Int, NativeAdLoadReservation>()
             for (index in launchedPairs.indices) {
-                if (liveAtBinding[index] || index >= adCount) continue
+                if (liveAtBinding[index] || index >= adCount || launchedPairs[index].cancelledByGovernor) continue
                 governor.reserve(NativeAdDemandClass.Speculative, NativeAdPriority.Spare, 1, allowPartial = false)
                     .reservations.singleOrNull()?.let { permits[index] = it }
             }
@@ -1313,11 +1380,12 @@ internal class NativeAdCoordinatorCore<A : Any>(
             if (queue.isNotEmpty() && currentJob == null) {
                 startNextLocked(effects)
             } else if (activeRecordIds.isEmpty() && activeReservations.isEmpty() && currentJob == null) {
-                schedulers.remove(placementId)
+                // By identity: a replacement registered under the same key is not ours to remove.
+                if (schedulers[placementId] === this) schedulers.remove(placementId)
             }
         }
 
         fun isIdleLocked(): Boolean =
-            queue.isEmpty() && activeRecordIds.isEmpty() && activeReservations.isEmpty() && currentJob == null
+            !starting && queue.isEmpty() && activeRecordIds.isEmpty() && activeReservations.isEmpty() && currentJob == null
     }
 }

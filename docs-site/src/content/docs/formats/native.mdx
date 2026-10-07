@@ -178,7 +178,8 @@ adManager.nativeAds.reuseUnshownAds = true
 - At most two ads are kept per placement, and only during the first three quarters of
   `nativeTtl` (45 minutes with the default one hour).
 - Kept ads count toward the same soft and hard limits as every native ad and are the first to go
-  under memory pressure. Consent revocation, `clear()`, and turning reuse off destroy them.
+  under memory pressure. Consent revocation, a serving-affecting request configuration change,
+  `clear()`, and turning reuse off destroy them.
 
 With reuse on, a slot can go straight from `Empty` to `Ready`, and you will see fewer ad requests and
 load events. It is off by default so that upgrading never changes how an app loads ads.

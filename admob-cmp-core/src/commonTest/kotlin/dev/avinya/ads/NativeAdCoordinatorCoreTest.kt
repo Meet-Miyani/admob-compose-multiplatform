@@ -1403,6 +1403,8 @@ class NativeAdCoordinatorCoreTest {
         advanceUntilIdle()
 
         assertEquals(listOf(1), platform.destroyed.map { it.id }, "no spare permit fits, so the late ad is destroyed")
+        assertEquals(1, coord.managerState().loadedAds)
+        assertEquals(0, coord.managerState().reservedLoads)
     }
 
     @Test fun `a late ad is destroyed when reuse was turned off before it landed`() = runTest(dispatcher) {
@@ -1508,6 +1510,68 @@ class NativeAdCoordinatorCoreTest {
 
         assertEquals(listOf<AdEvent>(AdEvent.Impression("p")), emitted)
         assertEquals(1, loads)
+    }
+
+    @Test fun `retiring a spare to admit prefetch keeps the new placement's scheduler registered`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        var next = 0
+        val platform = fakePlatform { placement, count, _ ->
+            if (placement == otherPlacement) gate.await()
+            AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map { FakeAd(next++) }, null))
+        }
+        val coord = coordinator(platform = platform, memoryPolicy = NativeAdMemoryPolicy(softLimit = 1, hardLimit = 2))
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        coord.session("s2")
+        coord.updateWindow("s2", NativeAdWindow(visible = emptyList(), prefetchAhead = listOf(NativeAdSlot("x", otherPlacement))))
+        runCurrent()
+
+        assertEquals(1, coord.schedulerCount(), "the in-flight placement must stay registered")
+        coord.clear()
+        assertEquals(0, coord.managerState().reservedLoads, "clear must reach the in-flight placement")
+        gate.complete(Unit)
+        advanceUntilIdle()
+    }
+
+    @Test fun `a load cancelled by a memory trim is destroyed rather than kept`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        val platform = firstLoadGated(gate)
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList(), prefetchAhead = listOf(NativeAdSlot("x", nativePlacement))))
+        runCurrent()
+        coord.onMemoryPressure(NativeMemoryPressure.Critical)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf(0), platform.destroyed.map { it.id }, "the trim cancelled this load, so its ad must not come back")
+        assertEquals(0, coord.managerState().loadedAds)
+    }
+
+    @Test fun `with reuse on an abandoned load does not retry`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        val platform = fakePlatform { _, _, _ ->
+            gate.await()
+            AdAttemptResult.Failure(AdError(code = "NETWORK_ERROR", message = "retry"))
+        }
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        runCurrent()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        runCurrent()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(1, platform.loadCalls.size, "nobody wants this load any more, so a retryable failure must not retry")
+        assertEquals(0, coord.managerState().reservedLoads)
     }
 
     // Regression guards: with reuse off (the default) every drop destroys, exactly as before.
