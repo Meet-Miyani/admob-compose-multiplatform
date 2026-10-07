@@ -5,12 +5,17 @@ import dev.avinya.ads.internal.NativeAdPlatform
 import dev.avinya.ads.internal.NativeAdPlatformBatch
 import dev.avinya.ads.internal.NativeAdRecordId
 import dev.avinya.ads.internal.NativeAdRenderLeaseProvider
+import dev.avinya.ads.nativead.NativeAdManager
+import dev.avinya.ads.nativead.NativeAdManagerState
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
+import dev.avinya.ads.nativead.NativeAdSession
 import dev.avinya.ads.nativead.NativeAdSessionPolicy
 import dev.avinya.ads.nativead.NativeAdSlot
 import dev.avinya.ads.nativead.NativeAdSlotState
 import dev.avinya.ads.nativead.NativeAdWindow
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -218,6 +223,61 @@ class NativeAdManagerImplTest {
         assertEquals(0, manager.state.value.loadedAds)
         assertEquals(0, manager.state.value.reservedLoads)
     }
+
+    @Test
+    fun `reuse of unshown ads is off by default`() {
+        val manager = NativeAdManagerImpl<String>(policy = NativeAdMemoryPolicy(), platform = EmptyNativePlatform)
+        assertFalse(manager.reuseUnshownAds)
+    }
+
+    @Test
+    fun `a reuse setting made before configure applies once native ads start`() = runTest {
+        val platform = CountingNativePlatform()
+        val manager = NativeAdManagerImpl(policy = null, platform = platform, scope = backgroundScope)
+        manager.reuseUnshownAds = true
+        manager.configure(NativeAdMemoryPolicy())
+        val session = manager.session("feed")
+
+        session.updateWindow(NativeAdWindow(listOf(NativeAdSlot("a", testNativePlacement()))))
+        runCurrent()
+        session.updateWindow(NativeAdWindow(emptyList()))
+        session.updateWindow(NativeAdWindow(listOf(NativeAdSlot("b", testNativePlacement()))))
+        runCurrent()
+
+        assertTrue(manager.reuseUnshownAds)
+        assertEquals(1, platform.loads)
+        assertTrue(platform.destroyed.isEmpty())
+    }
+
+    @Test
+    fun `turning reuse off destroys the kept ads`() = runTest {
+        val platform = CountingNativePlatform()
+        val manager = NativeAdManagerImpl(policy = NativeAdMemoryPolicy(), platform = platform, scope = backgroundScope)
+        manager.reuseUnshownAds = true
+        val session = manager.session("feed")
+        session.updateWindow(NativeAdWindow(listOf(NativeAdSlot("a", testNativePlacement()))))
+        runCurrent()
+        session.updateWindow(NativeAdWindow(emptyList()))
+
+        manager.reuseUnshownAds = false
+
+        assertEquals(listOf("ad-0"), platform.destroyed)
+    }
+
+    @Test
+    fun `a NativeAdManager that does not override reuse keeps an inert off switch`() {
+        val custom = object : NativeAdManager {
+            override val policy: NativeAdMemoryPolicy = NativeAdMemoryPolicy()
+            override val state: StateFlow<NativeAdManagerState> = MutableStateFlow(NativeAdManagerState(0, 0, 0, 0, 6))
+            override fun session(key: String, policy: NativeAdSessionPolicy): NativeAdSession = error("unused")
+            override fun closeSession(key: String) = Unit
+            override fun clear() = Unit
+        }
+
+        custom.reuseUnshownAds = true
+
+        assertFalse(custom.reuseUnshownAds)
+    }
 }
 
 private class GateNativePlatform : NativeAdPlatform<String> {
@@ -239,6 +299,21 @@ private object EmptyNativePlatform : NativeAdPlatform<String> {
         AdAttemptResult.Success(NativeAdPlatformBatch(emptyList(), AdError.sdkNotReady()))
     override suspend fun bindEvents(ad: String, adInstanceId: String, emit: (AdEvent) -> Unit) = Unit
     override fun destroy(ad: String) = Unit
+    override fun responseInfo(ad: String): AdResponseInfo? = null
+    override fun mediaInfo(ad: String) = null
+}
+
+private class CountingNativePlatform : NativeAdPlatform<String> {
+    var loads = 0
+    val destroyed = mutableListOf<String>()
+
+    override suspend fun load(placement: AdPlacement, count: Int, generation: Long): AdAttemptResult<NativeAdPlatformBatch<String>> {
+        val first = loads
+        loads += 1
+        return AdAttemptResult.Success(NativeAdPlatformBatch(ads = (0 until count).map { "ad-${first + it}" }, unfilledError = null))
+    }
+    override suspend fun bindEvents(ad: String, adInstanceId: String, emit: (AdEvent) -> Unit) = Unit
+    override fun destroy(ad: String) { destroyed += ad }
     override fun responseInfo(ad: String): AdResponseInfo? = null
     override fun mediaInfo(ad: String) = null
 }

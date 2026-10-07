@@ -539,4 +539,89 @@ class NativeAdGovernorTest {
         assertEquals(0, state.loadedRecords, "no records admitted in a reserve-only wave")
         assertEquals(6, state.reservedLoads, "the governor retains exactly hardLimit reservations")
     }
+
+    // --- Spare priority (unshown-ad reuse) --------------------------------------
+
+    @Test fun `moderate trim retires a spare before a speculative record`() {
+        val gov = governor(NativeAdMemoryPolicy(softLimit = 1, hardLimit = 4))
+        val ids = admitAll(gov, reserveVisible(gov, NativeAdPriority.Speculative, 2).reservations)
+        gov.reclassify(ids[1], NativeAdPriority.Spare)
+
+        val result = gov.trim(NativeMemoryPressure.Moderate)
+
+        assertEquals(listOf(ids[1]), result.retiredRecordIds, "the spare goes first even though it is more recent")
+    }
+
+    @Test fun `speculative reservation at the soft limit retires the least recently used spare`() {
+        val gov = governor(NativeAdMemoryPolicy(softLimit = 2, hardLimit = 4))
+        val ids = admitAll(gov, reserveSpeculative(gov, NativeAdPriority.Speculative, 2).reservations)
+        gov.reclassify(ids[0], NativeAdPriority.Spare)
+        gov.reclassify(ids[1], NativeAdPriority.Spare)
+        gov.touch(ids[0])
+
+        val decision = reserveSpeculative(gov, NativeAdPriority.Speculative, 1, allowPartial = false)
+
+        assertEquals(1, decision.reservations.size)
+        assertEquals(listOf(ids[1]), decision.retiredRecordIds)
+        assertEquals(2, gov.state().loadedRecords + gov.state().reservedLoads)
+    }
+
+    @Test fun `speculative reservation at the soft limit never retires a record that is not a spare`() {
+        val gov = governor(NativeAdMemoryPolicy(softLimit = 1, hardLimit = 4))
+        admitAll(gov, reserveSpeculative(gov, NativeAdPriority.Speculative, 1).reservations)
+
+        val decision = reserveSpeculative(gov, NativeAdPriority.Speculative, 1)
+
+        assertTrue(decision.reservations.isEmpty())
+        assertTrue(decision.retiredRecordIds.isEmpty())
+    }
+
+    @Test fun `a spare priority reservation never retires another spare`() {
+        val gov = governor(NativeAdMemoryPolicy(softLimit = 1, hardLimit = 4))
+        val id = admitOne(gov, reserveSpeculative(gov, NativeAdPriority.Speculative, 1).reservations.single())
+        gov.reclassify(id, NativeAdPriority.Spare)
+
+        val decision = reserveSpeculative(gov, NativeAdPriority.Spare, 1)
+
+        assertTrue(decision.reservations.isEmpty())
+        assertTrue(decision.retiredRecordIds.isEmpty())
+        assertEquals(1, gov.state().loadedRecords)
+    }
+
+    @Test fun `visible reservation at the hard limit retires a spare before a speculative record`() {
+        val gov = governor(NativeAdMemoryPolicy(softLimit = 2, hardLimit = 2))
+        val ids = admitAll(gov, reserveSpeculative(gov, NativeAdPriority.Speculative, 2).reservations)
+        gov.reclassify(ids[1], NativeAdPriority.Spare)
+
+        val decision = reserveVisible(gov, NativeAdPriority.ActiveReadyAhead, 1)
+
+        assertEquals(1, decision.reservations.size)
+        assertEquals(listOf(ids[1]), decision.retiredRecordIds)
+    }
+
+    @Test fun `moderate trim retires a spare before cancelling a pending speculative reservation`() {
+        val gov = governor(NativeAdMemoryPolicy(softLimit = 2, hardLimit = 4))
+        val speculative = reserveSpeculative(gov, NativeAdPriority.Speculative, 2).reservations
+        val spare = admitOne(gov, speculative[0])
+        gov.reclassify(spare, NativeAdPriority.Spare)
+        admitAll(gov, reserveVisible(gov, NativeAdPriority.ActiveReadyAhead, 1).reservations)
+
+        val result = gov.trim(NativeMemoryPressure.Moderate)
+
+        assertEquals(listOf(spare), result.retiredRecordIds)
+        assertTrue(result.cancelledReservations.isEmpty(), "a wanted pending load outranks an idle spare")
+    }
+
+    @Test fun `visible demand at the hard limit retires a spare before cancelling a pending speculative reservation`() {
+        val gov = governor(NativeAdMemoryPolicy(softLimit = 2, hardLimit = 2))
+        val speculative = reserveSpeculative(gov, NativeAdPriority.Speculative, 2).reservations
+        val spare = admitOne(gov, speculative[0])
+        gov.reclassify(spare, NativeAdPriority.Spare)
+
+        val decision = reserveVisible(gov, NativeAdPriority.ActiveReadyAhead, 1)
+
+        assertEquals(1, decision.reservations.size)
+        assertEquals(listOf(spare), decision.retiredRecordIds)
+        assertTrue(decision.cancelledReservations.isEmpty())
+    }
 }
