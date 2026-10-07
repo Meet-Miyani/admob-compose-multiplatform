@@ -610,7 +610,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
         poolable: Boolean = false,
     ) {
         mutation.invalidateLoads.forEach { invalidation ->
-            schedulers.values.forEach { scheduler ->
+            schedulers.values.toList().forEach { scheduler ->
                 scheduler.cancelSlotLocked(holder.core.key, invalidation, effects)
             }
         }
