@@ -1332,6 +1332,184 @@ class NativeAdCoordinatorCoreTest {
         assertEquals(listOf(0), platform.destroyed.map { it.id })
     }
 
+    // --- Unshown-ad reuse: late arrivals ----------------------------------------
+
+    private fun firstLoadGated(gate: CompletableDeferred<Unit>): FakePlatform {
+        var next = 0
+        return fakePlatform { _, count, _ ->
+            if (next == 0) gate.await()
+            AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map { FakeAd(next++) }, null))
+        }
+    }
+
+    @Test fun `with reuse on an ad that lands after its slot left is kept and reused`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        val platform = firstLoadGated(gate)
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        val session = coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        runCurrent()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        runCurrent()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(platform.destroyed.isEmpty(), "the late ad must be kept")
+
+        coord.updateWindow("s1", windowWith("b"))
+        advanceUntilIdle()
+        assertEquals(1, platform.loadCalls.size)
+        assertTrue(session.state.value.slots["b"] is NativeAdSlotState.Ready)
+    }
+
+    @Test fun `with reuse off a load whose slot left still makes the next slot load`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        val platform = firstLoadGated(gate)
+        val coord = coordinator(platform = platform)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        runCurrent()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        runCurrent()
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        coord.updateWindow("s1", windowWith("b"))
+        advanceUntilIdle()
+
+        assertEquals(2, platform.loadCalls.size)
+    }
+
+    @Test fun `a late ad with no room under the soft limit is destroyed`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        var next = 0
+        val platform = fakePlatform { placement, count, _ ->
+            if (placement == otherPlacement) gate.await()
+            AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map { FakeAd(next++) }, null))
+        }
+        val coord = coordinator(platform = platform, memoryPolicy = NativeAdMemoryPolicy(softLimit = 1, hardLimit = 2))
+        coord.setReuseUnshownAds(true)
+        coord.session("s0")
+        coord.updateWindow("s0", windowWith("held"))
+        advanceUntilIdle()
+        coord.session("s1")
+        coord.updateWindow("s1", NativeAdWindow(visible = listOf(NativeAdSlot("late", otherPlacement))))
+        runCurrent()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        runCurrent()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf(1), platform.destroyed.map { it.id }, "no spare permit fits, so the late ad is destroyed")
+    }
+
+    @Test fun `a late ad is destroyed when reuse was turned off before it landed`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        val platform = firstLoadGated(gate)
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        runCurrent()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        runCurrent()
+        coord.setReuseUnshownAds(false)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf(0), platform.destroyed.map { it.id })
+        assertEquals(0, coord.managerState().reservedLoads)
+    }
+
+    @Test fun `a late ad from before a clear is destroyed`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        val platform = firstLoadGated(gate)
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        runCurrent()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        runCurrent()
+        coord.clear()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf(0), platform.destroyed.map { it.id })
+        assertEquals(0, coord.managerState().reservedLoads)
+    }
+
+    @Test fun `a late ad whose event binding fails is destroyed and leaves no permit behind`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        val platform = firstLoadGated(gate)
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        runCurrent()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        runCurrent()
+        platform.bindFailure = IllegalStateException("bind")
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf(0), platform.destroyed.map { it.id })
+        assertEquals(0, coord.managerState().reservedLoads)
+        assertEquals(0, coord.managerState().loadedAds)
+    }
+
+    @Test fun `a queued slot adopts an ad that landed while it waited`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        val platform = firstLoadGated(gate)
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        val session = coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        runCurrent()
+        // `a` leaves while its ad is loading; `b` queues behind that load.
+        coord.updateWindow("s1", windowWith("b"))
+        runCurrent()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(1, platform.loadCalls.size, "b must adopt the late ad instead of loading")
+        assertTrue(session.state.value.slots["b"] is NativeAdSlotState.Ready)
+    }
+
+    @Test fun `a late ad keeps routing its events after it is reused`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        val ad = FakeAd(0)
+        var loads = 0
+        val platform = fakePlatform { _, _, _ ->
+            loads += 1
+            gate.await()
+            AdAttemptResult.Success(NativeAdPlatformBatch(listOf(ad), null))
+        }
+        val emitted = mutableListOf<AdEvent>()
+        val coord = coordinator(platform = platform, eventSink = emitted::add)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        runCurrent()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        runCurrent()
+        gate.complete(Unit)
+        advanceUntilIdle()
+        coord.updateWindow("s1", windowWith("b"))
+        advanceUntilIdle()
+
+        platform.emit(ad, AdEvent.Impression("p"))
+
+        assertEquals(listOf<AdEvent>(AdEvent.Impression("p")), emitted)
+        assertEquals(1, loads)
+    }
+
     // Regression guards: with reuse off (the default) every drop destroys, exactly as before.
 
     @Test fun `with reuse off a slot that leaves the window destroys its ad`() = runTest(dispatcher) {

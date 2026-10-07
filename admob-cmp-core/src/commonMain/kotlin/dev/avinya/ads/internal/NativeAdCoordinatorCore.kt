@@ -828,7 +828,10 @@ internal class NativeAdCoordinatorCore<A : Any>(
             // whether or not the job keeps running; letting the batch finish costs nothing and
             // saves every sibling still in it. This matters more the deeper a consumer prefetches,
             // because deeper prefetch means larger batches.
-            if (owners.isNotEmpty() && activeReservations.isEmpty()) currentJob?.let(effects.cancel::add)
+            // With reuse on, a load whose slots are all gone runs on: its ad lands as a late arrival
+            // and can become a spare. Cancelling does not stop the network request; it only
+            // guarantees the ad is thrown away.
+            if (owners.isNotEmpty() && activeReservations.isEmpty() && !reuseUnshownAds) currentJob?.let(effects.cancel::add)
             processNextOrCleanupLocked(effects)
         }
 
@@ -841,6 +844,9 @@ internal class NativeAdCoordinatorCore<A : Any>(
             }
             val grantedPairs = mutableListOf<ReservationSlotPair>()
             candidateEntries.forEach { entry ->
+                // A spare may have landed while this batch waited, such as a late arrival from the
+                // load ahead of it. Adopting it here saves a request.
+                if (adoptSpareLocked(requested.holder, entry, effects)) return@forEach
                 val decision = governor.reserve(
                     demandClass = entry.demandClass,
                     priority = entry.admittedPriority,
@@ -900,6 +906,9 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 // prompt-cancellation guarantee discards, silently and with no cleanup hook.
                 // withTimeoutOrNull can likewise return null with the batch already produced.
                 val undelivered = UndeliveredLoad<NativeAdPlatformBatch<A>>()
+                // Spare-priority permits for ads whose slots were cancelled while they loaded, by
+                // batch index. Every exit below consumes or releases them.
+                var sparePermits = emptyMap<Int, NativeAdLoadReservation>()
                 try {
                     var attempted = false
                     val result = withTimeoutOrNull(placement.timeoutPolicy.loadTimeout) {
@@ -928,23 +937,26 @@ internal class NativeAdCoordinatorCore<A : Any>(
                         undelivered.take()
                         try {
                             val liveAtBinding = lock.withLock {
-                                launchedPairs.map(::isPairLiveLocked)
+                                launchedPairs.map(::isPairLiveLocked).also { live ->
+                                    sparePermits = sparePermitsLocked(launchedPairs, live, result.value.ads.size, genAtSubmit)
+                                }
                             }
                             launchedPairs.forEachIndexed { index, pair ->
                                 val ad = result.value.ads.getOrNull(index) ?: return@forEachIndexed
-                                if (!liveAtBinding[index]) return@forEachIndexed
-                                val recordId = pair.reservation.id
+                                // A live pair binds under its own reservation. A cancelled one binds
+                                // only when it got a spare permit, under that permit's id.
+                                val recordId = if (liveAtBinding[index]) pair.reservation.id else sparePermits[index]?.id ?: return@forEachIndexed
                                 val instanceId = recordId.value.toString()
                                 platform.bindEvents(ad, instanceId) { event -> routeEvent(recordId, instanceId, event) }
                             }
                         } catch (failure: Throwable) {
-                            handleBindingFailure(launchedPairs, genAtSubmit, result.value.ads, failure)
+                            handleBindingFailure(launchedPairs, genAtSubmit, result.value.ads, failure, sparePermits.values)
                             return@launch
                         }
                     }
-                    handleResult(launchedPairs, genAtSubmit, result)
+                    handleResult(launchedPairs, genAtSubmit, result, sparePermits)
                 } catch (cancelled: CancellationException) {
-                    handleCancelled(launchedPairs, genAtSubmit)
+                    handleCancelled(launchedPairs, genAtSubmit, sparePermits.values)
                     throw cancelled
                 } finally {
                     // A batch the platform produced that no terminal path received. Destroyed
@@ -964,6 +976,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
             launchedPairs: List<ReservationSlotPair>,
             submittedGen: Long,
             result: AdAttemptResult<NativeAdPlatformBatch<A>>,
+            sparePermits: Map<Int, NativeAdLoadReservation>,
         ) {
             val effects = lock.withLock {
                 val effects = Effects()
@@ -974,14 +987,18 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 if (result is AdAttemptResult.Success) {
                     effects.destroy += result.value.ads
                 }
+                releaseSparePermitsLocked(sparePermits.values, effects)
                 releaseReservationsLocked(effects)
                 processNextOrCleanupLocked(effects)
                 reconsiderDeferredLocked(effects)
                 return@withLock effects
             }
             when (result) {
-                is AdAttemptResult.Success -> handleSuccess(launchedPairs, result.value, effects)
-                is AdAttemptResult.Failure -> handleFailure(launchedPairs, result.error, effects)
+                is AdAttemptResult.Success -> handleSuccess(launchedPairs, result.value, effects, sparePermits)
+                is AdAttemptResult.Failure -> {
+                    releaseSparePermitsLocked(sparePermits.values, effects)
+                    handleFailure(launchedPairs, result.error, effects)
+                }
             }
             processNextOrCleanupLocked(effects)
             reconsiderDeferredLocked(effects)
@@ -990,7 +1007,11 @@ internal class NativeAdCoordinatorCore<A : Any>(
             effects.run()
         }
 
-        private fun handleCancelled(launchedPairs: List<ReservationSlotPair>, submittedGen: Long) {
+        private fun handleCancelled(
+            launchedPairs: List<ReservationSlotPair>,
+            submittedGen: Long,
+            sparePermits: Collection<NativeAdLoadReservation>,
+        ) {
             val effects = lock.withLock {
                 val effects = Effects()
                 // Siblings of an invalidated slot are still wanted. cancelSlotLocked cancels the
@@ -1021,6 +1042,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                     }
                 }
                 currentJob = null
+                releaseSparePermitsLocked(sparePermits, effects)
                 releaseReservationsLocked(effects)
                 // Re-queue before processNextOrCleanupLocked, which is what starts the next batch —
                 // and which would otherwise delete this scheduler outright once the queue is empty.
@@ -1034,7 +1056,13 @@ internal class NativeAdCoordinatorCore<A : Any>(
             effects.run()
         }
 
-        private fun handleBindingFailure(launchedPairs: List<ReservationSlotPair>, submittedGen: Long, ads: List<A>, failure: Throwable) {
+        private fun handleBindingFailure(
+            launchedPairs: List<ReservationSlotPair>,
+            submittedGen: Long,
+            ads: List<A>,
+            failure: Throwable,
+            sparePermits: Collection<NativeAdLoadReservation>,
+        ) {
             val effects = lock.withLock {
                 val effects = Effects()
                 if (generation == submittedGen) {
@@ -1051,6 +1079,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                     }
                 }
                 effects.destroy += ads
+                releaseSparePermitsLocked(sparePermits, effects)
                 currentJob = null
                 releaseReservationsLocked(effects)
                 processNextOrCleanupLocked(effects)
@@ -1060,7 +1089,12 @@ internal class NativeAdCoordinatorCore<A : Any>(
             effects.run()
         }
 
-        private fun handleSuccess(launchedPairs: List<ReservationSlotPair>, result: NativeAdPlatformBatch<A>, effects: Effects) {
+        private fun handleSuccess(
+            launchedPairs: List<ReservationSlotPair>,
+            result: NativeAdPlatformBatch<A>,
+            effects: Effects,
+            sparePermits: Map<Int, NativeAdLoadReservation>,
+        ) {
             val ads = result.ads
             launchedPairs.forEachIndexed { index, pair ->
                 val ad = ads.getOrNull(index)
@@ -1069,7 +1103,13 @@ internal class NativeAdCoordinatorCore<A : Any>(
                     return@forEachIndexed
                 }
                 if (!isPairLiveLocked(pair)) {
-                    effects.destroy += ad
+                    // A pair cancelled before binding may hold a spare permit. One cancelled after
+                    // binding has none: its events were bound under a released id.
+                    val permit = sparePermits[index]
+                    if (permit == null || !keepLateArrivalLocked(permit, pair, ad, effects)) {
+                        if (reuseUnshownAds) AdLogger.d("Native late arrival dropped. placement=$placementId permit=${permit != null}")
+                        effects.destroy += ad
+                    }
                     return@forEachIndexed
                 }
                 val reservation = pair.reservation
@@ -1147,6 +1187,71 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 }
             }
             releaseReservationsLocked(effects)
+        }
+
+        /**
+         * Reserves a spare-priority permit for each ad that arrived after its slot was cancelled,
+         * so the ad can be kept rather than destroyed. Granted only below the soft limit and never
+         * by evicting anything. An ad without a permit is destroyed as before.
+         */
+        private fun sparePermitsLocked(
+            launchedPairs: List<ReservationSlotPair>,
+            liveAtBinding: List<Boolean>,
+            adCount: Int,
+            submittedGen: Long,
+        ): Map<Int, NativeAdLoadReservation> {
+            if (!reuseUnshownAds || generation != submittedGen) return emptyMap()
+            val permits = mutableMapOf<Int, NativeAdLoadReservation>()
+            for (index in launchedPairs.indices) {
+                if (liveAtBinding[index] || index >= adCount) continue
+                governor.reserve(NativeAdDemandClass.Speculative, NativeAdPriority.Spare, 1, allowPartial = false)
+                    .reservations.singleOrNull()?.let { permits[index] = it }
+            }
+            return permits
+        }
+
+        private fun releaseSparePermitsLocked(permits: Collection<NativeAdLoadReservation>, effects: Effects) {
+            permits.forEach { permit ->
+                try {
+                    governor.releaseReservation(permit)
+                    effects.capacityFreed = true
+                } catch (_: IllegalStateException) {
+                    // Already settled.
+                }
+            }
+        }
+
+        /** Keeps an ad whose slot was cancelled while it loaded as a spare. Returns false when it cannot be kept. */
+        private fun keepLateArrivalLocked(
+            permit: NativeAdLoadReservation,
+            pair: ReservationSlotPair,
+            ad: A,
+            effects: Effects,
+        ): Boolean {
+            if (!reuseUnshownAds) {
+                releaseSparePermitsLocked(listOf(permit), effects)
+                return false
+            }
+            val recordId = try {
+                governor.admit(permit)
+            } catch (_: IllegalStateException) {
+                // A memory trim or visible demand cancelled the permit after binding.
+                return false
+            }
+            val record = RecordEntry(
+                ad = ad,
+                placementId = placementId,
+                owner = null,
+                placement = pair.entry.placement,
+                mediaInfo = platform.mediaInfo(ad),
+                adInstanceId = recordId.value.toString(),
+                loadedAt = nowLocked(),
+            )
+            records[recordId] = record
+            activeRecordIds.add(recordId)
+            AdLogger.d("Native late arrival kept. placement=$placementId")
+            poolLocked(recordId, record, effects)
+            return true
         }
 
         private fun releaseReservationsLocked(effects: Effects? = null) {
