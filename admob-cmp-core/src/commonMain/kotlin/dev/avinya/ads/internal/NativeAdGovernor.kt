@@ -27,6 +27,7 @@ internal data class NativeAdRecordId(val value: Long)
  *   inactive-anchor backfill, and every other load that is not
  *   currently visible. May consume only the capacity below
  *   [NativeAdMemoryPolicy.softLimit] and never evicts to make room.
+ *   It may retire [NativeAdPriority.Spare] records, and only those, to make room.
  */
 internal enum class NativeAdDemandClass { Visible, Speculative }
 
@@ -45,6 +46,12 @@ internal enum class NativeAdDemandClass { Visible, Speculative }
  * but [reclassify] can move it as the slot changes bands.
  */
 internal enum class NativeAdPriority(val rank: Int) {
+    /**
+     * An unshown ad no slot owns, kept for the next slot of its placement
+     * ([dev.avinya.ads.nativead.NativeAdManager.reuseUnshownAds]). Nobody is waiting for it, so it
+     * is the first to go.
+     */
+    Spare(-1),
     /** Prefetch-ahead or retain-behind warm-up. Cheapest to refetch on demand. */
     Speculative(0),
     /** Anchor held by an inactive session. */
@@ -218,15 +225,31 @@ internal class NativeAdGovernor(
         currentTotal: Int,
         allowPartial: Boolean,
     ): NativeAdReservationDecision {
-        val cap = policy.softLimit
-        val available = cap - currentTotal
-        return when {
-            available <= 0 -> NativeAdReservationDecision(emptyList())
-            available >= count -> NativeAdReservationDecision(createReservations(NativeAdDemandClass.Speculative, priority, count))
-            allowPartial -> NativeAdReservationDecision(createReservations(NativeAdDemandClass.Speculative, priority, available))
-            else -> NativeAdReservationDecision(emptyList())
+        val available = policy.softLimit - currentTotal
+        if (available >= count) {
+            return NativeAdReservationDecision(createReservations(NativeAdDemandClass.Speculative, priority, count))
         }
+        // Short of the soft limit. Spares are ads nobody is waiting for, so wanted demand may retire
+        // them, least recently used first. A spare may never displace another spare: that would
+        // churn the pool without serving anyone.
+        val victims = if (priority == NativeAdPriority.Spare) emptyList() else spareVictims()
+        val grantable = minOf(count, available + victims.size)
+        if (grantable <= 0 || (grantable < count && !allowPartial)) return NativeAdReservationDecision(emptyList())
+        val retired = victims.take(grantable - available)
+        retired.forEach { records.remove(it) }
+        return NativeAdReservationDecision(
+            createReservations(NativeAdDemandClass.Speculative, priority, grantable),
+            retiredRecordIds = retired,
+        )
     }
+
+    private fun spareVictims(): List<NativeAdRecordId> =
+        records.entries
+            .asSequence()
+            .filter { it.value.priority == NativeAdPriority.Spare && !it.value.mounted }
+            .sortedWith(compareBy({ it.value.lastAccessed }, { it.key.value }))
+            .map { it.key }
+            .toList()
 
     private fun reserveVisible(
         priority: NativeAdPriority,
