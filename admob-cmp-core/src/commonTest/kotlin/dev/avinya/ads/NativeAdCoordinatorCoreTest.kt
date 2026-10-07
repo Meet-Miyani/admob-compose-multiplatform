@@ -778,6 +778,45 @@ class NativeAdCoordinatorCoreTest {
         assertEquals(0, coord.managerState().reservedLoads, "no reservation may be left dangling")
     }
 
+    @Test fun `invalidating a slot cancels the load of its own placement only`() = runTest(dispatcher) {
+        val qGate = CompletableDeferred<Unit>()
+        var qLoadsReturned = 0
+        var next = 0
+        val platform = fakePlatform { placement, count, _ ->
+            if (placement.id == otherPlacement.id) {
+                qGate.await()
+                qLoadsReturned += 1
+            }
+            AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map { FakeAd(next++) }, null))
+        }
+        val coord = coordinator(platform = platform)
+        coord.session("s")
+        // Placement p's scheduler is registered first and stays registered: slot `a` holds a
+        // live record. The broadcast in applySessionMutationLocked therefore visits p before q.
+        coord.updateWindow("s", NativeAdWindow(visible = listOf(NativeAdSlot("a", nativePlacement))))
+        advanceUntilIdle()
+
+        coord.updateWindow(
+            "s",
+            NativeAdWindow(visible = listOf(NativeAdSlot("a", nativePlacement), NativeAdSlot("b", otherPlacement))),
+        )
+        runCurrent()
+        assertEquals(2, platform.loadCalls.size, "precondition: q's load for `b` must be in flight")
+
+        // Pins: dropping `b` must cancel q's load, whose only slot it was. Reservation owners are
+        // shared across placements, so p's scheduler, visited first, used to claim and release
+        // q's owner; q then saw no owners, never cancelled its job, and the ad was loaded only to
+        // be destroyed on arrival.
+        coord.updateWindow("s", NativeAdWindow(visible = listOf(NativeAdSlot("a", nativePlacement))))
+        runCurrent()
+        qGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(0, qLoadsReturned, "q's unwanted load must be cancelled, not run to completion")
+        assertEquals(emptyList<Int>(), platform.destroyed.map { it.id }, "no ad may be loaded only to be destroyed")
+        assertEquals(0, coord.managerState().reservedLoads, "no reservation may be left dangling")
+    }
+
     // --- Lifecycle settlement -------------------------------------------------
 
     /**
