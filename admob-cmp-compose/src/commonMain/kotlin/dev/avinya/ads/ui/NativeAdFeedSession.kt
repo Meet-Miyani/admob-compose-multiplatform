@@ -1,5 +1,6 @@
 package dev.avinya.ads.ui
 
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
@@ -42,13 +43,7 @@ public fun rememberNativeAdFeedSession(
         itemCount = itemCount,
         slotAt = slotAt,
         policy = policy,
-        measuredViewport = {
-            NativeAdViewportMeasurement(
-                indexes = layoutInfo.visibleItemsInfo.map { it.index },
-                firstIndex = firstVisibleItemIndex,
-                firstOffset = firstVisibleItemScrollOffset,
-            )
-        },
+        measuredViewport = { nativeAdViewportMeasurement() },
     )
 }
 
@@ -76,13 +71,7 @@ public fun rememberNativeAdFeedSession(
         itemCount = itemCount,
         slotAt = slotAt,
         policy = policy,
-        measuredViewport = {
-            NativeAdViewportMeasurement(
-                indexes = layoutInfo.visibleItemsInfo.map { it.index },
-                firstIndex = firstVisibleItemIndex,
-                firstOffset = firstVisibleItemScrollOffset,
-            )
-        },
+        measuredViewport = { nativeAdViewportMeasurement() },
     )
 }
 
@@ -178,7 +167,7 @@ internal fun nativeAdViewportInputs(
             policy = policy,
             slotAt = slotAt(),
         ),
-        firstIndex = viewport.firstIndex,
+        firstLine = viewport.firstLine,
         firstOffset = viewport.firstOffset,
     )
 }.distinctUntilChanged()
@@ -187,20 +176,14 @@ internal class NativeAdViewportSessionBinding(
     private val session: NativeAdSession,
     private val policy: NativeAdSessionPolicy,
 ) {
-    private var previousFirstIndex: Int? = null
-    private var previousFirstOffset: Int? = null
+    private var direction = NativeAdScrollDirection.Forward
+    // The furthest point reached in [direction], or null until a frame reports a line. Travel
+    // against [direction] is measured from here, not from the previous frame.
+    private var furthest: ScrollPosition? = null
     private var previousViewport: MeasuredNativeAdViewport? = null
 
     fun update(input: NativeAdViewportInput) {
-        val direction = when {
-            previousFirstIndex == null -> NativeAdScrollDirection.Forward
-            input.firstIndex > previousFirstIndex!! ||
-                (input.firstIndex == previousFirstIndex && input.firstOffset > previousFirstOffset!!) ->
-                NativeAdScrollDirection.Forward
-            else -> NativeAdScrollDirection.Reverse
-        }
-        previousFirstIndex = input.firstIndex
-        previousFirstOffset = input.firstOffset
+        input.firstLine?.let { line -> track(ScrollPosition(line, input.firstOffset)) }
 
         // Scroll offset is deliberately NOT part of this key: dragging within one row moves the
         // offset without changing a single band, and republishing there would churn the session
@@ -211,12 +194,49 @@ internal class NativeAdViewportSessionBinding(
         previousViewport = viewport
         nativeAdWindowForViewport(viewport.slots, viewport.direction, policy)?.let(session::updateWindow)
     }
+
+    /**
+     * Turns [direction] only once the viewport has moved a full line against it.
+     *
+     * Turning moves the prefetch band to the other side of the viewport. Whenever the two sides of
+     * the window hold different numbers of slots — [NativeAdSessionPolicy.prefetchAhead] and
+     * [NativeAdSessionPolicy.retainBehind] differ, or [NativeAdSessionPolicy.maxRetainedAds] has
+     * room for only one side once the visible slots are counted — a turn pushes loaded ads nobody
+     * has seen out of the window, the session retires them, and it requests them again as soon as
+     * the user carries on. Turning on every backward pixel made an ordinary nudge do that, and so
+     * did a frame that did not move at all, which is what a Paging append or a refresh landing
+     * under a parked list looks like here.
+     *
+     * The turn point is the furthest point reached moved one line back: the same offset in the line
+     * before it, or in the line after it while reversed. Anything past the turn point counts, so a
+     * jump, or a fling that skips lines between frames, turns on the frame it lands. A line is a
+     * row of a grid, not an item, which is what [NativeAdViewportMeasurement.firstLine] reports.
+     */
+    private fun track(position: ScrollPosition) {
+        val reached = furthest
+        if (reached == null) {
+            furthest = position
+            return
+        }
+        val forward = direction == NativeAdScrollDirection.Forward
+        val turnPoint = ScrollPosition(if (forward) reached.line - 1 else reached.line + 1, reached.offset)
+        val turned = if (forward) position <= turnPoint else position >= turnPoint
+        val travelledFurther = if (forward) position > reached else position < reached
+        if (turned) direction = if (forward) NativeAdScrollDirection.Reverse else NativeAdScrollDirection.Forward
+        if (turned || travelledFurther) furthest = position
+    }
+}
+
+/** A scroll position: the line the viewport starts in, then how far into that line it starts. */
+private data class ScrollPosition(val line: Int, val offset: Int) : Comparable<ScrollPosition> {
+    override fun compareTo(other: ScrollPosition): Int =
+        if (line != other.line) line.compareTo(other.line) else offset.compareTo(other.offset)
 }
 
 /** One measured frame: the resolved slot mapping plus the geometry the direction machine reads. */
 internal data class NativeAdViewportInput(
     val slots: ResolvedNativeAdViewport,
-    val firstIndex: Int,
+    val firstLine: Int?,
     val firstOffset: Int,
 )
 
@@ -225,8 +245,39 @@ private data class MeasuredNativeAdViewport(
     val direction: NativeAdScrollDirection,
 )
 
+/**
+ * What one frame of a lazy layout reports to the native-ad pipeline.
+ *
+ * [firstLine] is the line, not the item, the viewport starts in: a row of a vertical grid, a column
+ * of a horizontal one, an item of a list. It is null while no line is known, as before a lazy grid's
+ * first layout. [firstOffset] is how far into that line the viewport starts.
+ */
 internal data class NativeAdViewportMeasurement(
     val indexes: List<Int>,
-    val firstIndex: Int,
+    val firstLine: Int?,
     val firstOffset: Int,
 )
+
+internal fun LazyListState.nativeAdViewportMeasurement(): NativeAdViewportMeasurement =
+    NativeAdViewportMeasurement(
+        indexes = layoutInfo.visibleItemsInfo.map { it.index },
+        firstLine = firstVisibleItemIndex,
+        firstOffset = firstVisibleItemScrollOffset,
+    )
+
+/**
+ * A grid's line is the row of a vertical grid or the column of a horizontal one. Item indexes
+ * would not do: one row of a multi-column grid spans several of them, so stepping back one index
+ * is not stepping back one row. The line comes from the first visible item's layout, so it is
+ * null until the grid has been laid out; Compose reports -1 for a line it does not know.
+ */
+internal fun LazyGridState.nativeAdViewportMeasurement(): NativeAdViewportMeasurement {
+    val info = layoutInfo
+    val first = info.visibleItemsInfo.firstOrNull { it.index == firstVisibleItemIndex }
+    val line = first?.let { if (info.orientation == Orientation.Vertical) it.row else it.column }
+    return NativeAdViewportMeasurement(
+        indexes = info.visibleItemsInfo.map { it.index },
+        firstLine = line?.takeIf { it >= 0 },
+        firstOffset = firstVisibleItemScrollOffset,
+    )
+}

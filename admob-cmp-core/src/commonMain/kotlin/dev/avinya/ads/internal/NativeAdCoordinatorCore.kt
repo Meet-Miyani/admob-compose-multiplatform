@@ -610,7 +610,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
         poolable: Boolean = false,
     ) {
         mutation.invalidateLoads.forEach { invalidation ->
-            schedulers.values.forEach { scheduler ->
+            schedulers.values.toList().forEach { scheduler ->
                 scheduler.cancelSlotLocked(holder.core.key, invalidation, effects)
             }
         }
@@ -860,8 +860,16 @@ internal class NativeAdCoordinatorCore<A : Any>(
             }
             queue.clear()
             queue.addAll(surviving)
+            // `reservationOwners` is shared by every placement's scheduler, and the coordinator
+            // broadcasts each invalidation to all of them. Without the placement check, the first
+            // scheduler visited claimed and released another placement's owner. That placement
+            // then saw no owners and never cancelled its unwanted load, which ran to completion
+            // only for its ad to be destroyed on arrival.
             val owners = reservationOwners.values.filter {
-                it.sessionKey == sessionKey && it.slotKey == invalidation.slotKey && it.slotGeneration == invalidation.generation
+                it.placementId == placementId &&
+                    it.sessionKey == sessionKey &&
+                    it.slotKey == invalidation.slotKey &&
+                    it.slotGeneration == invalidation.generation
             }
             owners.forEach { owner ->
                 reservationOwners.remove(owner.reservation.id)
