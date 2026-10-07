@@ -114,12 +114,15 @@ internal class NativeAdCoordinatorCore<A : Any>(
     private var testNow: Instant? = null
     private var stateListener: () -> Unit = {}
 
+    /** Which session slot a record fills. */
+    private data class SlotOwner(val sessionKey: String, val slotKey: String, val generation: Long)
+
     private inner class RecordEntry(
         val ad: A,
         val placementId: String,
-        val sessionKey: String,
-        val slotKey: String,
-        val generation: Long,
+        // Null only for a spare (unshown-ad reuse). Never left pointing at a slot the record no
+        // longer fills: an expiry would then clear that slot even though it now holds another ad.
+        var owner: SlotOwner?,
         val placement: AdPlacement,
         val mediaInfo: dev.avinya.ads.nativead.NativeMediaInfo?,
         val adInstanceId: String,
@@ -391,7 +394,8 @@ internal class NativeAdCoordinatorCore<A : Any>(
         val holder = currentHolderLocked(sessionKey, sessionGeneration) ?: return@withLock null
         val recordId = holder.core.recordIdFor(slotKey) ?: return@withLock null
         val entry = records[recordId] ?: return@withLock null
-        if (entry.sessionKey != sessionKey || entry.slotKey != slotKey || entry.generation != holder.core.slotGenerationFor(slotKey) || entry.placement != placement) return@withLock null
+        val owner = entry.owner ?: return@withLock null
+        if (owner.sessionKey != sessionKey || owner.slotKey != slotKey || owner.generation != holder.core.slotGenerationFor(slotKey) || entry.placement != placement) return@withLock null
         if (entry.rendererId != null && entry.rendererId != rendererId) return@withLock null
         entry.rendererId = rendererId
         applySessionMutationLocked(holder, holder.core.setMounted(slotKey, recordId, true), Effects())
@@ -411,7 +415,8 @@ internal class NativeAdCoordinatorCore<A : Any>(
             val effects = Effects()
             val holder = currentHolderLocked(sessionKey, sessionGeneration) ?: return@withLock effects
             val entry = records[recordId] ?: return@withLock effects
-            if (entry.sessionKey != sessionKey || entry.slotKey != slotKey || entry.placement != placement || entry.rendererId != rendererId) return@withLock effects
+            val owner = entry.owner ?: return@withLock effects
+            if (owner.sessionKey != sessionKey || owner.slotKey != slotKey || entry.placement != placement || entry.rendererId != rendererId) return@withLock effects
             entry.rendererId = null
             applySessionMutationLocked(holder, holder.core.setMounted(slotKey, recordId, false), effects)
             governor.setMounted(recordId, false)
@@ -519,8 +524,9 @@ internal class NativeAdCoordinatorCore<A : Any>(
             .toList()
         for (recordId in expiredRecordIds) {
             val entry = records[recordId] ?: continue
-            val holder = sessions[entry.sessionKey]
-            val demand = holder?.core?.expireSlot(entry.slotKey)
+            val owner = entry.owner
+            val holder = owner?.let { sessions[it.sessionKey] }
+            val demand = owner?.let { holder?.core?.expireSlot(it.slotKey) }
             removeRecordLocked(recordId, effects)
             // The reload demand is submitted to the right placement
             // scheduler so the platform call is reissued.
@@ -583,7 +589,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
     ) {
         val entry = records.remove(recordId) ?: return
         entry.rendererId = null
-        sessions[entry.sessionKey]?.core?.recordEvicted(entry.slotKey, recordId)
+        entry.owner?.let { sessions[it.sessionKey]?.core?.recordEvicted(it.slotKey, recordId) }
         schedulers[entry.placementId]?.activeRecordIds?.remove(recordId)
         governor.retire(recordId)
         effects.destroy += entry.ad
@@ -982,9 +988,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                     records[recordId] = RecordEntry(
                         ad = ad,
                         placementId = placementId,
-                        sessionKey = requireNotNull(admittedOwner).sessionKey,
-                        slotKey = entry.key,
-                        generation = entry.generation,
+                        owner = SlotOwner(requireNotNull(admittedOwner).sessionKey, entry.key, entry.generation),
                         placement = entry.placement,
                         mediaInfo = platform.mediaInfo(ad),
                         adInstanceId = recordId.value.toString(),
