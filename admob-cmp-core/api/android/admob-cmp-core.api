@@ -1343,13 +1343,17 @@ public abstract interface class dev/avinya/ads/nativead/NativeAdManager {
 	public abstract fun clear ()V
 	public abstract fun closeSession (Ljava/lang/String;)V
 	public abstract fun getPolicy ()Ldev/avinya/ads/nativead/NativeAdMemoryPolicy;
+	public fun getReuseUnshownAds ()Z
 	public abstract fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public abstract fun session (Ljava/lang/String;Ldev/avinya/ads/nativead/NativeAdSessionPolicy;)Ldev/avinya/ads/nativead/NativeAdSession;
 	public static synthetic fun session$default (Ldev/avinya/ads/nativead/NativeAdManager;Ljava/lang/String;Ldev/avinya/ads/nativead/NativeAdSessionPolicy;ILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdSession;
+	public fun setReuseUnshownAds (Z)V
 }
 
 public final class dev/avinya/ads/nativead/NativeAdManager$DefaultImpls {
+	public static fun getReuseUnshownAds (Ldev/avinya/ads/nativead/NativeAdManager;)Z
 	public static synthetic fun session$default (Ldev/avinya/ads/nativead/NativeAdManager;Ljava/lang/String;Ldev/avinya/ads/nativead/NativeAdSessionPolicy;ILjava/lang/Object;)Ldev/avinya/ads/nativead/NativeAdSession;
+	public static fun setReuseUnshownAds (Ldev/avinya/ads/nativead/NativeAdManager;Z)V
 }
 
 public final class dev/avinya/ads/nativead/NativeAdManagerState {

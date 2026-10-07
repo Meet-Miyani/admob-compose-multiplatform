@@ -286,4 +286,28 @@ public interface NativeAdManager {
      * from a process-lifecycle effect or a debug reset.
      */
     public fun clear()
+
+    /**
+     * Keeps native ads that were loaded but never shown, and gives them to the next slot of the
+     * same placement instead of destroying them and requesting a new ad. Off by default.
+     *
+     * An ad is kept when its slot left the session's window, when its session was deactivated
+     * past its retained anchors or closed, or when it finished loading after its slot was
+     * cancelled. It is kept only if it never reached a view, never reported an impression, a
+     * click or a paid event, and is within the first three quarters of its placement's native
+     * TTL. Only a slot whose [dev.avinya.ads.AdPlacement] is equal in every field can use it, so
+     * different ad units, or different request options on one unit, never share. At most two ads
+     * are kept per placement. They count toward the [NativeAdMemoryPolicy] limits and are the
+     * first to go under memory pressure or when other demand needs room. Withdrawn consent, a
+     * request configuration change that affects which ads are served, [clear], and turning this
+     * off destroy them.
+     *
+     * With this on, a slot can become Ready without passing through Loading, and there are fewer
+     * ad requests and load events. It can be set before initialization; the value applies once
+     * native ads start. The default implementation, used by custom implementations of this
+     * interface, keeps reuse off and ignores the value.
+     */
+    public var reuseUnshownAds: Boolean
+        get() = false
+        set(@Suppress("UNUSED_PARAMETER") value) {}
 }

@@ -256,6 +256,10 @@ abstract interface dev.avinya.ads.nativead/NativeAdManager { // dev.avinya.ads.n
     abstract val state // dev.avinya.ads.nativead/NativeAdManager.state|{}state[0]
         abstract fun <get-state>(): kotlinx.coroutines.flow/StateFlow<dev.avinya.ads.nativead/NativeAdManagerState> // dev.avinya.ads.nativead/NativeAdManager.state.<get-state>|<get-state>(){}[0]
 
+    open var reuseUnshownAds // dev.avinya.ads.nativead/NativeAdManager.reuseUnshownAds|{}reuseUnshownAds[0]
+        open fun <get-reuseUnshownAds>(): kotlin/Boolean // dev.avinya.ads.nativead/NativeAdManager.reuseUnshownAds.<get-reuseUnshownAds>|<get-reuseUnshownAds>(){}[0]
+        open fun <set-reuseUnshownAds>(kotlin/Boolean) // dev.avinya.ads.nativead/NativeAdManager.reuseUnshownAds.<set-reuseUnshownAds>|<set-reuseUnshownAds>(kotlin.Boolean){}[0]
+
     abstract fun clear() // dev.avinya.ads.nativead/NativeAdManager.clear|clear(){}[0]
     abstract fun closeSession(kotlin/String) // dev.avinya.ads.nativead/NativeAdManager.closeSession|closeSession(kotlin.String){}[0]
     abstract fun session(kotlin/String, dev.avinya.ads.nativead/NativeAdSessionPolicy = ...): dev.avinya.ads.nativead/NativeAdSession // dev.avinya.ads.nativead/NativeAdManager.session|session(kotlin.String;dev.avinya.ads.nativead.NativeAdSessionPolicy){}[0]

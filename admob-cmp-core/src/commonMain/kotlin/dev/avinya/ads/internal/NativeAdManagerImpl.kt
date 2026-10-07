@@ -27,6 +27,9 @@ internal class NativeAdManagerImpl<A : Any>(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : NativeAdManager, NativeAdRenderLeaseProvider<A> {
     private val managerLock = FullScreenStateLock()
+
+    // Read by newCoordinator, so it is declared before [coordinator].
+    private var reuseUnshownAdsSetting = false
     private var configuredPolicy: NativeAdMemoryPolicy? = policy
     private var coordinator: NativeAdCoordinatorCore<A>? = policy?.let(::newCoordinator)
     private val dormantSessions = mutableMapOf<String, DormantSession>()
@@ -38,6 +41,14 @@ internal class NativeAdManagerImpl<A : Any>(
         NativeAdManagerState(0, 0, 0, 0, policy?.hardLimit ?: NativeAdMemoryPolicy.DEFAULT_HARD_LIMIT),
     )
     override val state: StateFlow<NativeAdManagerState> = _state
+
+    override var reuseUnshownAds: Boolean
+        get() = managerLock.withLock { reuseUnshownAdsSetting }
+        set(value) {
+            managerLock.withLock { reuseUnshownAdsSetting = value }
+            coordinatorOrNull()?.setReuseUnshownAds(value)
+            publish()
+        }
 
     init {
         coordinator?.setStateListener(::publish)
@@ -109,6 +120,9 @@ internal class NativeAdManagerImpl<A : Any>(
             scope = scope,
             canRequestAds = canRequestAds,
             eventSink = eventSink,
+            // A constructor argument, not setReuseUnshownAds: configure() calls this under
+            // managerLock, and a setter would run effects that publish back into managerLock.
+            reuseUnshownAds = reuseUnshownAdsSetting,
         ).also { it.setStateListener(::publish) }
 
     private fun coordinator(): NativeAdCoordinatorCore<A> = managerLock.withLock {
