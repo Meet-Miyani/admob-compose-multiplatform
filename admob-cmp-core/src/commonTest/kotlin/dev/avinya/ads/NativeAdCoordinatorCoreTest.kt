@@ -1190,6 +1190,148 @@ class NativeAdCoordinatorCoreTest {
         assertEquals(listOf(first), platform.destroyed)
     }
 
+    // --- Unshown-ad reuse: lifetime, purges and capacity ------------------------
+
+    @Test fun `a kept ad past three quarters of its lifetime is swept and never reused`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+
+        coord.tickForTest(46.minutes)
+
+        assertEquals(listOf(0), platform.destroyed.map { it.id }, "the sweep must destroy an aged-out spare")
+        coord.updateWindow("s1", windowWith("b"))
+        advanceUntilIdle()
+        assertEquals(2, platform.loadCalls.size)
+    }
+
+    @Test fun `clear destroys every kept ad exactly once`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a", "b"))
+        advanceUntilIdle()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+
+        coord.clear()
+
+        assertEquals(listOf(0, 1), platform.destroyed.map { it.id }.sorted())
+        coord.updateWindow("s1", windowWith("c"))
+        advanceUntilIdle()
+        assertEquals(2, platform.loadCalls.size)
+    }
+
+    @Test fun `consent revocation destroys every kept ad exactly once`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a", "b"))
+        advanceUntilIdle()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+
+        coord.onConsentRevoked()
+
+        assertEquals(listOf(0, 1), platform.destroyed.map { it.id }.sorted())
+        coord.session("s2")
+        coord.updateWindow("s2", windowWith("c"))
+        advanceUntilIdle()
+        assertEquals(2, platform.loadCalls.size)
+    }
+
+    @Test fun `turning reuse off destroys every kept ad`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a", "b"))
+        advanceUntilIdle()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+
+        coord.setReuseUnshownAds(false)
+
+        assertEquals(listOf(0, 1), platform.destroyed.map { it.id }.sorted())
+        assertEquals(0, coord.managerState().loadedAds)
+    }
+
+    @Test fun `memory pressure trims a kept ad before an ad a slot owns`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform, memoryPolicy = NativeAdMemoryPolicy(softLimit = 1, hardLimit = 3))
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        coord.session("s2")
+        coord.updateWindow("s2", NativeAdWindow(visible = listOf(NativeAdSlot("x", otherPlacement))))
+        advanceUntilIdle()
+
+        coord.onMemoryPressure(NativeMemoryPressure.Moderate)
+
+        assertEquals(listOf(0), platform.destroyed.map { it.id })
+    }
+
+    @Test fun `visible demand at the hard limit evicts a kept ad first`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform, memoryPolicy = NativeAdMemoryPolicy(softLimit = 1, hardLimit = 2))
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        coord.session("s2")
+        coord.updateWindow("s2", NativeAdWindow(visible = listOf(NativeAdSlot("x", otherPlacement))))
+        advanceUntilIdle()
+
+        coord.updateWindow(
+            "s2",
+            NativeAdWindow(visible = listOf(NativeAdSlot("x", otherPlacement), NativeAdSlot("y", otherPlacement))),
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf(0), platform.destroyed.map { it.id })
+        assertEquals(3, platform.loadCalls.size)
+    }
+
+    @Test fun `a kept ad does not block prefetch for another placement`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform, memoryPolicy = NativeAdMemoryPolicy(softLimit = 1, hardLimit = 2))
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+
+        coord.session("s2")
+        coord.updateWindow(
+            "s2",
+            NativeAdWindow(visible = emptyList(), prefetchAhead = listOf(NativeAdSlot("x", otherPlacement))),
+        )
+        advanceUntilIdle()
+
+        assertEquals(2, platform.loadCalls.size, "speculative demand must retire the kept ad rather than wait")
+        assertEquals(listOf(0), platform.destroyed.map { it.id })
+    }
+
+    @Test fun `a reaped inactive session destroys its anchor rather than keeping it`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        coord.deactivateSession("s1")
+
+        coord.tickForTest(31.minutes)
+
+        assertEquals(listOf(0), platform.destroyed.map { it.id })
+    }
+
     // Regression guards: with reuse off (the default) every drop destroys, exactly as before.
 
     @Test fun `with reuse off a slot that leaves the window destroys its ad`() = runTest(dispatcher) {

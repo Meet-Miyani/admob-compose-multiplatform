@@ -546,6 +546,10 @@ internal class NativeAdCoordinatorCore<A : Any>(
             schedulers.values.toList().forEach { it.cancelForSessionLocked(oldest, effects) }
         }
 
+        // Spares past their reuse cutoff can no longer be handed out.
+        spares.values.flatten().filter { now >= usableUntil(records.getValue(it)) }
+            .forEach { removeRecordLocked(it, effects) }
+
         // Expire records past the 1-hour native-ad TTL.
         val expiredRecordIds = records.entries
             .filter { (_, meta) -> meta.loadedAt <= now - meta.placement.cachePolicy.expirationPolicy.nativeTtl }
