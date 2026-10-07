@@ -1148,6 +1148,48 @@ class NativeAdCoordinatorCoreTest {
         assertEquals(1, loads)
     }
 
+    @Test fun `a kept ad fills a slot that was waiting for capacity`() = runTest(dispatcher) {
+        val platform = countingPlatform()
+        val coord = coordinator(platform = platform, memoryPolicy = NativeAdMemoryPolicy(softLimit = 1, hardLimit = 1))
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        val waiting = coord.session("s2")
+        coord.updateWindow("s2", NativeAdWindow(visible = emptyList(), prefetchAhead = listOf(NativeAdSlot("x", nativePlacement))))
+        advanceUntilIdle()
+        assertTrue(waiting.state.value.slots["x"] !is NativeAdSlotState.Retained, "x waits: the soft limit is full")
+
+        coord.closeSession("s1")
+        advanceUntilIdle()
+
+        assertTrue(waiting.state.value.slots["x"] is NativeAdSlotState.Retained, "the kept ad must fill the waiting slot")
+        assertEquals(1, platform.loadCalls.size)
+    }
+
+    @Test fun `a kept ad that reports an impression while kept is never reused`() = runTest(dispatcher) {
+        val first = FakeAd(0)
+        var next = 1
+        val platform = fakePlatform { _, count, _ ->
+            val ads = if (next == 1) listOf(first) else (0 until count).map { FakeAd(next + it) }
+            next += count
+            AdAttemptResult.Success(NativeAdPlatformBatch(ads, null))
+        }
+        val coord = coordinator(platform = platform)
+        coord.setReuseUnshownAds(true)
+        coord.session("s1")
+        coord.updateWindow("s1", windowWith("a"))
+        advanceUntilIdle()
+        coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
+        platform.emit(first, AdEvent.Impression("p"))
+
+        coord.updateWindow("s1", windowWith("b"))
+        advanceUntilIdle()
+
+        assertEquals(2, platform.loadCalls.size, "an impressed spare must not be adopted")
+        assertEquals(listOf(first), platform.destroyed)
+    }
+
     // Regression guards: with reuse off (the default) every drop destroys, exactly as before.
 
     @Test fun `with reuse off a slot that leaves the window destroys its ad`() = runTest(dispatcher) {

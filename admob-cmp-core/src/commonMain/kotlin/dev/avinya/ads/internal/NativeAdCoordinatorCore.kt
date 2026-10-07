@@ -638,6 +638,9 @@ internal class NativeAdCoordinatorCore<A : Any>(
         pool.sortBy { records.getValue(it).loadedAt }
         AdLogger.d("Native spare kept. placement=${record.placementId} spares=${pool.size}")
         while (pool.size > MAX_SPARES_PER_PLACEMENT) removeRecordLocked(pool.first(), effects)
+        // A new spare is supply that deferred demand can adopt, and speculative demand may evict it
+        // to make room, so it must wake reconsiderDeferredLocked like any freed capacity.
+        effects.capacityFreed = true
     }
 
     /**
@@ -647,7 +650,9 @@ internal class NativeAdCoordinatorCore<A : Any>(
     private fun adoptSpareLocked(holder: SessionHolder, entry: SlotDemandEntry, effects: Effects): Boolean {
         if (!reuseUnshownAds) return false
         val now = nowLocked()
-        spares[entry.placement]?.filter { now >= usableUntil(records.getValue(it)) }
+        // Drop spares too old to be shown in time, and any that reported an impression, click or
+        // paid event while kept: showing those again earns nothing.
+        spares[entry.placement]?.filter { val record = records.getValue(it); record.impressed || now >= usableUntil(record) }
             ?.forEach { removeRecordLocked(it, effects) }
         val recordId = spares[entry.placement]?.firstOrNull() ?: return false
         val record = records.getValue(recordId)
