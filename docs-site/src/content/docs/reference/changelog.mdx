@@ -42,6 +42,10 @@ yet; the current release is still 2.5.1.
 
 **Opt-in reuse of unshown native ads: `NativeAdManager.reuseUnshownAds`.** Off by default. When on, native ads that were loaded but never shown — because their slot left the window, their screen was deactivated or closed, or they finished loading after their slot was cancelled — are kept and given to the next slot of an identical placement instead of being destroyed and replaced with a new request. Only ads that never reached a view and never reported an impression, click or paid event qualify; at most two are kept per placement, for the first three quarters of their native TTL; they count toward the native memory limits and are the first to go under pressure. Matching is on the whole `AdPlacement`, so different ad units never share. One additive property; no existing API changed.
 
+### Fixes
+
+**A native feed no longer throws away prefetched ads when the user nudges it backwards.** `rememberNativeAdFeedSession` puts the prefetch band on whichever side of the viewport the user is scrolling towards, and it used to reverse that on any backward pixel, and on a frame that did not move at all, such as a Paging append or a refresh landing under a parked list. Whenever the two sides of the window held different numbers of slots, each reversal pushed loaded, never-shown ads out of the window: the session destroyed them and requested replacements as soon as the user carried on, which lowered the feed's show rate and inflated its ad requests. That covers any policy whose `prefetchAhead` and `retainBehind` differ, and the default policy too whenever two ad slots are on screen together, because the one slot `maxRetainedAds` has left goes to the side ahead. The direction now reverses only once the feed has moved a full row against it, measured in rows for a grid rather than items; a jump of a row or more reverses on the frame it lands, and a frame with no movement keeps the current direction.
+
 ## 2.5.1
 
 A fix release for one Android crash, seen in production. No public API changed:
