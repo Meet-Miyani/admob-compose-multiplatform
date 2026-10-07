@@ -27,6 +27,7 @@ import dev.avinya.admob.showcase.ui.theme.ShowcaseType
 import dev.avinya.admob.showcase.ui.theme.Tokens
 import dev.avinya.admob.showcase.ui.theme.showcaseColors
 import androidx.compose.material3.Text
+import dev.avinya.ads.LocalAdManager
 import dev.avinya.ads.nativead.NativeAdSession
 import dev.avinya.ads.nativead.NativeAdSlot
 import dev.avinya.ads.nativead.NativeAdSlotState
@@ -168,6 +169,26 @@ fun NativeLabScreen(
                         },
                     )
                 }
+            }
+        }
+
+        item(key = "reuse") {
+            val adManager = LocalAdManager.current
+            var reuse by remember { mutableStateOf(adManager.nativeAds.reuseUnshownAds) }
+            LabSection(
+                title = "Unshown ad reuse",
+                description = "App-wide. Native ads that were loaded but never shown are kept and " +
+                    "given to the next slot of the same placement instead of a new request.",
+            ) {
+                PillTabs(
+                    options = listOf("Off", "On"),
+                    selected = if (reuse) "On" else "Off",
+                    onSelect = { label ->
+                        reuse = label == "On"
+                        adManager.nativeAds.reuseUnshownAds = reuse
+                    },
+                    contentPadding = 0.dp,
+                )
             }
         }
     }
