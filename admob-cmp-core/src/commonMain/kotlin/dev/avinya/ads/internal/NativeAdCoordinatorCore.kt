@@ -125,7 +125,11 @@ internal class NativeAdCoordinatorCore<A : Any>(
     private var stateListener: () -> Unit = {}
 
     /** Which session slot a record fills. */
-    private data class SlotOwner(val sessionKey: String, val slotKey: String, val generation: Long)
+    private data class SlotOwner(val sessionKey: String, val slotKey: String, val generation: Long) {
+        /** True when this is [sessionKey]'s [slotKey], whatever the slot's generation. */
+        fun fills(sessionKey: String, slotKey: String): Boolean =
+            this.sessionKey == sessionKey && this.slotKey == slotKey
+    }
 
     private inner class RecordEntry(
         val ad: A,
@@ -411,7 +415,13 @@ internal class NativeAdCoordinatorCore<A : Any>(
         val recordId = holder.core.recordIdFor(slotKey) ?: return@withLock null
         val entry = records[recordId] ?: return@withLock null
         val owner = entry.owner ?: return@withLock null
-        if (owner.sessionKey != sessionKey || owner.slotKey != slotKey || owner.generation != holder.core.slotGenerationFor(slotKey) || entry.placement != placement) return@withLock null
+        if (
+            !owner.fills(sessionKey, slotKey) ||
+            owner.generation != holder.core.slotGenerationFor(slotKey) ||
+            entry.placement != placement
+        ) {
+            return@withLock null
+        }
         if (entry.rendererId != null && entry.rendererId != rendererId) return@withLock null
         entry.rendererId = rendererId
         entry.everRendered = true
@@ -433,7 +443,13 @@ internal class NativeAdCoordinatorCore<A : Any>(
             val holder = currentHolderLocked(sessionKey, sessionGeneration) ?: return@withLock effects
             val entry = records[recordId] ?: return@withLock effects
             val owner = entry.owner ?: return@withLock effects
-            if (owner.sessionKey != sessionKey || owner.slotKey != slotKey || entry.placement != placement || entry.rendererId != rendererId) return@withLock effects
+            if (
+                !owner.fills(sessionKey, slotKey) ||
+                entry.placement != placement ||
+                entry.rendererId != rendererId
+            ) {
+                return@withLock effects
+            }
             entry.rendererId = null
             applySessionMutationLocked(holder, holder.core.setMounted(slotKey, recordId, false), effects)
             governor.setMounted(recordId, false)
@@ -546,9 +562,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
             schedulers.values.toList().forEach { it.cancelForSessionLocked(oldest, effects) }
         }
 
-        // Spares past their reuse cutoff can no longer be handed out.
-        spares.values.flatten().filter { now >= usableUntil(records.getValue(it)) }
-            .forEach { removeRecordLocked(it, effects) }
+        sweepAgedSparesLocked(now, effects)
 
         // Expire records past the 1-hour native-ad TTL.
         val expiredRecordIds = records.entries
@@ -567,6 +581,12 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 applySessionMutationLocked(holder, demand, effects)
             }
         }
+    }
+
+    /** Spares past their reuse cutoff can no longer be handed out. */
+    private fun sweepAgedSparesLocked(now: Instant, effects: Effects) {
+        spares.values.flatten().filter { now >= usableUntil(records.getValue(it)) }
+            .forEach { removeRecordLocked(it, effects) }
     }
 
     private fun applySessionMutationLocked(
@@ -625,12 +645,16 @@ internal class NativeAdCoordinatorCore<A : Any>(
      */
     private fun retireLocked(recordId: NativeAdRecordId, effects: Effects, poolable: Boolean) {
         val record = records[recordId] ?: return
-        if (poolable && reuseUnshownAds && !record.everRendered && !record.impressed && nowLocked() < usableUntil(record)) {
+        if (poolable && isPoolableLocked(record)) {
             poolLocked(recordId, record, effects)
         } else {
             removeRecordLocked(recordId, effects)
         }
     }
+
+    /** Reuse is on, and [record] never reached a view, never reported engagement, and is young enough. */
+    private fun isPoolableLocked(record: RecordEntry): Boolean =
+        reuseUnshownAds && !record.everRendered && !record.impressed && nowLocked() < usableUntil(record)
 
     /** Makes [record] a spare for its placement. The caller has already detached it from its slot. */
     private fun poolLocked(recordId: NativeAdRecordId, record: RecordEntry, effects: Effects) {
@@ -734,13 +758,17 @@ internal class NativeAdCoordinatorCore<A : Any>(
     private fun routeEvent(recordId: NativeAdRecordId, instanceId: String, event: AdEvent) {
         val current = lock.withLock {
             val entry = records[recordId]?.takeIf { recordId.value.toString() == instanceId }
-            if (entry != null && (event is AdEvent.Impression || event is AdEvent.Clicked || event is AdEvent.Paid)) {
+            if (entry != null && event.marksEngagement()) {
                 entry.impressed = true
             }
             entry != null
         }
         if (current) eventSink(event)
     }
+
+    /** An impression, click or paid event: after one, showing the ad again earns nothing. */
+    private fun AdEvent.marksEngagement(): Boolean =
+        this is AdEvent.Impression || this is AdEvent.Clicked || this is AdEvent.Paid
 
     private inner class PlacementScheduler(val placementId: String) {
         private val queue = mutableListOf<Batch>()
@@ -945,7 +973,11 @@ internal class NativeAdCoordinatorCore<A : Any>(
                                 val ad = result.value.ads.getOrNull(index) ?: return@forEachIndexed
                                 // A live pair binds under its own reservation. A cancelled one binds
                                 // only when it got a spare permit, under that permit's id.
-                                val recordId = if (liveAtBinding[index]) pair.reservation.id else sparePermits[index]?.id ?: return@forEachIndexed
+                                val recordId = if (liveAtBinding[index]) {
+                                    pair.reservation.id
+                                } else {
+                                    sparePermits[index]?.id ?: return@forEachIndexed
+                                }
                                 val instanceId = recordId.value.toString()
                                 platform.bindEvents(ad, instanceId) { event -> routeEvent(recordId, instanceId, event) }
                             }
