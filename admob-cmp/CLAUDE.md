@@ -51,7 +51,8 @@ AGENTS.md, not this file.
 
 1. **`FullScreenSlotCore` is the shared state machine.** Android/iOS slots
    implement only `loadAd` / `presentAd` / `destroyAd` / `canPresent` /
-   `getResponseInfo`. Put load/show/cache/retry/consent logic in the core, not
+   `getResponseInfo`, plus `isAppForegroundForPresentation` (the platform SDK's own
+   foreground condition; the core does the bounded wait). Put load/show/cache/retry/consent logic in the core, not
    in platform slots — keep the fix at the shared altitude.
    `scheduleReload` replays `lastRequestOptions` — what the last requesting
    `load()` resolved — and must never rebuild from `placement.requestOptions`;

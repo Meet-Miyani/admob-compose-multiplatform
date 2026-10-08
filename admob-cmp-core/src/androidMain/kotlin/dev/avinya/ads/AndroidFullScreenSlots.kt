@@ -164,9 +164,9 @@ internal class AndroidInterstitialSlot(
 
     override fun canPresent(): AdError? = if (activityProvider() != null) null else AdError.message("No current Android Activity.")
 
-    // No Activity yet also means "not foreground yet": keep waiting rather than fail at once.
+    // No Activity: report foreground so canPresent() fails at once with its own, accurate error.
     override suspend fun isAppForegroundForPresentation(): Boolean =
-        activityProvider()?.isForegroundForFullScreenAd() ?: false
+        activityProvider()?.isForegroundForFullScreenAd() ?: true
 }
 
 internal class AndroidRewardedSlot(
@@ -228,9 +228,9 @@ internal class AndroidRewardedSlot(
 
     override fun canPresent(): AdError? = if (activityProvider() != null) null else AdError.message("No current Android Activity.")
 
-    // No Activity yet also means "not foreground yet": keep waiting rather than fail at once.
+    // No Activity: report foreground so canPresent() fails at once with its own, accurate error.
     override suspend fun isAppForegroundForPresentation(): Boolean =
-        activityProvider()?.isForegroundForFullScreenAd() ?: false
+        activityProvider()?.isForegroundForFullScreenAd() ?: true
 }
 
 internal class AndroidRewardedInterstitialSlot(
@@ -292,9 +292,9 @@ internal class AndroidRewardedInterstitialSlot(
 
     override fun canPresent(): AdError? = if (activityProvider() != null) null else AdError.message("No current Android Activity.")
 
-    // No Activity yet also means "not foreground yet": keep waiting rather than fail at once.
+    // No Activity: report foreground so canPresent() fails at once with its own, accurate error.
     override suspend fun isAppForegroundForPresentation(): Boolean =
-        activityProvider()?.isForegroundForFullScreenAd() ?: false
+        activityProvider()?.isForegroundForFullScreenAd() ?: true
 }
 
 @OptIn(ExperimentalTime::class)
@@ -362,9 +362,9 @@ internal class AndroidAppOpenSlot(
 
     override fun canPresent(): AdError? = if (activityProvider() != null) null else AdError.message("No current Android Activity.")
 
-    // No Activity yet also means "not foreground yet": keep waiting rather than fail at once.
+    // No Activity: report foreground so canPresent() fails at once with its own, accurate error.
     override suspend fun isAppForegroundForPresentation(): Boolean =
-        activityProvider()?.isForegroundForFullScreenAd() ?: false
+        activityProvider()?.isForegroundForFullScreenAd() ?: true
 }
 
 /**

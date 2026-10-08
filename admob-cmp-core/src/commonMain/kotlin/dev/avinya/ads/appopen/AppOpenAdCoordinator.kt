@@ -225,7 +225,8 @@ public class AppOpenAdCoordinator internal constructor(
     }
 
     private suspend fun onForeground() {
-        val backgroundDuration = backgroundedAtInstant?.let { elapsedSince(it) } ?: Duration.ZERO
+        val backgroundedAt = backgroundedAtInstant
+        val backgroundDuration = backgroundedAt?.let { elapsedSince(it) } ?: Duration.ZERO
         backgroundedAtInstant = null
         val returningFromClick = consumeClick()
         // Capture the lifecycle scope BEFORE acquiring admission. If stop() already cleared it,
@@ -235,7 +236,11 @@ public class AppOpenAdCoordinator internal constructor(
         val activeScope = lifecycle ?: return
         val qualifies = when {
             backgroundDuration < config.minBackgroundDuration -> {
-                logSkip("background for $backgroundDuration, under minBackgroundDuration ${config.minBackgroundDuration}")
+                // The initial foreground replayed when start() subscribes is not a return, so it
+                // is not worth a log line; the decision itself is unchanged.
+                if (backgroundedAt != null) {
+                    logSkip("background for $backgroundDuration, under minBackgroundDuration ${config.minBackgroundDuration}")
+                }
                 false
             }
             returningFromClick -> {
