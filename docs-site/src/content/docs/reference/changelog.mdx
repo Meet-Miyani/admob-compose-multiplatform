@@ -12,11 +12,12 @@ import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 All published artifacts live under `dev.avinya.ads` on Maven Central:
 `admob-cmp`, `admob-cmp-core`, `admob-cmp-compose`, and the
 `dev.avinya.ads.admob-cmp.gradle.plugin` marker. The current
-release is **2.5.1**.
+release is **2.6.0**.
 
 | Version | Status | Highlights |
 |---|---|---|
-| 2.5.1 | Current | Removing an Android ad that holds input focus no longer crashes the app; ad views are kept out of input focus |
+| 2.6.0 | Current | Android full-screen ads shown on a return to the foreground are no longer refused as background shows; opt-in reuse of unshown native ads and opt-in app-open skip after an ad click; two native feed fixes that stop wasted ad requests |
+| 2.5.1 | Superseded | Removing an Android ad that holds input focus no longer crashes the app; ad views are kept out of input focus |
 | 2.5.0 | Superseded | 27 verified defects from an external review plus 3 it missed: Android banner callbacks confined to Main, a `Fixed` banner requesting its configured width, native sessions that load when created before initialization finishes, iOS Dynamic Type, and a new `updateGlobalRequestConfiguration()` |
 | 2.4.0 | Superseded | Kotlin 2.4.20, Compose Multiplatform 1.12.0, GMA Next-Gen 1.4.0 (Android), GMA iOS 13.9.0 — a toolchain and bound-SDK refresh, no public API change |
 | 2.3.0 | Superseded | Initialization no longer strands a cancelled caller outside `Ready`, 40-second init watchdog, form-slot claimed on entry, released pin after a timed-out info update, platform-qualified consent `AdError.domain`, new `CONSENT_OPERATION_IN_PROGRESS` code |
@@ -33,10 +34,14 @@ release is **2.5.1**.
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
 
-## Unreleased
+## 2.6.0
 
-Merged to `master` and not yet published. Nothing below resolves from Maven Central
-yet; the current release is still 2.5.1.
+A fix release for full-screen presentation on Android, plus two opt-in features and
+two native feed fixes. Two additive public properties, both off by default:
+`NativeAdManager.reuseUnshownAds` and `AppOpenAdCoordinator.skipAfterAdClick`. Against
+2.5.1 the core ABI dumps add declarations and remove none, and
+`admob-cmp-compose.klib.api` is byte-identical, so upgrading is a version bump with no
+source change. Certified on a Galaxy S26 (Android 16) and the iOS simulator.
 
 ### Added
 

@@ -178,3 +178,38 @@ Findings from the run:
 - On the baseline, backing out of an article with the banner focused did not
   crash. The banner is anchored outside the scrolling column, so the refocus
   search has no off-screen list items to lay out.
+
+## Run record — 2026-10-08, 2.6.0 candidate (Android device + iOS simulator)
+
+Android device: Samsung SM-S942B (Galaxy S26), Android 16, test ad units. Build:
+`:androidApp:installDebug` at `e912ce49` (PR #62 head, merged as `3c79403b`).
+iOS: iPhone 16 Pro simulator, iOS 18.2, `iosApp` scheme at the same commit.
+Evidence comes from logcat, screenshots, and the showcase's own `ad_events` table,
+read from the device with `run-as`. No crash entries and no GMA
+"Fullscreen ads that show when your app is in the background" errors in any session.
+
+**This run does not certify the release on its own.** It has no physical iPhone,
+and rows 1–8 and 12–16 were not re-run, because this release does not touch
+consent, lifecycle, rotation or input focus. The release owner decides whether that
+scope is enough and signs below.
+
+| # | Scenario | Android | iOS sim | Evidence |
+|---|---|---|---|---|
+| 9 | All six formats render | PASS | App-open only | `ad_events`: `lab_banner`/`article_banner` Loaded+Impression+Paid; `lab_native`/`feed_native` Impression+Paid; interstitial, rewarded, rewarded-interstitial Opened+Impression+Paid+Closed; `app_open` Opened+Impression+Paid+Closed. iOS: app-open shown on return, `result=Shown` |
+| 10 | Reward exactly once per presentation | PASS | — | Rewarded and rewarded-interstitial each `RewardEarned` once; "Grants this session" 1 → 2, wallet 10 → 20 coins |
+| 11 | Native ad validator clean | PASS | — | Validator popup "No implementation issues found" in the Native lab |
+| 17 | Touch click and impression recorded | PASS | — | `ad_events`: `feed_native` Clicked+Impression+Paid, `article_banner` Clicked+Impression+Paid; each tap opened Play |
+| — | App-open on a warm return (the 2.6.0 fix) | PASS | PASS | Before the fix: 4/4 warm returns refused by GMA as background shows. After: shown about 90 ms after the return, 0 refusals |
+| — | `skipAfterAdClick` (showcase has it on) | PASS | — | The return after a real ad click logged `skipped … first return after an ad click`; the next return showed |
+
+Findings from the run:
+
+- **Google-side, not this SDK:** GMA's app-open *test* creative opens Play's
+  inline-install sheet about 2 s after display, with no touch (`label=alleyoop_triggered`,
+  no `/pagead/aclk`). It happened on every Android app-open test ad seen today.
+- **Showcase only, not the SDK:** the Banner lab puts "Anchored adaptive" and
+  "Fixed 320×50" on one placement, so one slot stays empty. The App Open lab shows
+  a 60 s cooldown while the host uses 15 s. After ads are turned on in onboarding,
+  app-open loads only on the next return. All three are tracked as a follow-up.
+- The nine `app_open` `LoadFailed` events were all `consent_required`, from before
+  ads were turned on in onboarding: the consent gate working as designed.
