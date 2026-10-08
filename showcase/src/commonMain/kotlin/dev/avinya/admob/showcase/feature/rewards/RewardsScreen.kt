@@ -30,6 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.avinya.admob.showcase.di.LocalAppGraph
 import dev.avinya.admob.showcase.di.LocalAppOpenSuppressor
 import dev.avinya.admob.showcase.domain.ad.ShowcasePlacements
+import dev.avinya.admob.showcase.ui.ad.BlockAppOpenOnAdScreen
 import dev.avinya.admob.showcase.ui.inspector.LocalInspectorPlacements
 import dev.avinya.admob.showcase.ui.kit.AppHeader
 import dev.avinya.admob.showcase.ui.kit.Badge
@@ -68,6 +69,7 @@ fun RewardsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    BlockAppOpenOnAdScreen()
     val palette = showcaseColors
     val adManager = LocalAdManager.current
     val graph = LocalAppGraph.current

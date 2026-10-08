@@ -126,4 +126,57 @@ class AppOpenSuppressorTest {
 
         assertFalse(suppressor.isBlocked)
     }
+
+    @Test
+    fun startsWithNoAdScreen() {
+        assertFalse(AppOpenSuppressor().isOnAdScreen)
+    }
+
+    @Test
+    fun enteringAnAdScreenMarksIt() {
+        val suppressor = AppOpenSuppressor()
+
+        suppressor.enterAdScreen()
+
+        assertTrue(suppressor.isOnAdScreen)
+    }
+
+    @Test
+    fun overlappingAdScreensAreDepthCounted() {
+        // During a navigation transition the outgoing and incoming screens are both composed, so
+        // the incoming one enters before the outgoing one exits.
+        val suppressor = AppOpenSuppressor()
+
+        suppressor.enterAdScreen()
+        suppressor.enterAdScreen()
+        suppressor.exitAdScreen()
+
+        assertTrue(suppressor.isOnAdScreen, "the incoming ad screen is still visible")
+
+        suppressor.exitAdScreen()
+
+        assertFalse(suppressor.isOnAdScreen)
+    }
+
+    @Test
+    fun anUnbalancedAdScreenExitDoesNotGoNegative() {
+        val suppressor = AppOpenSuppressor()
+
+        suppressor.exitAdScreen()
+        suppressor.enterAdScreen()
+
+        assertTrue(suppressor.isOnAdScreen, "a stray exit must not cancel the next enter")
+    }
+
+    @Test
+    fun adScreensAndSensitiveFlowsAreIndependent() {
+        val suppressor = AppOpenSuppressor()
+
+        suppressor.enterAdScreen()
+        assertFalse(suppressor.isBlocked, "an ad screen is not a sensitive flow")
+
+        suppressor.exitAdScreen()
+        suppressor.enter()
+        assertFalse(suppressor.isOnAdScreen, "a sensitive flow is not an ad screen")
+    }
 }

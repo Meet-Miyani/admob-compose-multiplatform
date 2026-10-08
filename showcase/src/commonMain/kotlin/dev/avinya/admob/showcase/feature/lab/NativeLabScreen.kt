@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.avinya.admob.showcase.domain.ad.ShowcasePlacements
+import dev.avinya.admob.showcase.ui.ad.BlockAppOpenOnAdScreen
 import dev.avinya.admob.showcase.ui.ad.rememberFeedAdLayout
 import dev.avinya.admob.showcase.ui.ad.rememberInlineAdLayout
 import dev.avinya.admob.showcase.ui.kit.GhostButton
@@ -65,6 +66,7 @@ fun NativeLabScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    BlockAppOpenOnAdScreen()
     val slotKey = remember { "lab:native:demo-1" }
     val slot = remember { NativeAdSlot(slotKey, ShowcasePlacements.labNative) }
     val session = rememberNativeAdSlotSession(sessionKey = "lab:native", slot = slot)

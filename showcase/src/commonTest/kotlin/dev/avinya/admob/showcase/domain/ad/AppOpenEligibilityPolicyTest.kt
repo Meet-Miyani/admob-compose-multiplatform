@@ -17,6 +17,7 @@ class AppOpenEligibilityPolicyTest {
         canRequestAds: Boolean = true,
         backgroundDuration: kotlin.time.Duration = 10.seconds,
         minimumBackgroundDuration: kotlin.time.Duration = 4.seconds,
+        onScreenWithAds: Boolean = false,
     ) = AppOpenEligibilitySnapshot(
         onboardingComplete = onboardingComplete,
         onSensitiveRoute = onSensitiveRoute,
@@ -25,6 +26,7 @@ class AppOpenEligibilityPolicyTest {
         canRequestAds = canRequestAds,
         backgroundDuration = backgroundDuration,
         minimumBackgroundDuration = minimumBackgroundDuration,
+        onScreenWithAds = onScreenWithAds,
     )
 
     @Test
@@ -98,6 +100,42 @@ class AppOpenEligibilityPolicyTest {
             AppOpenDecision.Show,
             policy.isEligible(
                 eligibleSnapshot(backgroundDuration = 4.seconds, minimumBackgroundDuration = 4.seconds),
+            ),
+        )
+    }
+
+    @Test
+    fun aScreenShowingAds_suppressesWithAdsOnScreen() {
+        assertEquals(
+            AppOpenDecision.Suppress(AppOpenSuppressionReason.AdsOnScreen),
+            policy.isEligible(eligibleSnapshot(onScreenWithAds = true)),
+        )
+    }
+
+    @Test
+    fun firstSessionAndSensitiveRoute_outrankAdsOnScreen() {
+        assertEquals(
+            AppOpenDecision.Suppress(AppOpenSuppressionReason.FirstSession),
+            policy.isEligible(eligibleSnapshot(onboardingComplete = false, onScreenWithAds = true)),
+        )
+        assertEquals(
+            AppOpenDecision.Suppress(AppOpenSuppressionReason.SensitiveRoute),
+            policy.isEligible(eligibleSnapshot(onSensitiveRoute = true, onScreenWithAds = true)),
+        )
+    }
+
+    @Test
+    fun adsOnScreen_outranksTheRemainingReasons() {
+        assertEquals(
+            AppOpenDecision.Suppress(AppOpenSuppressionReason.AdsOnScreen),
+            policy.isEligible(
+                eligibleSnapshot(
+                    onScreenWithAds = true,
+                    fullScreenAdShowing = true,
+                    sdkReady = false,
+                    canRequestAds = false,
+                    backgroundDuration = 1.seconds,
+                ),
             ),
         )
     }

@@ -45,6 +45,7 @@ import dev.avinya.admob.showcase.domain.ad.ShowcasePlacements
 import dev.avinya.admob.showcase.domain.article.ArticleBlock
 import dev.avinya.admob.showcase.domain.article.buildArticleBlocks
 import dev.avinya.admob.showcase.feature.rewards.message
+import dev.avinya.admob.showcase.ui.ad.BlockAppOpenOnAdScreen
 import dev.avinya.admob.showcase.ui.ad.rememberInlineAdLayout
 import dev.avinya.admob.showcase.ui.inspector.InspectorEntryPoint
 import dev.avinya.admob.showcase.ui.inspector.InspectorHost
@@ -86,6 +87,7 @@ private const val PROGRESS_DEBOUNCE_MS: Long = 500
  */
 @Composable
 fun ArticleScreen(articleId: String, onBack: () -> Unit) {
+    BlockAppOpenOnAdScreen()
     val graph = LocalAppGraph.current
     val adManager = LocalAdManager.current
     val suppressor = LocalAppOpenSuppressor.current

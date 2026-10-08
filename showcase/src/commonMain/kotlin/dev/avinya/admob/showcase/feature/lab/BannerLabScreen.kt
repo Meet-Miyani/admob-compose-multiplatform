@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.avinya.admob.showcase.domain.ad.ShowcasePlacements
+import dev.avinya.admob.showcase.ui.ad.BlockAppOpenOnAdScreen
 import dev.avinya.admob.showcase.ui.kit.StatRow
 import dev.avinya.admob.showcase.ui.kit.SunkenPanel
 import dev.avinya.admob.showcase.ui.theme.ShowcaseType
@@ -34,6 +35,7 @@ fun BannerLabScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    BlockAppOpenOnAdScreen()
     var lastEvent by remember { mutableStateOf("No banner events yet") }
 
     LabScreen(

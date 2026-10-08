@@ -49,9 +49,11 @@ private val SHOW_COOLDOWN = 15.seconds
  * - **Show.** The coordinator watches foreground transitions and shows only
  *   after [MIN_BACKGROUND] backgrounded and [SHOW_COOLDOWN] since the last one.
  * - **Reload.** The coordinator reloads after each consumption.
+ * - **Skip after a click.** `skipAfterAdClick` is on, so returning from an ad's
+ *   landing page never lands on an app-open ad.
  * - **Block.** `isBlocked` is bound to the *policy decision*, not merely to the
- *   suppressor — onboarding, sensitive routes, an unready SDK, and missing
- *   consent each veto independently, and every decision is recorded sanitised
+ *   suppressor — onboarding, sensitive routes, screens that show ads, an unready
+ *   SDK, and missing consent each veto independently, and every decision is recorded sanitised
  *   into Diagnostics so the behaviour is demonstrable rather than mysterious.
  */
 @Composable
@@ -72,7 +74,11 @@ fun AppOpenHost(
                 minBackgroundDuration = MIN_BACKGROUND,
                 cooldownBetweenShows = SHOW_COOLDOWN,
             ),
-        )
+        ).also {
+            // A user coming back from a banner or native ad's landing page is not met by an
+            // app-open ad straight away. Opt-in in the SDK; the showcase turns it on.
+            it.skipAfterAdClick = true
+        }
     }
     val policy = remember { AppOpenEligibilityPolicy() }
 
@@ -87,6 +93,7 @@ fun AppOpenHost(
     LaunchedEffect(
         coordinator,
         suppressor.isBlocked,
+        suppressor.isOnAdScreen,
         status,
         canRequestAds,
         onboardingComplete,
@@ -110,6 +117,7 @@ fun AppOpenHost(
                 // policy's non-temporal gates decide the blocked state.
                 backgroundDuration = Duration.INFINITE,
                 minimumBackgroundDuration = MIN_BACKGROUND,
+                onScreenWithAds = suppressor.isOnAdScreen,
             ),
         )
 

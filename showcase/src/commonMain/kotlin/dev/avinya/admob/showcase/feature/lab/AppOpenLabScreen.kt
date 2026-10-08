@@ -114,6 +114,11 @@ fun AppOpenLabScreen(
                         passing = !suppressor.isBlocked,
                     )
                     Gate(
+                        label = "Not on a screen with ads",
+                        detail = "Never over a banner or native ad; this lab shows none",
+                        passing = !suppressor.isOnAdScreen,
+                    )
+                    Gate(
                         label = "SDK ready",
                         detail = status.toString(),
                         passing = status == AdManagerStatus.Ready,

@@ -26,6 +26,7 @@ import dev.avinya.admob.showcase.di.LocalAppGraph
 import dev.avinya.admob.showcase.domain.ad.ShowcasePlacements
 import dev.avinya.admob.showcase.domain.feed.FeedAdInserter
 import dev.avinya.admob.showcase.domain.feed.FeedItem
+import dev.avinya.admob.showcase.ui.ad.BlockAppOpenOnAdScreen
 import dev.avinya.admob.showcase.ui.ad.rememberFeedRowAdLayout
 import dev.avinya.admob.showcase.ui.inspector.InspectorEntryPoint
 import dev.avinya.admob.showcase.ui.inspector.InspectorHost
@@ -59,6 +60,7 @@ fun TodayScreen(
     onArticleClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    BlockAppOpenOnAdScreen()
     val adManager = LocalAdManager.current
     val graph = LocalAppGraph.current
     val viewModel: TodayViewModel = viewModel {
