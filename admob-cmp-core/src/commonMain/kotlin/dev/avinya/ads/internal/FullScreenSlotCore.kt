@@ -227,6 +227,12 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     protected abstract fun getResponseInfo(ad: AdT): AdResponseInfo?
     protected abstract fun canPresent(): AdError?
 
+    /**
+     * Whether the platform SDK will accept a full-screen show right now. Platforms override this
+     * with the condition their SDK checks itself; see [awaitForegroundForPresentation].
+     */
+    protected open suspend fun isAppForegroundForPresentation(): Boolean = true
+
     protected open fun destroyAfterPresentation(wasShown: Boolean): Boolean = true
 
     protected open fun onAdLoaded(ad: AdT, requestOptions: AdRequestOptions) {}
@@ -425,7 +431,17 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         // two locks, so the evaluation is hoisted here where it can be main-confined.
         // Pre-computing it does not change which branch prepareShow selects — the value
         // is consumed in exactly one branch, which is where the inline call would sit.
-        val presentabilityError = withContext(Dispatchers.Main.immediate) { canPresent() }
+        //
+        // The foreground wait comes first. A show issued on a return to the foreground can reach
+        // the platform before the OS ranks the app as foreground, and Google's SDK then refuses it
+        // as a background show and logs a policy violation. Waiting here keeps that show from ever
+        // reaching the platform; if the app never becomes foreground, the not-presentable error
+        // makes prepareShow leave the ad in the cache instead of spending it.
+        val presentabilityError = if (awaitForegroundForPresentation { isAppForegroundForPresentation() }) {
+            withContext(Dispatchers.Main.immediate) { canPresent() }
+        } else {
+            AdError.message("The app is not in the foreground; the ad was kept for a later show.")
+        }
         beforeShowCommit()
         val preparation = operationMutex.withLock {
             publicationLock.withLock {

@@ -26,6 +26,8 @@ import kotlin.native.ref.WeakReference
 import platform.Foundation.NSError
 import platform.Foundation.NSRecursiveLock
 import platform.Foundation.NSThread
+import platform.UIKit.UIApplication
+import platform.UIKit.UIApplicationState
 import platform.UIKit.UIViewController
 import platform.darwin.NSObject
 import platform.darwin.dispatch_async
@@ -116,6 +118,8 @@ internal class IosInterstitialSlot(
     override fun getResponseInfo(ad: GADInterstitialAd): AdResponseInfo? = ad.responseInfo?.toCommon()
 
     override fun canPresent(): AdError? = if (topViewController() != null) null else AdError.message("No root view controller.")
+
+    override suspend fun isAppForegroundForPresentation(): Boolean = isIosAppActiveForPresentation()
 }
 
 internal class IosRewardedSlot(
@@ -199,6 +203,8 @@ internal class IosRewardedSlot(
     override fun getResponseInfo(ad: GADRewardedAd): AdResponseInfo? = ad.responseInfo?.toCommon()
 
     override fun canPresent(): AdError? = if (topViewController() != null) null else AdError.message("No root view controller.")
+
+    override suspend fun isAppForegroundForPresentation(): Boolean = isIosAppActiveForPresentation()
 }
 
 internal class IosRewardedInterstitialSlot(
@@ -282,6 +288,8 @@ internal class IosRewardedInterstitialSlot(
     override fun getResponseInfo(ad: GADRewardedInterstitialAd): AdResponseInfo? = ad.responseInfo?.toCommon()
 
     override fun canPresent(): AdError? = if (topViewController() != null) null else AdError.message("No root view controller.")
+
+    override suspend fun isAppForegroundForPresentation(): Boolean = isIosAppActiveForPresentation()
 }
 
 internal class IosAppOpenSlot(
@@ -342,6 +350,8 @@ internal class IosAppOpenSlot(
     override fun getResponseInfo(ad: GADAppOpenAd): AdResponseInfo? = ad.responseInfo?.toCommon()
 
     override fun canPresent(): AdError? = if (topViewController() != null) null else AdError.message("No root view controller.")
+
+    override suspend fun isAppForegroundForPresentation(): Boolean = isIosAppActiveForPresentation()
 }
 
 /**
@@ -471,4 +481,14 @@ internal class FullScreenDelegateStore<AdT : Any> {
         val ad: AdT,
         val delegate: GADFullScreenContentDelegateProtocol
     )
+}
+
+/**
+ * iOS counterpart of Android's foreground check: present only once the app is active.
+ * The app-open coordinator fires on WillEnterForeground, while the app is still inactive, and an
+ * app that stays inactive (Control Center, an incoming-call banner) is not one the user is
+ * looking at. `applicationState` is main-thread only.
+ */
+internal suspend fun isIosAppActiveForPresentation(): Boolean = withContext(Dispatchers.Main.immediate) {
+    UIApplication.sharedApplication.applicationState == UIApplicationState.UIApplicationStateActive
 }

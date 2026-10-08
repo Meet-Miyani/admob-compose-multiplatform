@@ -1292,4 +1292,43 @@ class FullScreenSlotCoreTest {
             "the reload must replay the options of the load that actually issued the request",
         )
     }
+
+    @Test
+    fun `show keeps the ad and does not present while the app is not foreground`() = runTest(StandardTestDispatcher()) {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val slot = FakeFullScreenSlot(testPlacement, testGlobalEvents(), unblockedAdRequestError(), tickClock())
+            slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+            slot.load()
+            slot.foregroundAnswers = listOf(false)
+
+            val result = slot.show()
+
+            assertIs<AdShowResult.Failed>(result)
+            assertEquals(0, slot.presentCallCount, "the platform must never see a show it would refuse as background")
+            assertTrue(slot.availability().isReady, "the ad must stay cached for the next show")
+            assertTrue(slot.destroyedAds.isEmpty(), "the ad must not be destroyed")
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test
+    fun `show presents once the app becomes foreground within the wait`() = runTest(StandardTestDispatcher()) {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val slot = FakeFullScreenSlot(testPlacement, testGlobalEvents(), unblockedAdRequestError(), tickClock())
+            slot.enqueueLoadResult(AdAttemptResult.Success("ad1"))
+            slot.load()
+            slot.foregroundAnswers = listOf(false, false, true)
+
+            slot.show()
+
+            assertEquals(1, slot.presentCallCount, "presented after the app became foreground")
+            assertEquals(listOf("ad1"), slot.presentedAds)
+            assertEquals(3, slot.foregroundChecks)
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
 }

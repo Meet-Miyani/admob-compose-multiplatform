@@ -3,6 +3,7 @@
 package dev.avinya.ads.appopen
 
 import dev.avinya.ads.AdEvent
+import dev.avinya.ads.AdLogger
 import dev.avinya.ads.AdManager
 import dev.avinya.ads.AdManagerStatus
 import dev.avinya.ads.AdShowResult
@@ -232,7 +233,17 @@ public class AppOpenAdCoordinator internal constructor(
         // process-wide probe token and sets showInFlight, but there is nothing to launch the work
         // that would release them.
         val activeScope = lifecycle ?: return
-        val qualifies = backgroundDuration >= config.minBackgroundDuration && !returningFromClick
+        val qualifies = when {
+            backgroundDuration < config.minBackgroundDuration -> {
+                logSkip("background for $backgroundDuration, under minBackgroundDuration ${config.minBackgroundDuration}")
+                false
+            }
+            returningFromClick -> {
+                logSkip("first return after an ad click (skipAfterAdClick)")
+                false
+            }
+            else -> true
+        }
         // Admission is acquired INSIDE the child, never before launching it. The releasing
         // `finally` lives in showNow(), and a DEFAULT-start coroutine cancelled before its
         // first dispatch never runs its body at all — so acquiring out here and cancelling in
@@ -263,21 +274,34 @@ public class AppOpenAdCoordinator internal constructor(
      * foreground collection may run in different scopes/threads, so checking [showInFlight] and
      * setting it must be one transition.
      */
-    private fun tryAcquireShowAdmission(): Boolean = showAdmissionLock.withLock {
-        if (!canShowNowLocked()) return@withLock false
-        // Acquired last, after every cheap local check, so a rejected attempt never takes and
-        // immediately re-releases the process-wide token.
-        if (!tryAcquireProbeTokenLocked()) return@withLock false
-        showInFlight = true
-        true
+    private fun tryAcquireShowAdmission(): Boolean {
+        val blockedBy = showAdmissionLock.withLock {
+            val reason = showBlockReasonLocked()
+                // Acquired last, after every cheap local check, so a rejected attempt never takes
+                // and immediately re-releases the process-wide token.
+                ?: if (tryAcquireProbeTokenLocked()) null else "another full-screen ad is presenting"
+            if (reason == null) showInFlight = true
+            reason
+        }
+        // Logged outside the lock: AdLogger may call a host-supplied sink.
+        blockedBy?.let(::logSkip)
+        return blockedBy == null
     }
 
-    private fun canShowNowLocked(): Boolean {
-        if (blocked || showInFlight) return false
-        if (manager.status.value != AdManagerStatus.Ready) return false
-        val sinceLastShow = elapsedSince(lastShowInstant)
-        if (sinceLastShow < config.cooldownBetweenShows) return false
-        return controller.isReady()
+    /** Why the coordinator may not show right now, or null if it may. Caller holds the lock. */
+    private fun showBlockReasonLocked(): String? = when {
+        blocked -> "isBlocked is true"
+        showInFlight -> "a coordinator show is already in flight"
+        manager.status.value != AdManagerStatus.Ready -> "the SDK is not Ready (${manager.status.value})"
+        elapsedSince(lastShowInstant) < config.cooldownBetweenShows ->
+            "cooldownBetweenShows ${config.cooldownBetweenShows} has not elapsed"
+        !controller.isReady() -> "no app-open ad is loaded"
+        else -> null
+    }
+
+    // Placement ids and durations only: nothing here derives from user or ad content.
+    private fun logSkip(reason: String) {
+        AdLogger.d("App-open show skipped. placement=${controller.placement.id} reason=$reason")
     }
 
     /**
@@ -325,6 +349,7 @@ public class AppOpenAdCoordinator internal constructor(
             // it, and it is not reentrant. See releaseProbeToken().
             showAdmissionLock.withLock { releaseProbeToken() }
             val result = controller.show()
+            AdLogger.d("App-open show finished. placement=${controller.placement.id} result=${result.logLabel()}")
             if (result is AdShowResult.Shown) {
                 showAdmissionLock.withLock {
                     lastShowInstant = clock()
@@ -341,4 +366,9 @@ public class AppOpenAdCoordinator internal constructor(
             }
         }
     }
+}
+
+private fun AdShowResult.logLabel(): String = when (this) {
+    is AdShowResult.Failed -> "Failed(${error.message})"
+    else -> this::class.simpleName ?: "Unknown"
 }
