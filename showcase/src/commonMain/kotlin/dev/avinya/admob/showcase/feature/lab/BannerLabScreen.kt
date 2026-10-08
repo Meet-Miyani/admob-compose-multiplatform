@@ -63,8 +63,9 @@ fun BannerLabScreen(
                 description = "A bounded preview area for the classic fixed size.",
             ) {
                 BannerAdView(
-                    placement = ShowcasePlacements.labBanner,
-                    widthDp = 320,
+                    // The 320×50 size comes from the placement's AdSizePolicy.Fixed; widthDp only
+                    // overrides the measured width for adaptive sizes.
+                    placement = ShowcasePlacements.labBannerFixed,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 50.dp),
@@ -96,7 +97,8 @@ fun BannerLabScreen(
             ) {
                 SunkenPanel(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(Tokens.Spacing.s12)) {
-                        StatRow(label = "Adaptive / fixed", value = ShowcasePlacements.labBanner.id)
+                        StatRow(label = "Adaptive", value = ShowcasePlacements.labBanner.id)
+                        StatRow(label = "Fixed", value = ShowcasePlacements.labBannerFixed.id)
                         StatRow(label = "Collapsible", value = ShowcasePlacements.articleBanner.id)
                         StatRow(label = "Last event", value = lastEvent)
                     }

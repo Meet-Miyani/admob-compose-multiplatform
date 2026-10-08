@@ -1,6 +1,7 @@
 package dev.avinya.admob.showcase.domain.ad
 
 import dev.avinya.ads.AdFormat
+import dev.avinya.ads.AdSizePolicy
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -60,5 +61,17 @@ class ShowcasePlacementsTest {
     fun theCatalogCoversEverySupportedFormat() {
         val covered = ShowcasePlacements.allPlacements.map { it.format }.toSet()
         assertEquals(AdFormat.entries.toSet(), covered)
+    }
+
+    @Test
+    fun theFixedBannerDemoHasItsOwnPlacement() {
+        // The SDK keeps one banner controller per placement, so the adaptive and fixed demos
+        // sharing one placement left one of the two slots empty.
+        val fixed = ShowcasePlacements.labBannerFixed
+        assertEquals("lab_banner_fixed", fixed.id)
+        assertTrue(fixed.id != ShowcasePlacements.labBanner.id, "the fixed demo must not share lab_banner")
+        assertEquals(AdFormat.Banner, fixed.format)
+        assertEquals(AdSizePolicy.Fixed(widthDp = 320, heightDp = 50), fixed.bannerSizePolicy)
+        assertTrue(fixed in ShowcasePlacements.allPlacements, "lab_banner_fixed must be in the catalog")
     }
 }

@@ -174,6 +174,20 @@ object ShowcasePlacements {
         strictTestMode = true,
     )
 
+    /**
+     * The Banner lab's fixed-size demo. A placement of its own, not [labBanner]: the SDK keeps
+     * one banner controller per placement, so two views sharing one placement showed one ad
+     * and left the other slot empty.
+     */
+    val labBannerFixed: AdPlacement = AdPlacement(
+        id = "lab_banner_fixed",
+        format = AdFormat.Banner,
+        adUnitIds = AdUnitIds(android = TestAdIds.ANDROID_BANNER, ios = TestAdIds.IOS_BANNER),
+        bannerSizePolicy = AdSizePolicy.Fixed(widthDp = 320, heightDp = 50),
+        bannerRefreshPolicy = BannerRefreshPolicy.AdServerManaged,
+        strictTestMode = true,
+    )
+
     val labNative: AdPlacement = AdPlacement(
         id = "lab_native",
         format = AdFormat.Native,
@@ -228,6 +242,7 @@ object ShowcasePlacements {
         rewardsRewardedInterstitial,
         appOpen,
         labBanner,
+        labBannerFixed,
         labNative,
         labInterstitial,
         labRewarded,
