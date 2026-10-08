@@ -496,4 +496,118 @@ class AppOpenAdCoordinatorTest {
         // Parenting the lifecycle to the caller's Job keeps the host in control.
         assertFalse(controller.showCalled, "a cancelled host scope must stop automatic shows")
     }
+
+    // --- skipAfterAdClick ---------------------------------------------------------------------
+
+    private class ClickHarness(skip: Boolean) {
+        val foreground = MutableStateFlow(true)
+        val controller = FakeAppOpenAdController()
+        val manager = FakeAdManager()
+        var now = Instant.fromEpochSeconds(1000)
+        val coordinator = AppOpenAdCoordinator(
+            manager = manager,
+            controller = controller,
+            config = AppOpenConfig(preloadOnStart = false),
+            foregroundEvents = foreground,
+            clock = { now },
+        ).also { it.skipAfterAdClick = skip }
+
+        fun click(atEpochSeconds: Long) {
+            now = Instant.fromEpochSeconds(atEpochSeconds)
+            manager.emitEvent(AdEvent.Clicked(placementId = "feed_native"))
+        }
+
+        fun background(atEpochSeconds: Long) {
+            now = Instant.fromEpochSeconds(atEpochSeconds)
+            foreground.value = false
+        }
+
+        fun returnToForeground(atEpochSeconds: Long) {
+            now = Instant.fromEpochSeconds(atEpochSeconds)
+            foreground.value = true
+        }
+    }
+
+    @Test
+    fun `skipAfterAdClick skips the show on a return right after an ad click`() = runTest(UnconfinedTestDispatcher()) {
+        val h = ClickHarness(skip = true)
+        h.coordinator.start(CoroutineScope(UnconfinedTestDispatcher()))
+        h.click(1000)
+        h.background(1002)
+        h.returnToForeground(1030)
+
+        assertFalse(h.controller.showCalled, "a return from an ad's landing page must not show an app-open ad")
+    }
+
+    @Test
+    fun `without skipAfterAdClick an ad click does not suppress the show`() = runTest(UnconfinedTestDispatcher()) {
+        val h = ClickHarness(skip = false)
+        h.coordinator.start(CoroutineScope(UnconfinedTestDispatcher()))
+        h.click(1000)
+        h.background(1002)
+        h.returnToForeground(1030)
+
+        assertTrue(h.controller.showCalled, "the default must keep the previous behaviour")
+    }
+
+    @Test
+    fun `skipAfterAdClick is off by default`() {
+        val h = ClickHarness(skip = false)
+        val fresh = AppOpenAdCoordinator(
+            manager = h.manager,
+            controller = h.controller,
+            config = AppOpenConfig(preloadOnStart = false),
+            foregroundEvents = h.foreground,
+            clock = { h.now },
+        )
+        assertFalse(fresh.skipAfterAdClick)
+    }
+
+    @Test
+    fun `a click well before leaving the app does not skip the show`() = runTest(UnconfinedTestDispatcher()) {
+        val h = ClickHarness(skip = true)
+        h.coordinator.start(CoroutineScope(UnconfinedTestDispatcher()))
+        h.click(1000)
+        h.background(1015) // 15s after the click: outside the 10s window
+        h.returnToForeground(1050)
+
+        assertTrue(h.controller.showCalled, "an old click must not suppress an unrelated return")
+    }
+
+    @Test
+    fun `a click exactly at the window edge still skips the show`() = runTest(UnconfinedTestDispatcher()) {
+        val h = ClickHarness(skip = true)
+        h.coordinator.start(CoroutineScope(UnconfinedTestDispatcher()))
+        h.click(1000)
+        h.background(1010) // exactly 10s: inclusive
+        h.returnToForeground(1050)
+
+        assertFalse(h.controller.showCalled)
+    }
+
+    @Test
+    fun `a click reported after the app went to the background still skips the show`() = runTest(UnconfinedTestDispatcher()) {
+        val h = ClickHarness(skip = true)
+        h.coordinator.start(CoroutineScope(UnconfinedTestDispatcher()))
+        h.background(1000)
+        h.click(1001) // the SDK's click callback can land after the app has already left
+        h.returnToForeground(1030)
+
+        assertFalse(h.controller.showCalled)
+    }
+
+    @Test
+    fun `the skip applies to one return only`() = runTest(UnconfinedTestDispatcher()) {
+        val h = ClickHarness(skip = true)
+        h.coordinator.start(CoroutineScope(UnconfinedTestDispatcher()))
+        h.click(1000)
+        h.background(1002)
+        h.returnToForeground(1030)
+        assertFalse(h.controller.showCalled, "precondition: the return from the click is skipped")
+
+        h.background(1060)
+        h.returnToForeground(1100)
+
+        assertTrue(h.controller.showCalled, "the next ordinary return must show again")
+    }
 }

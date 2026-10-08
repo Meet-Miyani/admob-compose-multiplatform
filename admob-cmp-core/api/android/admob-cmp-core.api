@@ -1279,8 +1279,10 @@ public final class dev/avinya/ads/TestAdIdsKt {
 public final class dev/avinya/ads/appopen/AppOpenAdCoordinator {
 	public fun <init> (Ldev/avinya/ads/AdManager;Ldev/avinya/ads/AppOpenAdController;Ldev/avinya/ads/appopen/AppOpenConfig;)V
 	public synthetic fun <init> (Ldev/avinya/ads/AdManager;Ldev/avinya/ads/AppOpenAdController;Ldev/avinya/ads/appopen/AppOpenConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getSkipAfterAdClick ()Z
 	public final fun isBlocked ()Z
 	public final fun setBlocked (Z)V
+	public final fun setSkipAfterAdClick (Z)V
 	public final fun start (Lkotlinx/coroutines/CoroutineScope;)V
 	public final fun stop ()V
 }

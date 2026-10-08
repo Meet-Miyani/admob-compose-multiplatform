@@ -952,6 +952,9 @@ final class dev.avinya.ads.appopen/AppOpenAdCoordinator { // dev.avinya.ads.appo
     final var isBlocked // dev.avinya.ads.appopen/AppOpenAdCoordinator.isBlocked|{}isBlocked[0]
         final fun <get-isBlocked>(): kotlin/Boolean // dev.avinya.ads.appopen/AppOpenAdCoordinator.isBlocked.<get-isBlocked>|<get-isBlocked>(){}[0]
         final fun <set-isBlocked>(kotlin/Boolean) // dev.avinya.ads.appopen/AppOpenAdCoordinator.isBlocked.<set-isBlocked>|<set-isBlocked>(kotlin.Boolean){}[0]
+    final var skipAfterAdClick // dev.avinya.ads.appopen/AppOpenAdCoordinator.skipAfterAdClick|{}skipAfterAdClick[0]
+        final fun <get-skipAfterAdClick>(): kotlin/Boolean // dev.avinya.ads.appopen/AppOpenAdCoordinator.skipAfterAdClick.<get-skipAfterAdClick>|<get-skipAfterAdClick>(){}[0]
+        final fun <set-skipAfterAdClick>(kotlin/Boolean) // dev.avinya.ads.appopen/AppOpenAdCoordinator.skipAfterAdClick.<set-skipAfterAdClick>|<set-skipAfterAdClick>(kotlin.Boolean){}[0]
 
     final fun start(kotlinx.coroutines/CoroutineScope) // dev.avinya.ads.appopen/AppOpenAdCoordinator.start|start(kotlinx.coroutines.CoroutineScope){}[0]
     final fun stop() // dev.avinya.ads.appopen/AppOpenAdCoordinator.stop|stop(){}[0]

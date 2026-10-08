@@ -206,6 +206,7 @@ internal class FakeAdManager : AdManager, FullScreenPresenceAware {
 
     fun setStatus(s: AdManagerStatus) { _status.value = s }
     fun setFullScreenPresenting(presenting: Boolean) { _isFullScreenPresenting.value = presenting }
+    fun emitEvent(event: AdEvent) { check(_events.tryEmit(event)) { "event buffer full" } }
 
     /**
      * Simulates another full-screen format holding the process-wide token. Returns the token so

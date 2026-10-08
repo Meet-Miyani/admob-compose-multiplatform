@@ -2,6 +2,7 @@
 
 package dev.avinya.ads.appopen
 
+import dev.avinya.ads.AdEvent
 import dev.avinya.ads.AdManager
 import dev.avinya.ads.AdManagerStatus
 import dev.avinya.ads.AdShowResult
@@ -22,6 +23,14 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+
+/**
+ * How long before the app goes to the background an ad click may happen and still count as the
+ * reason it left. Leaving for a landing page takes well under a second on both platforms; ten
+ * seconds absorbs a slow store or browser launch without letting an old click suppress an
+ * unrelated return.
+ */
+private val CLICK_BEFORE_BACKGROUND_WINDOW: Duration = 10.seconds
 
 /**
  * Configuration for [AppOpenAdCoordinator].
@@ -123,6 +132,31 @@ public class AppOpenAdCoordinator internal constructor(
             showAdmissionLock.withLock { blocked = value }
         }
 
+    private var skipAfterClick: Boolean = false
+    // Latest AdEvent.Clicked from any format. Written by the event collector, read and cleared by
+    // the foreground collector, so it is guarded by showAdmissionLock like the other shared state.
+    private var lastClickInstant: Instant? = null
+
+    /**
+     * When true, the coordinator does not show an app-open ad on a return to the foreground that
+     * follows an ad click, so a user coming back from an ad's landing page is not met by another
+     * ad. Off by default.
+     *
+     * A return counts as following a click when any ad (any format, any placement) reported
+     * [AdEvent.Clicked] at most 10 seconds before the app went to the background, or while it was
+     * in the background. Each return to the foreground uses up the click, so later returns
+     * behave normally.
+     *
+     * Returning after clicking the app-open ad itself never shows a second app-open ad, whatever
+     * this setting: that ad is still on screen, and the coordinator never shows over a full-screen
+     * ad.
+     */
+    public var skipAfterAdClick: Boolean
+        get() = showAdmissionLock.withLock { skipAfterClick }
+        set(value) {
+            showAdmissionLock.withLock { skipAfterClick = value }
+        }
+
     /**
      * Starts the coordinator lifecycle. Preloads an ad (if configured) and
      * begins listening for foreground/background transitions to show the ad.
@@ -137,6 +171,16 @@ public class AppOpenAdCoordinator internal constructor(
         this.lifecycle = lifecycle
         if (config.preloadOnStart || config.showOnColdStart) {
             lifecycle.launch { preloadColdStart() }
+        }
+        // Clicks are recorded whatever skipAfterAdClick says, so turning it on takes effect for a
+        // click that already happened. `events` does not replay, so only clicks from start()
+        // onwards are seen, which is all the window ever needs.
+        lifecycle.launch {
+            manager.events.collect { event ->
+                if (event is AdEvent.Clicked) {
+                    showAdmissionLock.withLock { lastClickInstant = clock() }
+                }
+            }
         }
         lifecycle.launch {
             foregroundEvents.collect { foreground ->
@@ -182,14 +226,16 @@ public class AppOpenAdCoordinator internal constructor(
     }
 
     private suspend fun onForeground() {
-        val backgroundDuration = backgroundedAtInstant?.let { elapsedSince(it) } ?: Duration.ZERO
+        val backgroundedAt = backgroundedAtInstant
+        val backgroundDuration = backgroundedAt?.let { elapsedSince(it) } ?: Duration.ZERO
         backgroundedAtInstant = null
+        val returningFromClick = consumeClickBefore(backgroundedAt)
         // Capture the lifecycle scope BEFORE acquiring admission. If stop() already cleared it,
         // skip the acquisition entirely — otherwise tryAcquireShowAdmission() takes the
         // process-wide probe token and sets showInFlight, but there is nothing to launch the work
         // that would release them.
         val activeScope = lifecycle ?: return
-        val qualifies = backgroundDuration >= config.minBackgroundDuration
+        val qualifies = backgroundDuration >= config.minBackgroundDuration && !returningFromClick
         // Admission is acquired INSIDE the child, never before launching it. The releasing
         // `finally` lives in showNow(), and a DEFAULT-start coroutine cancelled before its
         // first dispatch never runs its body at all — so acquiring out here and cancelling in
@@ -200,6 +246,21 @@ public class AppOpenAdCoordinator internal constructor(
             if (qualifies && tryAcquireShowAdmission()) showNow()
             if (!controller.isReady()) controller.load()
         }
+    }
+
+    /**
+     * Clears the remembered click and reports whether this return follows it.
+     *
+     * Always clears, whatever [skipAfterAdClick] says, so a click is used up by the first return
+     * after it and can never suppress a later, unrelated one. A click reported while the app was
+     * in the background is later than [backgroundedAt] and so qualifies: the platform's click
+     * callback can arrive after the app has already left for the landing page.
+     */
+    private fun consumeClickBefore(backgroundedAt: Instant?): Boolean = showAdmissionLock.withLock {
+        val click = lastClickInstant
+        lastClickInstant = null
+        skipAfterClick && click != null && backgroundedAt != null &&
+            click >= backgroundedAt - CLICK_BEFORE_BACKGROUND_WINDOW
     }
 
     /**
