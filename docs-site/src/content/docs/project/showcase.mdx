@@ -65,7 +65,7 @@ sheet:
 | Rewarded | Rewards | `onRewardEarned` correctness, idempotent grant key, wallet balance |
 | Rewarded interstitial | Rewards (daily pass) | Offer dialog, reward callback |
 | Interstitial | Article exit | Natural break timing, `AdPolicy` cooldown & frequency capping, suppression reasons |
-| App-open | App-wide | `AppOpenAdCoordinator`, `AppOpenEligibilityPolicy` suppression over sensitive flows |
+| App-open | App-wide | `AppOpenAdCoordinator` with `skipAfterAdClick` on; `AppOpenEligibilityPolicy` suppression over sensitive flows and screens that show ads |
 
 ## Running it
 

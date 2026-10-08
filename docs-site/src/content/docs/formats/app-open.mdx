@@ -127,6 +127,42 @@ point of the sensitive flow and clear it at the exit, in a
 `try`/`finally` so a thrown exception cannot leak the blocked
 state.
 
+## Where app-open ads should not appear
+
+Google's placement guidance for app-open ads says: "Don't display ads
+immediately before or after app open ads" and "Don't display app open
+ads on top of other ads (for example, content with banner ads)." The
+coordinator already never shows over another full-screen ad. Two
+further cases are left to the app, because the right answer depends
+on the product.
+
+**Returning from an ad's landing page.** A user who taps a banner or
+native ad leaves for its landing page. When they come back, the
+coordinator would otherwise show an app-open ad straight away. Turn
+that off with:
+
+```kotlin
+coordinator.skipAfterAdClick = true
+```
+
+It is off by default. When on, a return to the foreground shows no
+app-open ad if any ad reported `AdEvent.Clicked` at most 10 seconds
+before the app went to the background, or while it was away. Each
+return uses the click up, so the next ordinary return shows as usual.
+Use this rather than toggling `isBlocked` from the click: an app's own
+lifecycle observer races the coordinator's, so clearing the flag at
+the right moment is not reliable from app code. Returning after
+clicking the app-open ad itself never shows a second one, whatever
+this setting, because that ad is still on screen.
+
+**Screens that show banner or native ads.** On return, the app-open ad
+covers whatever screen the user left. If that screen shows ads, either
+set `isBlocked = true` while it is visible, or cover it with a short
+loading screen on resume so the app-open ad sits over that instead,
+which is the placement Google prefers. The
+[showcase app](/project/showcase/) blocks app-open ads on every screen
+that renders a banner or native ad.
+
 ## Diagnostic checklist
 
 A short triage:
@@ -139,6 +175,8 @@ A short triage:
 - The cooldown has not elapsed.
 - `isBlocked` is still `true` because a flow set it and never
   reset it.
+- `skipAfterAdClick` is on and an ad was clicked just before the app
+  went to the background.
 - No fresh ad was cached, in which case the coordinator reloads
   automatically.
 - On iOS the coordinator listens to `WillEnterForeground`, so
