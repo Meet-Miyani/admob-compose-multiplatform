@@ -27,12 +27,13 @@ import kotlin.time.Duration
  *
  * - **Preload.** `preloadOnStart` warms an ad at startup so the next genuine
  *   foreground has one ready, and the host loads again as soon as ads become
- *   allowed (see [shouldPreloadAppOpen]), because a startup preload made before
- *   consent or the ads switch fails and is not retried until the next return. There is no cold-start show: on most devices the
- *   first frame wins the race, and an app-open ad that appears *after* the user
- *   is already reading is worse than none.
+ *   allowed (see [shouldPreloadAppOpen]): a startup preload made before consent
+ *   or the ads switch fails and is not retried until the next return.
+ *   There is no cold-start show: on most devices the first frame wins the
+ *   race, and an app-open ad that appears *after* the user is already reading
+ *   is worse than none.
  * - **Show.** The coordinator watches foreground transitions and shows only after
- *   the background and cooldown thresholds in [ShowcaseAppOpenConfig].
+ *   the background and cooldown thresholds in [SHOWCASE_APP_OPEN_CONFIG].
  * - **Reload.** The coordinator reloads after each consumption.
  * - **Skip after a click.** `skipAfterAdClick` is on, so returning from an ad's
  *   landing page never lands on an app-open ad.
@@ -54,7 +55,7 @@ fun AppOpenHost(
         AppOpenAdCoordinator(
             manager = adManager,
             controller = controller,
-            config = ShowcaseAppOpenConfig,
+            config = SHOWCASE_APP_OPEN_CONFIG,
         ).also {
             // A user coming back from an ad's landing page is not met by an app-open ad straight
             // away. Opt-in in the SDK; the showcase turns it on. Every banner and native ad here
@@ -71,7 +72,10 @@ fun AppOpenHost(
     val status by adManager.status.collectAsState()
     val canRequestAds by adManager.consent.canRequestAds.collectAsState()
     val onboardingComplete by graph.settings.onboardingComplete.collectAsState(initial = null)
-    val adsEnabled by graph.settings.adsMasterSwitch.collectAsState(initial = true)
+    // Null until the persisted switch has been read. Treated as "off" everywhere below, so a
+    // cold start can neither show nor request an ad before the user's choice is known.
+    val adsSwitch by graph.settings.adsMasterSwitch.collectAsState(initial = null)
+    val adsEnabled = adsSwitch == true
 
     LaunchedEffect(coordinator) { coordinator.start(this) }
     DisposableEffect(coordinator) { onDispose { coordinator.stop() } }
@@ -102,7 +106,7 @@ fun AppOpenHost(
                 // background-duration rule itself; pass infinity so the
                 // policy's non-temporal gates decide the blocked state.
                 backgroundDuration = Duration.INFINITE,
-                minimumBackgroundDuration = ShowcaseAppOpenConfig.minBackgroundDuration,
+                minimumBackgroundDuration = SHOWCASE_APP_OPEN_CONFIG.minBackgroundDuration,
                 onScreenWithAds = suppressor.isOnAdScreen,
             ),
         )
@@ -116,9 +120,13 @@ fun AppOpenHost(
 
     LaunchedEffect(controller, status, canRequestAds, adsEnabled) {
         val sdkReady = status == AdManagerStatus.Ready
-        if (shouldPreloadAppOpen(sdkReady, canRequestAds, adsEnabled, alreadyLoaded = controller.isReady())) {
-            controller.load()
-        }
+        val preload = shouldPreloadAppOpen(
+            sdkReady = sdkReady,
+            canRequestAds = canRequestAds,
+            adsEnabled = adsEnabled,
+            alreadyLoaded = controller.isReady(),
+        )
+        if (preload) controller.load()
     }
 
     content()

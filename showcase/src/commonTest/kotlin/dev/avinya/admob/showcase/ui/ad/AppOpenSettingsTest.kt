@@ -10,10 +10,10 @@ class AppOpenSettingsTest {
 
     @Test
     fun theShowcaseConfigIsShortEnoughToObserveByHand() {
-        assertEquals(4.seconds, ShowcaseAppOpenConfig.minBackgroundDuration)
-        assertEquals(15.seconds, ShowcaseAppOpenConfig.cooldownBetweenShows)
-        assertFalse(ShowcaseAppOpenConfig.showOnColdStart)
-        assertTrue(ShowcaseAppOpenConfig.preloadOnStart)
+        assertEquals(4.seconds, SHOWCASE_APP_OPEN_CONFIG.minBackgroundDuration)
+        assertEquals(15.seconds, SHOWCASE_APP_OPEN_CONFIG.cooldownBetweenShows)
+        assertFalse(SHOWCASE_APP_OPEN_CONFIG.showOnColdStart)
+        assertTrue(SHOWCASE_APP_OPEN_CONFIG.preloadOnStart)
     }
 
     @Test

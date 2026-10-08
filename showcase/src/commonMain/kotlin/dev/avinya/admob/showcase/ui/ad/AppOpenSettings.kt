@@ -10,7 +10,7 @@ import kotlin.time.Duration.Companion.seconds
  * The cooldown and background thresholds are short so the behaviour can be observed by hand.
  * A production integration would use a cooldown of hours.
  */
-internal val ShowcaseAppOpenConfig: AppOpenConfig = AppOpenConfig(
+internal val SHOWCASE_APP_OPEN_CONFIG: AppOpenConfig = AppOpenConfig(
     showOnColdStart = false,
     preloadOnStart = true,
     minBackgroundDuration = 4.seconds,

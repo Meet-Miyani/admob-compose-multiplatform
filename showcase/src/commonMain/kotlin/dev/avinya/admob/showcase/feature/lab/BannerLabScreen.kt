@@ -63,8 +63,9 @@ fun BannerLabScreen(
                 description = "A bounded preview area for the classic fixed size.",
             ) {
                 BannerAdView(
+                    // The 320×50 size comes from the placement's AdSizePolicy.Fixed; widthDp only
+                    // overrides the measured width for adaptive sizes.
                     placement = ShowcasePlacements.labBannerFixed,
-                    widthDp = 320,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 50.dp),

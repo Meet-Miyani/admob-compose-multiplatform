@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.dp
 import dev.avinya.admob.showcase.di.LocalAppGraph
 import dev.avinya.admob.showcase.di.LocalAppOpenSuppressor
 import dev.avinya.admob.showcase.domain.ad.ShowcasePlacements
-import dev.avinya.admob.showcase.ui.ad.ShowcaseAppOpenConfig
+import dev.avinya.admob.showcase.ui.ad.SHOWCASE_APP_OPEN_CONFIG
 import dev.avinya.admob.showcase.ui.kit.Rule
 import dev.avinya.admob.showcase.ui.kit.StatRow
 import dev.avinya.admob.showcase.ui.kit.SunkenPanel
@@ -65,6 +65,7 @@ fun AppOpenLabScreen(
     val readiness = rememberAdReadiness(controller)
 
     val lastDecision = decisions.firstOrNull { it.placementId == ShowcasePlacements.appOpen.id }
+    val config = SHOWCASE_APP_OPEN_CONFIG
 
     LabScreen(
         title = "App open",
@@ -76,16 +77,16 @@ fun AppOpenLabScreen(
             LabSection(
                 title = "How to see it",
                 description = "There is nothing to tap. Send the app to the background, wait " +
-                    "at least ${ShowcaseAppOpenConfig.minBackgroundDuration}, then return — the " +
-                    "coordinator shows a preloaded ad on the next genuine foreground, at most once " +
-                    "every ${ShowcaseAppOpenConfig.cooldownBetweenShows}.",
+                    "at least ${config.minBackgroundDuration}, then return — the coordinator " +
+                    "shows a preloaded ad on the next genuine foreground, at most once every " +
+                    "${config.cooldownBetweenShows}.",
             ) {
                 SunkenPanel(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(Tokens.Spacing.s12)) {
-                        StatRow(label = "Min background", value = "${ShowcaseAppOpenConfig.minBackgroundDuration}")
-                        StatRow(label = "Show cooldown", value = "${ShowcaseAppOpenConfig.cooldownBetweenShows}")
-                        StatRow(label = "Cold start show", value = ShowcaseAppOpenConfig.showOnColdStart.onOff())
-                        StatRow(label = "Preload on start", value = ShowcaseAppOpenConfig.preloadOnStart.onOff())
+                        StatRow(label = "Min background", value = "${config.minBackgroundDuration}")
+                        StatRow(label = "Show cooldown", value = "${config.cooldownBetweenShows}")
+                        StatRow(label = "Cold start show", value = config.showOnColdStart.onOff())
+                        StatRow(label = "Preload on start", value = config.preloadOnStart.onOff())
                     }
                 }
                 Text(
