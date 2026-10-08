@@ -5,7 +5,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import dev.avinya.ads.AdManagerStatus
 import dev.avinya.ads.LocalAdManager
 import dev.avinya.ads.appopen.AppOpenAdCoordinator
@@ -75,12 +77,17 @@ fun AppOpenHost(
                 cooldownBetweenShows = SHOW_COOLDOWN,
             ),
         ).also {
-            // A user coming back from a banner or native ad's landing page is not met by an
-            // app-open ad straight away. Opt-in in the SDK; the showcase turns it on.
+            // A user coming back from an ad's landing page is not met by an app-open ad straight
+            // away. Opt-in in the SDK; the showcase turns it on. Every banner and native ad here
+            // already sits on a screen that blocks app-open ads, so this is defence in depth that
+            // also covers a landing page left open over an unblocked screen.
             it.skipAfterAdClick = true
         }
     }
     val policy = remember { AppOpenEligibilityPolicy() }
+    // Last decision written to Diagnostics. Switching between a tab with ads and one without
+    // re-runs the effect below; only a change of decision is worth a telemetry row.
+    var lastRecorded by remember { mutableStateOf<AppOpenDecision?>(null) }
 
     val status by adManager.status.collectAsState()
     val canRequestAds by adManager.consent.canRequestAds.collectAsState()
@@ -122,7 +129,10 @@ fun AppOpenHost(
         )
 
         coordinator.isBlocked = decision is AppOpenDecision.Suppress
-        telemetry.recordAppOpenDecision(ShowcasePlacements.appOpen.id, decision)
+        if (decision != lastRecorded) {
+            lastRecorded = decision
+            telemetry.recordAppOpenDecision(ShowcasePlacements.appOpen.id, decision)
+        }
     }
 
     content()

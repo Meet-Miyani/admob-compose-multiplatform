@@ -66,7 +66,6 @@ fun DiscoverScreen(
     onArticleClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BlockAppOpenOnAdScreen()
     val adManager = LocalAdManager.current
     val graph = LocalAppGraph.current
     val viewModel: DiscoverViewModel = viewModel {
@@ -93,6 +92,9 @@ fun DiscoverScreen(
             null
         }
     }
+
+    // The landing page renders no ad slots, so only the category feeds count as a screen with ads.
+    if (nativeSession != null) BlockAppOpenOnAdScreen()
 
     // Query history aging out: close the retired session so it cannot hold
     // inventory forever. Tab switches do NOT reach here — the session stays

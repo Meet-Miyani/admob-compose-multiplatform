@@ -23,10 +23,10 @@ data class AppOpenEligibilitySnapshot(
 enum class AppOpenSuppressionReason {
     FirstSession,
     SensitiveRoute,
-    AdsOnScreen,
     FullScreenAdShowing,
     SdkNotReady,
     ConsentMissing,
+    AdsOnScreen,
     BackgroundTooShort,
 }
 
@@ -43,10 +43,12 @@ sealed interface AppOpenDecision {
  *
  * 1. Never during onboarding — a fresh install's first session is exempt.
  * 2. Never over a sensitive route (privacy flows) or another full-screen ad.
- * 2a. Never over a screen that shows banner or native ads: Google's placement
- *    guidance says not to display app-open ads on top of other ads.
  * 3. Never before the SDK is initialized and consent allows requests.
- * 4. Only after the app has been backgrounded for at least
+ * 4. Never over a screen that shows banner or native ads: Google's placement
+ *    guidance says not to display app-open ads on top of other ads. Ranked
+ *    after the SDK and consent gates so Diagnostics names the more
+ *    fundamental blocker first.
+ * 5. Only after the app has been backgrounded for at least
  *    [minimumBackgroundDuration] — a foreground transition that was never a
  *    real backgrounding must not show an ad.
  */
@@ -57,10 +59,10 @@ class AppOpenEligibilityPolicy {
         // The policy refuses app-open ads during the first product session.
         !snapshot.onboardingComplete -> AppOpenDecision.Suppress(AppOpenSuppressionReason.FirstSession)
         snapshot.onSensitiveRoute -> AppOpenDecision.Suppress(AppOpenSuppressionReason.SensitiveRoute)
-        snapshot.onScreenWithAds -> AppOpenDecision.Suppress(AppOpenSuppressionReason.AdsOnScreen)
         snapshot.fullScreenAdShowing -> AppOpenDecision.Suppress(AppOpenSuppressionReason.FullScreenAdShowing)
         !snapshot.sdkReady -> AppOpenDecision.Suppress(AppOpenSuppressionReason.SdkNotReady)
         !snapshot.canRequestAds -> AppOpenDecision.Suppress(AppOpenSuppressionReason.ConsentMissing)
+        snapshot.onScreenWithAds -> AppOpenDecision.Suppress(AppOpenSuppressionReason.AdsOnScreen)
         snapshot.backgroundDuration < snapshot.minimumBackgroundDuration ->
             AppOpenDecision.Suppress(AppOpenSuppressionReason.BackgroundTooShort)
         else -> AppOpenDecision.Show

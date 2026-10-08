@@ -145,15 +145,21 @@ that off with:
 coordinator.skipAfterAdClick = true
 ```
 
-It is off by default. When on, a return to the foreground shows no
-app-open ad if any ad reported `AdEvent.Clicked` at most 10 seconds
-before the app went to the background, or while it was away. Each
-return uses the click up, so the next ordinary return shows as usual.
+It is off by default. When on, the first return to the foreground
+after any ad reports `AdEvent.Clicked` shows no app-open ad, however
+long before the app left. On iOS a landing page can open inside the
+app, so the app may only go to the background long after the click,
+with the landing page still on screen. That return uses the click up,
+so the next ordinary return shows as usual. Clicks reported while the
+switch is off are not remembered.
+
 Use this rather than toggling `isBlocked` from the click: an app's own
 lifecycle observer races the coordinator's, so clearing the flag at
-the right moment is not reliable from app code. Returning after
-clicking the app-open ad itself never shows a second one, whatever
-this setting, because that ad is still on screen.
+the right moment is not reliable from app code. Clicking the app-open
+ad itself normally needs no help, because that ad is still on screen
+when the user returns and the coordinator never shows over a
+full-screen ad; the switch also covers a mediation adapter that
+dismisses its ad on click.
 
 **Screens that show banner or native ads.** On return, the app-open ad
 covers whatever screen the user left. If that screen shows ads, either
@@ -175,8 +181,8 @@ A short triage:
 - The cooldown has not elapsed.
 - `isBlocked` is still `true` because a flow set it and never
   reset it.
-- `skipAfterAdClick` is on and an ad was clicked just before the app
-  went to the background.
+- `skipAfterAdClick` is on and an ad was clicked since the previous
+  return to the foreground.
 - No fresh ad was cached, in which case the coordinator reloads
   automatically.
 - On iOS the coordinator listens to `WillEnterForeground`, so

@@ -564,25 +564,43 @@ class AppOpenAdCoordinatorTest {
     }
 
     @Test
-    fun `a click well before leaving the app does not skip the show`() = runTest(UnconfinedTestDispatcher()) {
+    fun `a click long before leaving the app still skips the next return`() = runTest(UnconfinedTestDispatcher()) {
+        // An iOS landing page can open inside the app (SFSafariViewController), so the app may
+        // not leave until long after the click. Any click since the last return counts.
         val h = ClickHarness(skip = true)
         h.coordinator.start(CoroutineScope(UnconfinedTestDispatcher()))
         h.click(1000)
-        h.background(1015) // 15s after the click: outside the 10s window
-        h.returnToForeground(1050)
+        h.background(1600)
+        h.returnToForeground(1700)
 
-        assertTrue(h.controller.showCalled, "an old click must not suppress an unrelated return")
+        assertFalse(h.controller.showCalled)
     }
 
     @Test
-    fun `a click exactly at the window edge still skips the show`() = runTest(UnconfinedTestDispatcher()) {
+    fun `a click made while skipAfterAdClick is off is not counted later`() = runTest(UnconfinedTestDispatcher()) {
+        val h = ClickHarness(skip = false)
+        h.coordinator.start(CoroutineScope(UnconfinedTestDispatcher()))
+        h.click(1000)
+        h.coordinator.skipAfterAdClick = true
+        h.background(1002)
+        h.returnToForeground(1030)
+
+        assertTrue(h.controller.showCalled, "only clicks seen while the switch is on may suppress a show")
+    }
+
+    @Test
+    fun `stop forgets a remembered click`() = runTest(UnconfinedTestDispatcher()) {
         val h = ClickHarness(skip = true)
         h.coordinator.start(CoroutineScope(UnconfinedTestDispatcher()))
         h.click(1000)
-        h.background(1010) // exactly 10s: inclusive
-        h.returnToForeground(1050)
+        h.coordinator.stop()
+        // Backgrounded while stopped, so the restart below first sees `false` and records the
+        // background itself; the click must not carry over into the restarted lifecycle.
+        h.background(1002)
+        h.coordinator.start(CoroutineScope(UnconfinedTestDispatcher()))
+        h.returnToForeground(1030)
 
-        assertFalse(h.controller.showCalled)
+        assertTrue(h.controller.showCalled, "a click from before stop() must not suppress a show after start()")
     }
 
     @Test
