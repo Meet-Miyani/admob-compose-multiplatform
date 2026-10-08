@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import dev.avinya.admob.showcase.di.LocalAppGraph
 import dev.avinya.admob.showcase.di.LocalAppOpenSuppressor
 import dev.avinya.admob.showcase.domain.ad.ShowcasePlacements
+import dev.avinya.admob.showcase.ui.ad.ShowcaseAppOpenConfig
 import dev.avinya.admob.showcase.ui.kit.Rule
 import dev.avinya.admob.showcase.ui.kit.StatRow
 import dev.avinya.admob.showcase.ui.kit.SunkenPanel
@@ -75,20 +76,21 @@ fun AppOpenLabScreen(
             LabSection(
                 title = "How to see it",
                 description = "There is nothing to tap. Send the app to the background, wait " +
-                    "at least 4 seconds, then return — the coordinator shows a preloaded ad on " +
-                    "the next genuine foreground, at most once a minute.",
+                    "at least ${ShowcaseAppOpenConfig.minBackgroundDuration}, then return — the " +
+                    "coordinator shows a preloaded ad on the next genuine foreground, at most once " +
+                    "every ${ShowcaseAppOpenConfig.cooldownBetweenShows}.",
             ) {
                 SunkenPanel(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(Tokens.Spacing.s12)) {
-                        StatRow(label = "Min background", value = "4s")
-                        StatRow(label = "Show cooldown", value = "60s")
-                        StatRow(label = "Cold start show", value = "off")
-                        StatRow(label = "Preload on start", value = "on")
+                        StatRow(label = "Min background", value = "${ShowcaseAppOpenConfig.minBackgroundDuration}")
+                        StatRow(label = "Show cooldown", value = "${ShowcaseAppOpenConfig.cooldownBetweenShows}")
+                        StatRow(label = "Cold start show", value = ShowcaseAppOpenConfig.showOnColdStart.onOff())
+                        StatRow(label = "Preload on start", value = ShowcaseAppOpenConfig.preloadOnStart.onOff())
                     }
                 }
                 Text(
                     text = "A production integration would use a far longer cooldown — hours, " +
-                        "not a minute. These values are short so the behaviour is observable " +
+                        "not seconds. These values are short so the behaviour is observable " +
                         "by hand.",
                     style = MaterialTheme.typography.bodySmall,
                     color = palette.inkMuted,
@@ -213,3 +215,5 @@ private fun Gate(label: String, detail: String, passing: Boolean) {
         Rule()
     }
 }
+
+private fun Boolean.onOff(): String = if (this) "on" else "off"

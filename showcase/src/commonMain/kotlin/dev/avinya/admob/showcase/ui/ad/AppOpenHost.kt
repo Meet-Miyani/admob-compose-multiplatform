@@ -11,7 +11,6 @@ import androidx.compose.runtime.setValue
 import dev.avinya.ads.AdManagerStatus
 import dev.avinya.ads.LocalAdManager
 import dev.avinya.ads.appopen.AppOpenAdCoordinator
-import dev.avinya.ads.appopen.AppOpenConfig
 import dev.avinya.admob.showcase.data.repo.AdTelemetryRepository
 import dev.avinya.admob.showcase.di.LocalAppGraph
 import dev.avinya.admob.showcase.domain.ad.AppOpenDecision
@@ -19,24 +18,6 @@ import dev.avinya.admob.showcase.domain.ad.AppOpenEligibilityPolicy
 import dev.avinya.admob.showcase.domain.ad.AppOpenEligibilitySnapshot
 import dev.avinya.admob.showcase.domain.ad.ShowcasePlacements
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
-
-/**
- * Minimum time backgrounded before a return to foreground may show an ad.
- *
- * Short enough to be demonstrable by hand — background the app, count to five,
- * come back. A production integration would use something longer.
- */
-private val MIN_BACKGROUND = 4.seconds
-
-/**
- * Minimum gap between two coordinator-driven shows.
- *
- * Deliberately short for a sample. Real apps should use hours; showing an
- * app-open ad on every single foreground is the fastest way to train users to
- * force-quit.
- */
-private val SHOW_COOLDOWN = 15.seconds
 
 /**
  * Hosts the process-wide [AppOpenAdCoordinator] and binds it to the showcase's
@@ -45,11 +26,13 @@ private val SHOW_COOLDOWN = 15.seconds
  * The full lifecycle lives here:
  *
  * - **Preload.** `preloadOnStart` warms an ad at startup so the next genuine
- *   foreground has one ready. There is no cold-start show: on most devices the
+ *   foreground has one ready, and the host loads again as soon as ads become
+ *   allowed (see [shouldPreloadAppOpen]), because a startup preload made before
+ *   consent or the ads switch fails and is not retried until the next return. There is no cold-start show: on most devices the
  *   first frame wins the race, and an app-open ad that appears *after* the user
  *   is already reading is worse than none.
- * - **Show.** The coordinator watches foreground transitions and shows only
- *   after [MIN_BACKGROUND] backgrounded and [SHOW_COOLDOWN] since the last one.
+ * - **Show.** The coordinator watches foreground transitions and shows only after
+ *   the background and cooldown thresholds in [ShowcaseAppOpenConfig].
  * - **Reload.** The coordinator reloads after each consumption.
  * - **Skip after a click.** `skipAfterAdClick` is on, so returning from an ad's
  *   landing page never lands on an app-open ad.
@@ -66,16 +49,12 @@ fun AppOpenHost(
 ) {
     val adManager = LocalAdManager.current
     val graph = LocalAppGraph.current
+    val controller = remember(adManager) { adManager.appOpen(ShowcasePlacements.appOpen) }
     val coordinator = remember(adManager) {
         AppOpenAdCoordinator(
             manager = adManager,
-            controller = adManager.appOpen(ShowcasePlacements.appOpen),
-            config = AppOpenConfig(
-                showOnColdStart = false,
-                preloadOnStart = true,
-                minBackgroundDuration = MIN_BACKGROUND,
-                cooldownBetweenShows = SHOW_COOLDOWN,
-            ),
+            controller = controller,
+            config = ShowcaseAppOpenConfig,
         ).also {
             // A user coming back from an ad's landing page is not met by an app-open ad straight
             // away. Opt-in in the SDK; the showcase turns it on. Every banner and native ad here
@@ -123,7 +102,7 @@ fun AppOpenHost(
                 // background-duration rule itself; pass infinity so the
                 // policy's non-temporal gates decide the blocked state.
                 backgroundDuration = Duration.INFINITE,
-                minimumBackgroundDuration = MIN_BACKGROUND,
+                minimumBackgroundDuration = ShowcaseAppOpenConfig.minBackgroundDuration,
                 onScreenWithAds = suppressor.isOnAdScreen,
             ),
         )
@@ -132,6 +111,13 @@ fun AppOpenHost(
         if (decision != lastRecorded) {
             lastRecorded = decision
             telemetry.recordAppOpenDecision(ShowcasePlacements.appOpen.id, decision)
+        }
+    }
+
+    LaunchedEffect(controller, status, canRequestAds, adsEnabled) {
+        val sdkReady = status == AdManagerStatus.Ready
+        if (shouldPreloadAppOpen(sdkReady, canRequestAds, adsEnabled, alreadyLoaded = controller.isReady())) {
+            controller.load()
         }
     }
 
