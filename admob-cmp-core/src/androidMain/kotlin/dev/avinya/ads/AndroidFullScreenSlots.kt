@@ -163,6 +163,10 @@ internal class AndroidInterstitialSlot(
     override fun getResponseInfo(ad: InterstitialAd): AdResponseInfo? = ad.getResponseInfo().toCommon()
 
     override fun canPresent(): AdError? = if (activityProvider() != null) null else AdError.message("No current Android Activity.")
+
+    // No Activity: report foreground so canPresent() fails at once with its own, accurate error.
+    override suspend fun isAppForegroundForPresentation(): Boolean =
+        activityProvider()?.isForegroundForFullScreenAd() ?: true
 }
 
 internal class AndroidRewardedSlot(
@@ -223,6 +227,10 @@ internal class AndroidRewardedSlot(
     override fun getResponseInfo(ad: RewardedAd): AdResponseInfo? = ad.getResponseInfo().toCommon()
 
     override fun canPresent(): AdError? = if (activityProvider() != null) null else AdError.message("No current Android Activity.")
+
+    // No Activity: report foreground so canPresent() fails at once with its own, accurate error.
+    override suspend fun isAppForegroundForPresentation(): Boolean =
+        activityProvider()?.isForegroundForFullScreenAd() ?: true
 }
 
 internal class AndroidRewardedInterstitialSlot(
@@ -283,6 +291,10 @@ internal class AndroidRewardedInterstitialSlot(
     override fun getResponseInfo(ad: RewardedInterstitialAd): AdResponseInfo? = ad.getResponseInfo().toCommon()
 
     override fun canPresent(): AdError? = if (activityProvider() != null) null else AdError.message("No current Android Activity.")
+
+    // No Activity: report foreground so canPresent() fails at once with its own, accurate error.
+    override suspend fun isAppForegroundForPresentation(): Boolean =
+        activityProvider()?.isForegroundForFullScreenAd() ?: true
 }
 
 @OptIn(ExperimentalTime::class)
@@ -349,6 +361,10 @@ internal class AndroidAppOpenSlot(
     override fun getResponseInfo(ad: AppOpenAd): AdResponseInfo? = ad.getResponseInfo().toCommon()
 
     override fun canPresent(): AdError? = if (activityProvider() != null) null else AdError.message("No current Android Activity.")
+
+    // No Activity: report foreground so canPresent() fails at once with its own, accurate error.
+    override suspend fun isAppForegroundForPresentation(): Boolean =
+        activityProvider()?.isForegroundForFullScreenAd() ?: true
 }
 
 /**

@@ -29,6 +29,7 @@ import androidx.paging.compose.itemKey
 import dev.avinya.admob.showcase.di.LocalAppGraph
 import dev.avinya.admob.showcase.domain.ad.ShowcasePlacements
 import dev.avinya.admob.showcase.domain.feed.FeedItem
+import dev.avinya.admob.showcase.ui.ad.BlockAppOpenOnAdScreen
 import dev.avinya.admob.showcase.ui.ad.rememberFeedRowAdLayout
 import dev.avinya.admob.showcase.ui.inspector.InspectorEntryPoint
 import dev.avinya.admob.showcase.ui.inspector.InspectorHost
@@ -91,6 +92,9 @@ fun DiscoverScreen(
             null
         }
     }
+
+    // The landing page renders no ad slots, so only the category feeds count as a screen with ads.
+    if (nativeSession != null) BlockAppOpenOnAdScreen()
 
     // Query history aging out: close the retired session so it cannot hold
     // inventory forever. Tab switches do NOT reach here — the session stays

@@ -145,6 +145,15 @@ internal open class FakeFullScreenSlot(
         canPresentInvocations++
         return canPresentResult
     }
+
+    /** Answers for successive isAppForegroundForPresentation() calls; the last one repeats. */
+    var foregroundAnswers: List<Boolean> = listOf(true)
+    var foregroundChecks: Int = 0
+    override suspend fun isAppForegroundForPresentation(): Boolean {
+        val answer = foregroundAnswers.getOrElse(foregroundChecks) { foregroundAnswers.last() }
+        foregroundChecks++
+        return answer
+    }
 }
 
 internal class FakeAppOpenAdController(
@@ -206,6 +215,7 @@ internal class FakeAdManager : AdManager, FullScreenPresenceAware {
 
     fun setStatus(s: AdManagerStatus) { _status.value = s }
     fun setFullScreenPresenting(presenting: Boolean) { _isFullScreenPresenting.value = presenting }
+    fun emitEvent(event: AdEvent) { check(_events.tryEmit(event)) { "event buffer full" } }
 
     /**
      * Simulates another full-screen format holding the process-wide token. Returns the token so

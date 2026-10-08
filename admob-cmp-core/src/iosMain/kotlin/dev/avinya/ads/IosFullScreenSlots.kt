@@ -10,6 +10,7 @@ import GoogleMobileAds.GADMobileAds
 import GoogleMobileAds.GADRewardedAd
 import GoogleMobileAds.GADRewardedInterstitialAd
 import GoogleMobileAds.GADResponseInfo
+import dev.avinya.ads.appopen.isAppInForeground
 import dev.avinya.ads.internal.AudioRestoreHandle
 import dev.avinya.ads.internal.FullScreenAudioController
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
@@ -116,6 +117,10 @@ internal class IosInterstitialSlot(
     override fun getResponseInfo(ad: GADInterstitialAd): AdResponseInfo? = ad.responseInfo?.toCommon()
 
     override fun canPresent(): AdError? = if (topViewController() != null) null else AdError.message("No root view controller.")
+
+    // Active, not merely foreground: the app-open coordinator fires on WillEnterForeground,
+    // while the app is still inactive.
+    override suspend fun isAppForegroundForPresentation(): Boolean = isAppInForeground()
 }
 
 internal class IosRewardedSlot(
@@ -199,6 +204,10 @@ internal class IosRewardedSlot(
     override fun getResponseInfo(ad: GADRewardedAd): AdResponseInfo? = ad.responseInfo?.toCommon()
 
     override fun canPresent(): AdError? = if (topViewController() != null) null else AdError.message("No root view controller.")
+
+    // Active, not merely foreground: the app-open coordinator fires on WillEnterForeground,
+    // while the app is still inactive.
+    override suspend fun isAppForegroundForPresentation(): Boolean = isAppInForeground()
 }
 
 internal class IosRewardedInterstitialSlot(
@@ -282,6 +291,10 @@ internal class IosRewardedInterstitialSlot(
     override fun getResponseInfo(ad: GADRewardedInterstitialAd): AdResponseInfo? = ad.responseInfo?.toCommon()
 
     override fun canPresent(): AdError? = if (topViewController() != null) null else AdError.message("No root view controller.")
+
+    // Active, not merely foreground: the app-open coordinator fires on WillEnterForeground,
+    // while the app is still inactive.
+    override suspend fun isAppForegroundForPresentation(): Boolean = isAppInForeground()
 }
 
 internal class IosAppOpenSlot(
@@ -342,6 +355,10 @@ internal class IosAppOpenSlot(
     override fun getResponseInfo(ad: GADAppOpenAd): AdResponseInfo? = ad.responseInfo?.toCommon()
 
     override fun canPresent(): AdError? = if (topViewController() != null) null else AdError.message("No root view controller.")
+
+    // Active, not merely foreground: the app-open coordinator fires on WillEnterForeground,
+    // while the app is still inactive.
+    override suspend fun isAppForegroundForPresentation(): Boolean = isAppInForeground()
 }
 
 /**

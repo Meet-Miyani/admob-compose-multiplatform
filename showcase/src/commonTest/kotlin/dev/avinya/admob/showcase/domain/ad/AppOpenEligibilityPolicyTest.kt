@@ -17,6 +17,7 @@ class AppOpenEligibilityPolicyTest {
         canRequestAds: Boolean = true,
         backgroundDuration: kotlin.time.Duration = 10.seconds,
         minimumBackgroundDuration: kotlin.time.Duration = 4.seconds,
+        onScreenWithAds: Boolean = false,
     ) = AppOpenEligibilitySnapshot(
         onboardingComplete = onboardingComplete,
         onSensitiveRoute = onSensitiveRoute,
@@ -25,6 +26,7 @@ class AppOpenEligibilityPolicyTest {
         canRequestAds = canRequestAds,
         backgroundDuration = backgroundDuration,
         minimumBackgroundDuration = minimumBackgroundDuration,
+        onScreenWithAds = onScreenWithAds,
     )
 
     @Test
@@ -99,6 +101,52 @@ class AppOpenEligibilityPolicyTest {
             policy.isEligible(
                 eligibleSnapshot(backgroundDuration = 4.seconds, minimumBackgroundDuration = 4.seconds),
             ),
+        )
+    }
+
+    @Test
+    fun aScreenShowingAds_suppressesWithAdsOnScreen() {
+        assertEquals(
+            AppOpenDecision.Suppress(AppOpenSuppressionReason.AdsOnScreen),
+            policy.isEligible(eligibleSnapshot(onScreenWithAds = true)),
+        )
+    }
+
+    @Test
+    fun firstSessionAndSensitiveRoute_outrankAdsOnScreen() {
+        assertEquals(
+            AppOpenDecision.Suppress(AppOpenSuppressionReason.FirstSession),
+            policy.isEligible(eligibleSnapshot(onboardingComplete = false, onScreenWithAds = true)),
+        )
+        assertEquals(
+            AppOpenDecision.Suppress(AppOpenSuppressionReason.SensitiveRoute),
+            policy.isEligible(eligibleSnapshot(onSensitiveRoute = true, onScreenWithAds = true)),
+        )
+    }
+
+    @Test
+    fun adsOnScreen_outranksOnlyBackgroundTooShort() {
+        assertEquals(
+            AppOpenDecision.Suppress(AppOpenSuppressionReason.AdsOnScreen),
+            policy.isEligible(eligibleSnapshot(onScreenWithAds = true, backgroundDuration = 1.seconds)),
+        )
+    }
+
+    @Test
+    fun fullScreenSdkAndConsentReasons_outrankAdsOnScreen() {
+        // Diagnostics must name the more fundamental blocker: on the default tab the ads-on-screen
+        // reason would otherwise hide a missing consent or an uninitialized SDK.
+        assertEquals(
+            AppOpenDecision.Suppress(AppOpenSuppressionReason.FullScreenAdShowing),
+            policy.isEligible(eligibleSnapshot(onScreenWithAds = true, fullScreenAdShowing = true)),
+        )
+        assertEquals(
+            AppOpenDecision.Suppress(AppOpenSuppressionReason.SdkNotReady),
+            policy.isEligible(eligibleSnapshot(onScreenWithAds = true, sdkReady = false)),
+        )
+        assertEquals(
+            AppOpenDecision.Suppress(AppOpenSuppressionReason.ConsentMissing),
+            policy.isEligible(eligibleSnapshot(onScreenWithAds = true, canRequestAds = false)),
         )
     }
 }

@@ -165,7 +165,11 @@ UMP bump: read the upstream release notes for API, threading, linker, and
 consent changes; re-run the mapper characterization tests
 (`AndroidAdMappersTest`, `IosAdMappersTest`); re-run
 `scripts/release-readiness.sh` in full; recompute the iOS archive checksums
-deliberately; and run device certification for every affected format. For a
+deliberately; re-check GMA Android's own background-show condition against
+`isForegroundForFullScreenAd` (`admob-cmp-core/src/androidMain/.../ForegroundForFullScreenAd.kt`
+mirrors GMA Next-Gen 1.4.0's `ads_mobile_sdk.t.a`; a drift either refuses shows GMA would
+allow or lets through shows it refuses); and run device certification for every affected
+format. For a
 Kotlin, KGP, Gradle, AGP, or Compose bump, additionally run
 `./scripts/distribution/verify-published-release.sh <version> --local` before
 changing anything in

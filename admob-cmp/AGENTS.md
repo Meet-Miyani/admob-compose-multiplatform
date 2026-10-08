@@ -205,7 +205,9 @@ val coordinator = remember(adManager) {
     )
 }
 LaunchedEffect(Unit) { coordinator.start(this) }
-// coordinator.isBlocked = true during purchases/onboarding/other full-screen ads
+// coordinator.isBlocked = true during purchases/onboarding/other full-screen ads,
+// and while a screen showing banner or native ads is visible (Google: never over other ads)
+// coordinator.skipAfterAdClick = true  // opt-in: no app-open ad on return from an ad's landing page
 ```
 
 ## Consent / privacy options
