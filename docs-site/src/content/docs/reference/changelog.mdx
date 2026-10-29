@@ -34,6 +34,33 @@ release is **2.6.0**.
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
 
+## Unreleased
+
+Faster ad startup and app-open telemetry. Every addition is additive: against 2.6.0 the
+core ABI dumps add declarations and remove none, and `admob-cmp-compose.klib.api` is
+unchanged. Four defaults change behaviour; each is listed under **Behaviour changes**
+with what to set to keep the old behaviour.
+
+### Behaviour changes
+
+**`Ready` waits at most five seconds for mediation adapters.** `AdManagerStatus.Ready` used to wait for the Google Mobile Ads SDK's adapter-initialization callback, which fires once every mediation adapter has started or after the SDK's own 30 seconds. Every ad request waits for `Ready`, so one slow adapter held back every ad in the app on every launch, and a callback that never came failed initialization after 40 seconds. `Ready` now comes when the adapters report back or `AdManager.adapterStartupWait` (default five seconds) after the SDK starts accepting requests, whichever is first. That is Google's guidance: wait for adapters, but set an initialization timeout, with five seconds in every example. Set `adapterStartupWait = AdManager.MAX_ADAPTER_STARTUP_WAIT` (30 seconds) to wait as long as the SDK does. On Android, the publisher first-party ID, mute and volume settings are now applied when the SDK accepts requests, before `Ready`, instead of after the adapter callback.
+
+**Android: `AppOpenConfig.preloadOnStart = false` now means no load before the first return.** The Android coordinator treated the foreground that Android replays to a new lifecycle observer as a return and loaded an ad at start even with `preloadOnStart` off; iOS did not. A foreground with no background before it is now not a return on either platform, for loading as well as showing. Set `preloadOnStart = true` (the default) to keep an ad loaded for the first return.
+
+**`showOnColdStart`: a cold-start ad that arrives after `coldStartTimeout` is kept.** The coordinator used to cancel the load at the timeout, and the ad, already filled, was destroyed on arrival. It now stops waiting but lets the load finish into the cache. The late ad is never shown at that moment, only at a qualifying return, within the four-hour TTL, the way Google's own sample apps keep it.
+
+**`initialize(…, InitializeOnlyIfAlreadyAllowed)` makes no second UMP request in a launch.** It reuses the consent info update that `gatherConsent` or `requestConsentInfoUpdate` already completed successfully in this process. The documented iOS order — consent, ATT, `initialize` — made two UMP round trips in a row before the Mobile Ads SDK could start. Explicit `gatherConsent` and `requestConsentInfoUpdate` calls still always ask UMP.
+
+### Added
+
+**Opt-in `AdManager.startFromStoredConsent`.** Off by default. When on, every UMP consent info update the SDK makes reads UMP's stored answer as soon as the update has been requested, and starts the Mobile Ads SDK then if that answer allows ads, instead of after the update returns. Google's UMP guide documents checking `canRequestAds` "immediately after you have called `requestConsentInfoUpdate()`", and every Google sample app starts the SDK there. First-run and declined users wait for UMP exactly as before; a withdrawal reported by the update closes the request gate and purges cached ads. On iOS it happens only once App Tracking Transparency has been answered.
+
+**`AdManager.adapterStartup`.** A `StateFlow<AdapterStartup>` that follows mediation adapter initialization on its own, now that `Ready` no longer waits for it: `InProgress`, then `Finished` with each adapter's status and how long they took, or `NotReported` if the SDK never reports. Both platforms also log one line per adapter.
+
+**`AppOpenAdCoordinator.returns`.** One `AppOpenReturn` per return to the foreground, with how long the app was away and what the coordinator decided: away too short, returning from an ad click, blocked, SDK not ready, cooling down, no ad loaded, another ad showing, or the show and its result. Never for the start-up foreground.
+
+**`AdManager.loadTelemetry` and `AdLoadTag`.** Per-request telemetry for full-screen formats: each ad request's start, end, duration, outcome (loaded, failed, timed out, cancelled, discarded) and origin (the app, with an optional `AdLoadTag`; a reload after a show; or the app-open coordinator), plus `CachedAdExpired` when a cached ad reaches its TTL unseen.
+
 ## 2.6.0
 
 A fix release for full-screen presentation on Android, plus two opt-in features and

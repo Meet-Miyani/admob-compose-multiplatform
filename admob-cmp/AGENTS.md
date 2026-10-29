@@ -29,7 +29,16 @@ LaunchedEffect(Unit) {
 ```
 
 Other consent strategies: `adManager.initialize(config, ConsentMode.InitializeOnlyIfAlreadyAllowed)`
-or `ConsentMode.SkipConsent`.
+or `ConsentMode.SkipConsent`. `InitializeOnlyIfAlreadyAllowed` reuses a consent info update that already
+succeeded in this launch (from `gatherConsent` or `requestConsentInfoUpdate`), so the manual order makes
+one UMP request, not two.
+
+Startup settings on `AdManager`, set before the first consent call:
+- `adapterStartupWait` (default 5 s, 0–30 s): `Ready` comes when the mediation adapters report back or this
+  long after the SDK accepts requests, whichever is first. `adManager.adapterStartup` follows the adapters.
+- `startFromStoredConsent` (opt-in, default false): starts the Mobile Ads SDK from consent stored in an
+  earlier session while the launch's UMP update is in flight. First-run and declined users are unaffected; a
+  withdrawal closes the gate and purges; on iOS only once ATT has been answered.
 
 **iOS: this snippet does not request ATT.** `gatherConsentAndInitialize` runs UMP consent and
 then initializes; it never calls `tracking.requestAuthorization()`. Requesting ads before ATT
@@ -208,7 +217,14 @@ LaunchedEffect(Unit) { coordinator.start(this) }
 // coordinator.isBlocked = true during purchases/onboarding/other full-screen ads,
 // and while a screen showing banner or native ads is visible (Google: never over other ads)
 // coordinator.skipAfterAdClick = true  // opt-in: no app-open ad on return from an ad's landing page
+// coordinator.returns: one AppOpenReturn per return (away time + outcome); none for the start-up foreground
 ```
+
+The foreground reported as the app starts (no background before it) is not a return: it neither
+shows nor loads, on both platforms. `preloadOnStart` is the only load before the first return. A
+`showOnColdStart` ad that misses `coldStartTimeout` is kept for the next qualifying return, never
+shown late. `adManager.loadTelemetry` reports each full-screen ad request (origin, duration, outcome)
+and each cached ad that expired unseen; tag your own loads with `withContext(AdLoadTag("…"))`.
 
 ## Consent / privacy options
 
@@ -364,9 +380,13 @@ attach a doc comment to in that case.
   so cancelling one `initialize()` caller can never skip or duplicate it;
   `BeforeConsentRequest` and `BeforeMobileAdsInitialize` run in the leading
   caller's own coroutine (the consent controllers and `initializeMobileAds`
-  dispatch them), so they are cancellable with that caller. Ordering:
+  dispatch them), so they are cancellable with that caller — except that with
+  `startFromStoredConsent` on, `BeforeMobileAdsInitialize` may run in the SDK's
+  own stored-consent start instead, before the consent call returns. Either way it
+  runs once, under the native-start lock. Ordering:
   `status` is published as `Ready` **before** the After hook runs, so a hook may
-  load an ad or await `Ready`; the leading `initialize()` still returns only
+  load an ad or await `Ready` (mediation adapters may still be starting — `Ready`
+  waits for them only up to `adapterStartupWait`); the leading `initialize()` still returns only
   after the hook finishes. Work that must precede every ad request therefore
   belongs in `BeforeMobileAdsInitialize`, not `AfterMobileAdsInitialize`.
   Calling `initialize()` from inside a hook returns the current status instead

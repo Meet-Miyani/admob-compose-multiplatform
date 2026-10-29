@@ -103,7 +103,9 @@ because that phase is guaranteed to complete before any ad can be
 requested. `AfterMobileAdsInitialize` runs once the manager is already
 `Ready`, which is what lets a hook load an ad or await `Ready` without
 hanging — but also means an ad request elsewhere in your app may start
-while that hook is still running.
+while that hook is still running. Mediation adapters may still be
+starting at that point (see the next section); follow
+`adManager.adapterStartup` for work that needs their final statuses.
 
 <Aside type="caution">
 Do not call `initialize()` from inside a hook. The initialization running
@@ -130,10 +132,49 @@ re-applied. Decide the settings before the first `initialize` ever
 runs.
 </Aside>
 
+## How long does Ready wait for mediation adapters?
+
+`AdManagerStatus.Ready` means the Google Mobile Ads SDK accepts ad
+requests. It comes when the mediation adapters report back, or
+`adapterStartupWait` after the SDK started accepting requests,
+whichever is first. The default is five seconds:
+
+```kotlin
+// Before initialize(): lower it for a splash with a tight budget, or 0 for no wait.
+adManager.adapterStartupWait = 1.seconds
+```
+
+Google's mediation guide asks you to wait for adapter initialization so
+that every network takes part in the first request. Its guide to
+reducing first-impression latency also says to set an initialization
+timeout, and "proceed with the ad request after the time limit you set,
+or after initialization completes"
+([Google](https://developers.google.com/admob/android/next-gen/reduce-first-impression-latency));
+every example there uses five seconds. Without a limit, one stalled
+adapter holds back every ad in the app for up to the SDK's own 30
+seconds. Set `AdManager.MAX_ADAPTER_STARTUP_WAIT` (30 seconds) to wait
+as long as the SDK does.
+
+Adapters still starting when `Ready` arrives keep initializing, and
+`adManager.adapterStartup` follows them:
+
+```kotlin
+adManager.adapterStartup.collect { startup ->
+    when (startup) {
+        is AdapterStartup.Finished -> log("adapters done in ${startup.elapsed}: ${startup.adapters}")
+        is AdapterStartup.NotReported -> log("GMA never reported adapters")
+        else -> Unit
+    }
+}
+```
+
+The SDK also logs one line per adapter, on both platforms, when they
+report.
+
 ## Verifying adapter initialisation and status
 
 ```kotlin
-// After adManager.status is AdManagerStatus.Ready
+// After AdapterStartup.Finished (adapterStatuses() may be partial before it)
 adManager.diagnostics.adapterStatuses().forEach { status ->
     println("${status.adapterName}: initialized=${status.initialized} latencyMs=${status.latencyMillis}")
 }

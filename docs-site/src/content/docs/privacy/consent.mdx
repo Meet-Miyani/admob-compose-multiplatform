@@ -179,6 +179,46 @@ For production applications — especially multiplatform apps on iOS — the rec
 3. **Initialise Mobile Ads**: Call `adManager.initialize(config, ConsentMode.InitializeOnlyIfAlreadyAllowed)` or `adManager.gatherConsentAndInitialize(config)`.
 4. **Load ads**: Request ad loads only after `adManager.status` transitions to `AdManagerStatus.Ready`.
 
+Google asks for one consent info update per app launch, and each one is a network round trip.
+`initialize(config, ConsentMode.InitializeOnlyIfAlreadyAllowed)` therefore reuses the update
+that `gatherConsent` or `requestConsentInfoUpdate` already completed in this launch instead of
+making a second one. An explicit `requestConsentInfoUpdate` or `gatherConsent` call always asks
+UMP again.
+
+## How do I start ads sooner for returning users?
+
+By default the SDK waits for the launch's UMP update to return before it starts the Google Mobile
+Ads SDK, so every launch pays that round trip before the first ad can load. Google's own guide
+documents a faster path. Check `canRequestAds` "immediately after you have called
+`requestConsentInfoUpdate()`. The UMP SDK might have obtained consent in the previous app
+session" ([Google](https://developers.google.com/admob/android/privacy)). Every Google sample
+app starts the SDK there.
+
+The faster path is opt-in:
+
+```kotlin
+// Before gatherConsent / initialize.
+adManager.startFromStoredConsent = true
+```
+
+With it on, every consent info update the SDK makes reads UMP's stored answer as soon as the
+update has been requested. If that answer allows ads, the Mobile Ads SDK starts then, while the
+update is still in flight. What stays the same:
+
+- A first run, a declined user, or any user whose stored answer does not allow ads waits for UMP
+  exactly as before. `canRequestAds` is false for them until UMP says otherwise.
+- If the update then withdraws consent (for example because the stored decision has expired),
+  the request gate closes and cached ads are purged. Requests already sent in that window, usually
+  under a second, cannot be recalled.
+- On iOS it happens only once App Tracking Transparency has been answered, or when the app
+  declares no `NSUserTrackingUsageDescription`. Otherwise the order stays consent, ATT, initialise,
+  so the first requests carry the IDFA when the user allows it.
+- `BeforeMobileAdsInitialize` hooks still run before the Mobile Ads SDK starts.
+
+Turn it on only if nothing your app does between consent and `initialize` has to come before the
+Mobile Ads SDK starts. Move anything that does (a mediation privacy flag, for instance) into a
+`BeforeMobileAdsInitialize` hook.
+
 ## When should I show a Privacy Settings button?
 
 ```kotlin

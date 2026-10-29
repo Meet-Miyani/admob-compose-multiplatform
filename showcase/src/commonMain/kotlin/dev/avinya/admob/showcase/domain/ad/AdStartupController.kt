@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.time.Duration
 
 enum class AdStartupPhase { Idle, Consent, Tracking, Initializing, Complete }
 
@@ -122,6 +123,13 @@ class AdStartupController(
                 debugGeography = debugGeography,
                 testDeviceIds = testDeviceIds,
             )
+
+            // Both are read by the SDK when the work they govern starts, so they must be set before
+            // the consent call: the early start happens inside gatherConsent's UMP update, and the
+            // adapter wait is read when native initialization begins.
+            adManager.startFromStoredConsent = settings.startFromStoredConsent.first()
+            adManager.adapterStartupWait =
+                if (settings.waitForAdapters.first()) AdManager.DEFAULT_ADAPTER_STARTUP_WAIT else Duration.ZERO
 
             if (gather) {
                 adManager.consent.gatherConsent(config)

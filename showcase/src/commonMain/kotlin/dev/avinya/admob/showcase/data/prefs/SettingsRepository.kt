@@ -17,6 +17,8 @@ internal object SettingsKeys {
     val ConsentTestDeviceId = stringPreferencesKey("consent_test_device_id")
     val InspectorEnabled = booleanPreferencesKey("inspector_enabled")
     val AdsMasterSwitch = booleanPreferencesKey("ads_master_switch")
+    val StartFromStoredConsent = booleanPreferencesKey("start_from_stored_consent")
+    val WaitForAdapters = booleanPreferencesKey("wait_for_adapters")
 }
 
 /**
@@ -55,6 +57,14 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
     val adsMasterSwitch: Flow<Boolean> =
         dataStore.data.map { it[SettingsKeys.AdsMasterSwitch] ?: true }
 
+    /** `AdManager.startFromStoredConsent` for the next launch. On by default in the showcase. */
+    val startFromStoredConsent: Flow<Boolean> =
+        dataStore.data.map { it[SettingsKeys.StartFromStoredConsent] ?: true }
+
+    /** True: `Ready` waits up to the SDK's default for mediation adapters. False: no wait. */
+    val waitForAdapters: Flow<Boolean> =
+        dataStore.data.map { it[SettingsKeys.WaitForAdapters] ?: true }
+
     suspend fun setThemeMode(mode: ThemeMode) {
         dataStore.edit { it[SettingsKeys.ThemeMode] = mode.name }
     }
@@ -85,5 +95,13 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
 
     suspend fun setAdsMasterSwitch(enabled: Boolean) {
         dataStore.edit { it[SettingsKeys.AdsMasterSwitch] = enabled }
+    }
+
+    suspend fun setStartFromStoredConsent(enabled: Boolean) {
+        dataStore.edit { it[SettingsKeys.StartFromStoredConsent] = enabled }
+    }
+
+    suspend fun setWaitForAdapters(enabled: Boolean) {
+        dataStore.edit { it[SettingsKeys.WaitForAdapters] = enabled }
     }
 }
