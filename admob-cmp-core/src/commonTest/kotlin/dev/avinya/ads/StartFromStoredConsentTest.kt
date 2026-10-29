@@ -240,6 +240,77 @@ class StartFromStoredConsentTest {
         manager.startFromStoredConsent = true
         assertTrue(manager.startFromStoredConsent, "the switch must read back what was set")
     }
+
+    @Test
+    fun `consent withdrawn while a BeforeMobileAdsInitialize hook runs on the early start never starts MobileAds`() = runSlotTest {
+        val consent = ScriptedConsentController()
+        val manager = FakeGoogleAdManager(consent = consent)
+        manager.startFromStoredConsent = true
+        consent.onRequested = modelStoredConsent(consent, manager, storedAnswer = true)
+        val hookEntered = CompletableDeferred<Unit>()
+        val releaseHook = CompletableDeferred<Unit>()
+        val hook = object : AdInitializationHook {
+            override suspend fun onPhase(phase: AdInitializationPhase, config: AdConfig) {
+                if (phase == AdInitializationPhase.BeforeMobileAdsInitialize) {
+                    hookEntered.complete(Unit)
+                    releaseHook.await()
+                }
+            }
+        }
+        var result: AdManagerStatus? = null
+        backgroundScope.launch {
+            result = manager.initialize(config(listOf(hook)), ConsentMode.GatherBeforeInitialize)
+        }
+
+        runCurrent()
+
+        assertTrue(hookEntered.isCompleted, "the early start must have entered the Before hook")
+        assertEquals(0, manager.nativeHandoffs.size, "nothing may hand off while the Before hook is still running")
+
+        consent.canRequestMutable.value = false
+        releaseHook.complete(Unit)
+        runCurrent()
+
+        assertEquals(0, manager.nativeHandoffs.size, "consent withdrawn during the hook must stop MobileAds from starting")
+
+        consent.update.complete(false)
+        runCurrent()
+
+        assertEquals(AdManagerStatus.ConsentRequired, result)
+        assertEquals(AdManagerStatus.ConsentRequired, manager.status.value)
+        assertEquals(0, manager.nativeHandoffs.size, "the withdrawn start must never reach the native SDK")
+    }
+
+    @Test
+    fun `a BeforeMobileAdsInitialize hook that throws on the early start leaves a later decline reporting ConsentRequired`() = runSlotTest {
+        val consent = ScriptedConsentController()
+        val manager = FakeGoogleAdManager(consent = consent)
+        manager.startFromStoredConsent = true
+        consent.onRequested = modelStoredConsent(consent, manager, storedAnswer = true)
+        val hook = object : AdInitializationHook {
+            override suspend fun onPhase(phase: AdInitializationPhase, config: AdConfig) {
+                if (phase == AdInitializationPhase.BeforeMobileAdsInitialize) throw IllegalStateException("hook failed")
+            }
+        }
+        var result: AdManagerStatus? = null
+        backgroundScope.launch {
+            result = manager.initialize(config(listOf(hook)), ConsentMode.GatherBeforeInitialize)
+        }
+
+        runCurrent()
+
+        assertEquals(0, manager.nativeHandoffs.size, "a Before hook that threw must not leave MobileAds started")
+
+        consent.update.complete(false)
+        runCurrent()
+
+        assertEquals(
+            AdManagerStatus.ConsentRequired,
+            result,
+            "a decline after a failed early start must report ConsentRequired, not Initializing",
+        )
+        assertEquals(AdManagerStatus.ConsentRequired, manager.status.value)
+    }
 }
 
 /**

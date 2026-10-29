@@ -3,6 +3,7 @@ package dev.avinya.ads.internal
 import dev.avinya.ads.AdConfig
 import dev.avinya.ads.AdError
 import dev.avinya.ads.AdLogger
+import dev.avinya.ads.AdTrackingAuthorization
 import dev.avinya.ads.ConsentStatus
 import dev.avinya.ads.PrivacyOptionsRequirementStatus
 
@@ -88,6 +89,26 @@ internal class StoredConsentStart(
     private val onAllowed: (AdConfig) -> Unit,
 ) {
     /**
+     * Makes the native info-update call with [request], then hands UMP's values, read after it
+     * returns, to [onInfoUpdateRequested]. Both controllers go through here so the order cannot
+     * drift: read before the call, UMP's `canRequestAds` is always false and nothing starts
+     * early. The values are read only with the switch on. Call on Main.
+     */
+    fun requestThenReadStored(
+        state: ConsentStateHolder,
+        generation: Long,
+        config: AdConfig,
+        privacyRequirement: () -> PrivacyOptionsRequirementStatus,
+        canRequestAds: () -> Boolean,
+        status: () -> ConsentStatus,
+        request: () -> Unit,
+    ) {
+        request()
+        if (!enabled()) return
+        onInfoUpdateRequested(state, generation, config, privacyRequirement(), canRequestAds(), status())
+    }
+
+    /**
      * Call on Main, immediately after the native info-update call has returned, with UMP's
      * values read at that moment. Does nothing with the switch off, or if the update has
      * already reported back: its own answer is newer than the stored one.
@@ -115,3 +136,19 @@ internal class StoredConsentStart(
         val Disabled: StoredConsentStart = StoredConsentStart(enabled = { false }, onAllowed = {})
     }
 }
+
+/**
+ * Why iOS may not start from stored consent yet, or null if it may: not while App Tracking
+ * Transparency is unanswered and the app can still ask (it declares
+ * `NSUserTrackingUsageDescription`), so requests made from the stored answer never precede the
+ * ATT prompt and can carry the IDFA. Android has no such prompt and always may.
+ */
+internal fun attRefusalForStoredConsentStart(
+    tracking: AdTrackingAuthorization,
+    declaresTrackingUsageDescription: Boolean,
+): String? =
+    if (tracking == AdTrackingAuthorization.NotDetermined && declaresTrackingUsageDescription) {
+        "App Tracking Transparency has not been answered yet"
+    } else {
+        null
+    }

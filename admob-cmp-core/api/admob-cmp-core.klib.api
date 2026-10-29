@@ -303,13 +303,6 @@ abstract interface dev.avinya.ads/AdManager { // dev.avinya.ads/AdManager|null[0
     abstract val tracking // dev.avinya.ads/AdManager.tracking|{}tracking[0]
         abstract fun <get-tracking>(): dev.avinya.ads/AdTrackingController // dev.avinya.ads/AdManager.tracking.<get-tracking>|<get-tracking>(){}[0]
 
-    open var adapterStartupWait // dev.avinya.ads/AdManager.adapterStartupWait|{}adapterStartupWait[0]
-        open fun <get-adapterStartupWait>(): kotlin.time/Duration // dev.avinya.ads/AdManager.adapterStartupWait.<get-adapterStartupWait>|<get-adapterStartupWait>(){}[0]
-        open fun <set-adapterStartupWait>(kotlin.time/Duration) // dev.avinya.ads/AdManager.adapterStartupWait.<set-adapterStartupWait>|<set-adapterStartupWait>(kotlin.time.Duration){}[0]
-    open var startFromStoredConsent // dev.avinya.ads/AdManager.startFromStoredConsent|{}startFromStoredConsent[0]
-        open fun <get-startFromStoredConsent>(): kotlin/Boolean // dev.avinya.ads/AdManager.startFromStoredConsent.<get-startFromStoredConsent>|<get-startFromStoredConsent>(){}[0]
-        open fun <set-startFromStoredConsent>(kotlin/Boolean) // dev.avinya.ads/AdManager.startFromStoredConsent.<set-startFromStoredConsent>|<set-startFromStoredConsent>(kotlin.Boolean){}[0]
-
     abstract fun appOpen(dev.avinya.ads/AdPlacement): dev.avinya.ads/AppOpenAdController // dev.avinya.ads/AdManager.appOpen|appOpen(dev.avinya.ads.AdPlacement){}[0]
     abstract fun banner(dev.avinya.ads/AdPlacement): dev.avinya.ads/BannerAdController // dev.avinya.ads/AdManager.banner|banner(dev.avinya.ads.AdPlacement){}[0]
     abstract fun interstitial(dev.avinya.ads/AdPlacement): dev.avinya.ads/InterstitialAdController // dev.avinya.ads/AdManager.interstitial|interstitial(dev.avinya.ads.AdPlacement){}[0]
@@ -2178,6 +2171,13 @@ final val dev.avinya.ads/debugAdPlacements // dev.avinya.ads/debugAdPlacements|{
     final fun <get-debugAdPlacements>(): kotlin.collections/List<dev.avinya.ads/AdPlacement> // dev.avinya.ads/debugAdPlacements.<get-debugAdPlacements>|<get-debugAdPlacements>(){}[0]
 final val dev.avinya.ads/loadTelemetry // dev.avinya.ads/loadTelemetry|@dev.avinya.ads.AdManager{}loadTelemetry[0]
     final fun (dev.avinya.ads/AdManager).<get-loadTelemetry>(): kotlinx.coroutines.flow/SharedFlow<dev.avinya.ads/AdLoadTelemetry> // dev.avinya.ads/loadTelemetry.<get-loadTelemetry>|<get-loadTelemetry>@dev.avinya.ads.AdManager(){}[0]
+
+final var dev.avinya.ads/adapterStartupWait // dev.avinya.ads/adapterStartupWait|@dev.avinya.ads.AdManager{}adapterStartupWait[0]
+    final fun (dev.avinya.ads/AdManager).<get-adapterStartupWait>(): kotlin.time/Duration // dev.avinya.ads/adapterStartupWait.<get-adapterStartupWait>|<get-adapterStartupWait>@dev.avinya.ads.AdManager(){}[0]
+    final fun (dev.avinya.ads/AdManager).<set-adapterStartupWait>(kotlin.time/Duration) // dev.avinya.ads/adapterStartupWait.<set-adapterStartupWait>|<set-adapterStartupWait>@dev.avinya.ads.AdManager(kotlin.time.Duration){}[0]
+final var dev.avinya.ads/startFromStoredConsent // dev.avinya.ads/startFromStoredConsent|@dev.avinya.ads.AdManager{}startFromStoredConsent[0]
+    final fun (dev.avinya.ads/AdManager).<get-startFromStoredConsent>(): kotlin/Boolean // dev.avinya.ads/startFromStoredConsent.<get-startFromStoredConsent>|<get-startFromStoredConsent>@dev.avinya.ads.AdManager(){}[0]
+    final fun (dev.avinya.ads/AdManager).<set-startFromStoredConsent>(kotlin/Boolean) // dev.avinya.ads/startFromStoredConsent.<set-startFromStoredConsent>|<set-startFromStoredConsent>@dev.avinya.ads.AdManager(kotlin.Boolean){}[0]
 
 final fun (dev.avinya.ads.nativead/NativeAdSession).dev.avinya.ads.nativead/acquireIosNativeAdRenderLease(kotlin/String, dev.avinya.ads/AdPlacement, kotlin/String): dev.avinya.ads.nativead/IosNativeAdRenderLease? // dev.avinya.ads.nativead/acquireIosNativeAdRenderLease|acquireIosNativeAdRenderLease@dev.avinya.ads.nativead.NativeAdSession(kotlin.String;dev.avinya.ads.AdPlacement;kotlin.String){}[0]
 final fun (dev.avinya.ads/BannerAdController).dev.avinya.ads/attachIosBanner() // dev.avinya.ads/attachIosBanner|attachIosBanner@dev.avinya.ads.BannerAdController(){}[0]

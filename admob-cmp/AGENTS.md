@@ -33,7 +33,8 @@ or `ConsentMode.SkipConsent`. `InitializeOnlyIfAlreadyAllowed` reuses a consent 
 succeeded in this launch (from `gatherConsent` or `requestConsentInfoUpdate`), so the manual order makes
 one UMP request, not two.
 
-Startup settings on `AdManager`, set before the first consent call:
+Startup settings, extension properties on `AdManager` (import `dev.avinya.ads.adapterStartupWait` and
+`dev.avinya.ads.startFromStoredConsent`), set before the first consent call:
 - `adapterStartupWait` (default 5 s, 0–30 s): `Ready` comes when the mediation adapters report back or this
   long after the SDK accepts requests, whichever is first. `adManager.adapterStartup` follows the adapters.
 - `startFromStoredConsent` (opt-in, default false): starts the Mobile Ads SDK from consent stored in an

@@ -566,12 +566,10 @@ public abstract interface class dev/avinya/ads/AdManager {
 	public static final field Companion Ldev/avinya/ads/AdManager$Companion;
 	public abstract fun appOpen (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/AppOpenAdController;
 	public abstract fun banner (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/BannerAdController;
-	public fun getAdapterStartupWait-UwyO8pc ()J
 	public abstract fun getConsent ()Ldev/avinya/ads/ConsentController;
 	public abstract fun getDiagnostics ()Ldev/avinya/ads/AdDiagnostics;
 	public abstract fun getEvents ()Lkotlinx/coroutines/flow/SharedFlow;
 	public abstract fun getNativeAds ()Ldev/avinya/ads/nativead/NativeAdManager;
-	public fun getStartFromStoredConsent ()Z
 	public abstract fun getStatus ()Lkotlinx/coroutines/flow/StateFlow;
 	public abstract fun getTracking ()Ldev/avinya/ads/AdTrackingController;
 	public abstract fun initialize (Ldev/avinya/ads/AdConfig;Ldev/avinya/ads/ConsentMode;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -579,8 +577,6 @@ public abstract interface class dev/avinya/ads/AdManager {
 	public abstract fun interstitial (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/InterstitialAdController;
 	public abstract fun rewarded (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/RewardedAdController;
 	public abstract fun rewardedInterstitial (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/RewardedInterstitialAdController;
-	public fun setAdapterStartupWait-LRDsOJo (J)V
-	public fun setStartFromStoredConsent (Z)V
 }
 
 public final class dev/avinya/ads/AdManager$Companion {
@@ -589,15 +585,15 @@ public final class dev/avinya/ads/AdManager$Companion {
 }
 
 public final class dev/avinya/ads/AdManager$DefaultImpls {
-	public static fun getAdapterStartupWait-UwyO8pc (Ldev/avinya/ads/AdManager;)J
-	public static fun getStartFromStoredConsent (Ldev/avinya/ads/AdManager;)Z
 	public static synthetic fun initialize$default (Ldev/avinya/ads/AdManager;Ldev/avinya/ads/AdConfig;Ldev/avinya/ads/ConsentMode;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static fun setAdapterStartupWait-LRDsOJo (Ldev/avinya/ads/AdManager;J)V
-	public static fun setStartFromStoredConsent (Ldev/avinya/ads/AdManager;Z)V
 }
 
 public final class dev/avinya/ads/AdManagerKt {
 	public static final fun gatherConsentAndInitialize (Ldev/avinya/ads/AdManager;Ldev/avinya/ads/AdConfig;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun getAdapterStartupWait (Ldev/avinya/ads/AdManager;)J
+	public static final fun getStartFromStoredConsent (Ldev/avinya/ads/AdManager;)Z
+	public static final fun setAdapterStartupWait-HG0u8IE (Ldev/avinya/ads/AdManager;J)V
+	public static final fun setStartFromStoredConsent (Ldev/avinya/ads/AdManager;Z)V
 	public static final fun showPrivacyOptions (Ldev/avinya/ads/AdManager;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
@@ -1350,20 +1346,16 @@ public final class dev/avinya/ads/NoOpAdManager : dev/avinya/ads/AdManager {
 	public static final field INSTANCE Ldev/avinya/ads/NoOpAdManager;
 	public fun appOpen (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/AppOpenAdController;
 	public fun banner (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/BannerAdController;
-	public fun getAdapterStartupWait-UwyO8pc ()J
 	public fun getConsent ()Ldev/avinya/ads/ConsentController;
 	public fun getDiagnostics ()Ldev/avinya/ads/AdDiagnostics;
 	public fun getEvents ()Lkotlinx/coroutines/flow/SharedFlow;
 	public fun getNativeAds ()Ldev/avinya/ads/nativead/NativeAdManager;
-	public fun getStartFromStoredConsent ()Z
 	public fun getStatus ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getTracking ()Ldev/avinya/ads/AdTrackingController;
 	public fun initialize (Ldev/avinya/ads/AdConfig;Ldev/avinya/ads/ConsentMode;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun interstitial (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/InterstitialAdController;
 	public fun rewarded (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/RewardedAdController;
 	public fun rewardedInterstitial (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/RewardedInterstitialAdController;
-	public fun setAdapterStartupWait-LRDsOJo (J)V
-	public fun setStartFromStoredConsent (Z)V
 }
 
 public final class dev/avinya/ads/PaidEvent {

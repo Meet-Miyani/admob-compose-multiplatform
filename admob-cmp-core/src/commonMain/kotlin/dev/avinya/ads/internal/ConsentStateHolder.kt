@@ -1,5 +1,6 @@
 package dev.avinya.ads.internal
 
+import dev.avinya.ads.AdLogger
 import dev.avinya.ads.ConsentStatus
 import dev.avinya.ads.PrivacyOptionsRequirementStatus
 import kotlin.time.Duration
@@ -98,6 +99,44 @@ internal class ConsentStateHolder(private val timeSource: TimeSource = TimeSourc
      * instead of a second network round trip in a row.
      */
     fun successfulInfoUpdateAge(): Duration? = lastSuccessfulInfoUpdate?.elapsedNow()
+
+    /**
+     * Both controllers' info-update entry point: [update] runs serialized against every other
+     * native consent operation, or, with [reuseThisLaunch], an update that already succeeded in
+     * this process is reused and no native call is made. [onReused] runs then, in place of the
+     * config bookkeeping [update] would have done.
+     *
+     * Reuse is decided under the lock, after any in-flight `gatherConsent` has finished, since
+     * that is the update this call would otherwise repeat; and again when a pin left by an
+     * abandoned operation declines the call, since a pin stops a native call and reusing makes
+     * none. [onBusy] answers only when there is nothing to reuse.
+     */
+    suspend fun serializedInfoUpdate(
+        reuseThisLaunch: Boolean,
+        onReused: () -> Unit,
+        onBusy: () -> ConsentStatus,
+        update: suspend () -> ConsentStatus,
+    ): ConsentStatus {
+        val reused = { if (reuseThisLaunch) reusedInfoUpdateOrNull(onReused) else null }
+        return serializedExclusiveOfNativeConsentOperations(onBusy = { reused() ?: onBusy() }) {
+            reused() ?: update()
+        }
+    }
+
+    private fun reusedInfoUpdateOrNull(onReused: () -> Unit): ConsentStatus? {
+        val age = successfulInfoUpdateAge() ?: return null
+        AdLogger.i("Reusing the UMP consent info update that finished $age ago; no second request.")
+        onReused()
+        return _status.value
+    }
+
+    /** One line per native info update that reports back, on both platforms. */
+    fun logInfoUpdateFinished(platformTag: String, elapsed: Duration, status: ConsentStatus) {
+        AdLogger.i(
+            "$platformTag UMP consent info update finished in ${elapsed.inWholeMilliseconds} ms. " +
+                "status=$status canRequestAds=${_canRequestAds.value}"
+        )
+    }
 
     /**
      * Reconciles authoritative privacy truth UNCONDITIONALLY, then publishes [status] only if

@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * [AdManagerStatus.Ready] means the SDK accepts ad requests. It no longer means every mediation
  * adapter has finished starting: Ready comes once the adapters report back or
- * [AdManager.adapterStartupWait] has passed since the SDK started accepting requests, whichever
+ * [adapterStartupWait] has passed since the SDK started accepting requests, whichever
  * is first. This state follows the adapters on their own, for logging and for work that needs
  * their statuses.
  *
@@ -59,7 +59,7 @@ internal interface AdapterStartupSource {
     val adapterStartupState: StateFlow<AdapterStartup>
 }
 
-/** Rejects an [AdManager.adapterStartupWait] outside zero to [AdManager.MAX_ADAPTER_STARTUP_WAIT]. */
+/** Rejects an [adapterStartupWait] outside zero to [AdManager.MAX_ADAPTER_STARTUP_WAIT]. */
 internal fun requireValidAdapterStartupWait(wait: Duration) {
     require(wait.isFinite() && wait >= Duration.ZERO && wait <= AdManager.MAX_ADAPTER_STARTUP_WAIT) {
         "AdManager.adapterStartupWait must be between 0 and ${AdManager.MAX_ADAPTER_STARTUP_WAIT}, was $wait."

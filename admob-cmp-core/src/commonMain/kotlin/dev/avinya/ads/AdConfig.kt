@@ -134,7 +134,7 @@ public enum class AdInitializationPhase {
      * Anything that must precede every request belongs in [BeforeMobileAdsInitialize].
      *
      * Mediation adapters may still be initializing: `Ready` waits for them only up to
-     * [AdManager.adapterStartupWait]. Work that needs their final statuses should follow
+     * [adapterStartupWait]. Work that needs their final statuses should follow
      * [dev.avinya.ads.adapterStartup] instead.
      *
      * The leading `initialize()` call does not return until these hooks finish.

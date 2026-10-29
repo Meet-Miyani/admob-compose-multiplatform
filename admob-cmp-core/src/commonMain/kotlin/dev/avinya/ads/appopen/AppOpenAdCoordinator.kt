@@ -339,8 +339,12 @@ public class AppOpenAdCoordinator internal constructor(
      * @return null when the show is reserved, otherwise why it may not happen.
      */
     private fun tryAcquireShowAdmission(): AppOpenReturnOutcome? {
+        // Asked before the lock: availability() destroys expired ads and reports their expiry,
+        // and neither may run under it. Stale by the time the show runs either way; show()
+        // answers NotReady then, as it would for an ad that expired in between.
+        val adLoaded = controller.isReady()
         val blockedBy = showAdmissionLock.withLock {
-            val block = showBlockLocked()
+            val block = showBlockLocked(adLoaded)
                 // Acquired last, after every cheap local check, so a rejected attempt never takes
                 // and immediately re-releases the process-wide token.
                 ?: if (tryAcquireProbeTokenLocked()) {
@@ -359,8 +363,11 @@ public class AppOpenAdCoordinator internal constructor(
     /** A declined show: the outcome reported on [returns], and the reason logged. */
     private class ShowBlock(val outcome: AppOpenReturnOutcome, val reason: String)
 
-    /** Why the coordinator may not show right now, or null if it may. Caller holds the lock. */
-    private fun showBlockLocked(): ShowBlock? {
+    /**
+     * Why the coordinator may not show right now, or null if it may. Caller holds the lock.
+     * [adLoaded] is the controller's answer, taken before the lock.
+     */
+    private fun showBlockLocked(adLoaded: Boolean): ShowBlock? {
         val status = manager.status.value
         val sinceLastShow = elapsedSince(lastShowInstant)
         return when {
@@ -372,7 +379,7 @@ public class AppOpenAdCoordinator internal constructor(
                 AppOpenReturnOutcome.CoolingDown(config.cooldownBetweenShows - sinceLastShow),
                 "cooldownBetweenShows ${config.cooldownBetweenShows} has not elapsed",
             )
-            !controller.isReady() -> ShowBlock(AppOpenReturnOutcome.NoAdLoaded, "no app-open ad is loaded")
+            !adLoaded -> ShowBlock(AppOpenReturnOutcome.NoAdLoaded, "no app-open ad is loaded")
             else -> null
         }
     }

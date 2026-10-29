@@ -58,10 +58,10 @@ public sealed interface AdLoadTelemetry {
     /**
      * A cached ad reached its TTL without being shown, and was destroyed. Exactly once per ad.
      *
-     * Detected the next time the slot is used — `isReady()`, `availability()`, a load or a
-     * show — so [expiredAt] is the moment it expired, `loadedAt` plus the placement's TTL, not
-     * the moment it was noticed. Ads removed by `clear()` or by a consent withdrawal are not
-     * reported here.
+     * Detected the next time the slot is used — `isReady()`, `availability()`, a load, a show,
+     * or `clear()` — so [expiredAt] is the moment it expired, `loadedAt` plus the placement's TTL,
+     * not the moment it was noticed. `clear()` and a consent withdrawal report only the ads already
+     * past their TTL; the fresh ads they remove are not reported here.
      */
     public data class CachedAdExpired(
         override val placementId: String,

@@ -17,7 +17,7 @@ public sealed interface AdManagerStatus {
      * SDK is initialized and accepts ad requests, subject to the existing admission gates.
      *
      * Published once the Google Mobile Ads SDK accepts requests and either its mediation adapters
-     * have reported back or [AdManager.adapterStartupWait] (five seconds by default) has passed,
+     * have reported back or [adapterStartupWait] (five seconds by default) has passed,
      * whichever is first. Adapters still starting then initialize as the first requests reach
      * them, or are skipped, so not every configured network is guaranteed to take part in the
      * first request. [dev.avinya.ads.adapterStartup] follows the adapters themselves. `Ready`

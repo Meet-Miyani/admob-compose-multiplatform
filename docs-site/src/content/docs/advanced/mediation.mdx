@@ -140,7 +140,10 @@ requests. It comes when the mediation adapters report back, or
 whichever is first. The default is five seconds:
 
 ```kotlin
-// Before initialize(): lower it for a splash with a tight budget, or 0 for no wait.
+import dev.avinya.ads.adapterStartupWait
+
+// Before initialize(), or before the first consent call with startFromStoredConsent on.
+// Lower it for a splash with a tight budget, or 0 for no wait.
 adManager.adapterStartupWait = 1.seconds
 ```
 

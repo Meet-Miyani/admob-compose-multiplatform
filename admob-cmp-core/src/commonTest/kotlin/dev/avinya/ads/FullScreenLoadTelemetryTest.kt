@@ -12,6 +12,7 @@ import dev.avinya.ads.internal.LoadOriginElement
 import dev.avinya.ads.internal.RewardDelivery
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -395,7 +396,7 @@ class FullScreenLoadTelemetryTest {
     }
 
     @Test
-    fun `clear reports no expiry even when the ad is past its TTL`() = runSlotTest {
+    fun `clear reports no expiry for an ad still within its TTL`() = runSlotTest {
         var now = Instant.fromEpochSeconds(1000)
         val (slot, events) = newTelemetrySlot(clock = { now })
 
@@ -404,7 +405,52 @@ class FullScreenLoadTelemetryTest {
         now = Instant.fromEpochSeconds(1000 + 3601)
         slot.availability()
 
-        assertTrue(events.expiries().isEmpty(), "clear() removes ads without reporting them as expired")
+        assertTrue(events.expiries().isEmpty(), "an ad cleared before its TTL was discarded, not expired")
+    }
+
+    @Test
+    fun `a load that throws reports the request as Failed, not Discarded`() = runSlotTest {
+        val (slot, events) = newTelemetrySlot(
+            loadHandler = { _ -> throw IllegalStateException("mapper exploded") },
+        )
+
+        assertFailsWith<IllegalStateException> { slot.load() }
+
+        assertEquals(1, events.started().size, "one request started")
+        assertEquals(1, events.finished().size, "one request finished, exactly once")
+        assertEquals(
+            events.started().single().requestId,
+            events.finished().single().requestId,
+            "the finish must belong to the request that started",
+        )
+        val failed = assertIs<AdRequestOutcome.Failed>(
+            events.finished().single().outcome,
+            "a load that threw delivered no ad, so it is a failure rather than a discarded ad",
+        )
+        assertTrue(
+            failed.error.message.contains("mapper exploded"),
+            "the failure must carry the thrown message; saw ${failed.error.message}",
+        )
+        assertFalse(slot.loadState.value is AdLoadState.Loading, "a throwing load must not leave the slot Loading")
+    }
+
+    @Test
+    fun `clear reports an ad that was already past its TTL as expired`() = runSlotTest {
+        var now = Instant.fromEpochSeconds(1000)
+        val (slot, events) = newTelemetrySlot(clock = { now })
+
+        slot.load()
+        now = Instant.fromEpochSeconds(1000 + 3601)
+        slot.clear()
+
+        val expiries = events.expiries()
+        assertEquals(1, expiries.size, "clear() must report the expired ad once")
+        assertEquals(Instant.fromEpochSeconds(1000), expiries[0].loadedAt)
+        assertEquals(expiries[0].loadedAt + 1.hours, expiries[0].expiredAt, "expiry is load time plus the one-hour TTL")
+
+        slot.availability()
+
+        assertEquals(1, events.expiries().size, "the ad was already removed, so a later read must not report it again")
     }
 
     @Test

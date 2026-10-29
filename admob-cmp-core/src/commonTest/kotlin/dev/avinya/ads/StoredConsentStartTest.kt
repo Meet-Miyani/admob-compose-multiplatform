@@ -2,9 +2,12 @@ package dev.avinya.ads
 
 import dev.avinya.ads.internal.ConsentStateHolder
 import dev.avinya.ads.internal.StoredConsentStart
+import dev.avinya.ads.internal.attRefusalForStoredConsentStart
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -139,5 +142,92 @@ class StoredConsentStartTest {
 
         assertFalse(state.canRequestAds.value, "the Disabled trigger must not publish a stored answer")
         assertEquals(ConsentStatus.Unknown, state.status.value, "the Disabled trigger must not publish a status")
+    }
+
+    @Test
+    fun `requestThenReadStored makes the native call before reading UMP's values`() {
+        val state = ConsentStateHolder()
+        val generation = state.beginOperation()
+        state.markInfoUpdateStarted(generation)
+        val log = mutableListOf<String>()
+        val allowed = mutableListOf<AdConfig>()
+        val trigger = StoredConsentStart(enabled = { true }, onAllowed = { log += "start"; allowed += it })
+        val cfg = config()
+
+        trigger.requestThenReadStored(
+            state = state,
+            generation = generation,
+            config = cfg,
+            privacyRequirement = {
+                log += "privacy"
+                PrivacyOptionsRequirementStatus.NotRequired
+            },
+            canRequestAds = {
+                log += "canRequest"
+                true
+            },
+            status = {
+                log += "status"
+                ConsentStatus.Obtained
+            },
+            request = { log += "request" },
+        )
+
+        assertEquals("request", log.first(), "the native call must come before any read of UMP's values; log=$log")
+        assertEquals(1, log.count { it == "start" }, "stored consent that allows ads must start exactly once; log=$log")
+        val requestIndex = log.indexOf("request")
+        for (reader in listOf("privacy", "canRequest", "status")) {
+            assertTrue(
+                log.indexOf(reader) > requestIndex,
+                "$reader must be read after the native call; log=$log",
+            )
+        }
+        assertEquals(1, allowed.size, "the start must receive the config the update was made with")
+    }
+
+    @Test
+    fun `requestThenReadStored with the switch off makes the call and reads nothing`() {
+        val state = ConsentStateHolder()
+        val generation = state.beginOperation()
+        state.markInfoUpdateStarted(generation)
+        val log = mutableListOf<String>()
+        val allowed = mutableListOf<AdConfig>()
+        val trigger = StoredConsentStart(enabled = { false }, onAllowed = { allowed += it })
+
+        trigger.requestThenReadStored(
+            state = state,
+            generation = generation,
+            config = config(),
+            privacyRequirement = {
+                log += "privacy"
+                PrivacyOptionsRequirementStatus.NotRequired
+            },
+            canRequestAds = {
+                log += "canRequest"
+                true
+            },
+            status = {
+                log += "status"
+                ConsentStatus.Obtained
+            },
+            request = { log += "request" },
+        )
+
+        assertEquals(listOf("request"), log, "with the switch off only the native call may happen")
+        assertTrue(allowed.isEmpty(), "with the switch off nothing may start")
+    }
+
+    @Test
+    fun `attRefusalForStoredConsentStart refuses only while ATT is unanswered and the app can ask`() {
+        for (tracking in AdTrackingAuthorization.entries) {
+            for (declares in listOf(true, false)) {
+                val refusal = attRefusalForStoredConsentStart(tracking, declares)
+                if (tracking == AdTrackingAuthorization.NotDetermined && declares) {
+                    assertNotNull(refusal, "unanswered ATT with a usage description must refuse the early start")
+                } else {
+                    assertNull(refusal, "$tracking with declaresTrackingUsageDescription=$declares must not refuse")
+                }
+            }
+        }
     }
 }

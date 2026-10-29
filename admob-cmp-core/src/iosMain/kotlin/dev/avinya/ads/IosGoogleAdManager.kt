@@ -11,6 +11,7 @@ import GoogleMobileAds.GADLargeAnchoredAdaptiveBannerAdSizeWithWidth
 import GoogleMobileAds.GADMobileAds
 import dev.avinya.ads.internal.DeclaredAppId
 import dev.avinya.ads.internal.NativeAdManagerImpl
+import dev.avinya.ads.internal.attRefusalForStoredConsentStart
 import dev.avinya.ads.internal.emitOrLogDrop
 import dev.avinya.ads.nativead.IosNativeAdPlatform
 import dev.avinya.ads.nativead.IosNativeMemorySignal
@@ -133,11 +134,11 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
      * and any ads GMA preloads during start, without the IDFA. Without the usage description the
      * app can never ask, so waiting would gain nothing.
      */
-    override fun storedConsentStartRefusal(): String? {
-        val notAnswered = tracking.status() == AdTrackingAuthorization.NotDetermined
-        val canAsk = NSBundle.mainBundle.objectForInfoDictionaryKey("NSUserTrackingUsageDescription") != null
-        return if (notAnswered && canAsk) "App Tracking Transparency has not been answered yet" else null
-    }
+    override fun storedConsentStartRefusal(): String? = attRefusalForStoredConsentStart(
+        tracking = tracking.status(),
+        declaresTrackingUsageDescription =
+            NSBundle.mainBundle.objectForInfoDictionaryKey("NSUserTrackingUsageDescription") != null,
+    )
 
     override suspend fun initializeMobileAdsNative(
         config: AdConfig,

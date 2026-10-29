@@ -270,8 +270,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         // objects retained and loadState at Loaded until some later show/load/clear happens to
         // touch the slot. Pruning here is an atomic transition, so a read can never observe a
         // cache and a load state that disagree.
-        val retiredAds = pruneExpired(now, ttl)
-        destroyAds(retiredAds)
+        release(pruneExpired(now, ttl))
         val fresh = slotState.value.cache
         val expiresIn = fresh.firstOrNull()?.let { ttl - (now - it.loadedAt) }
         return AdAvailability(isReady = fresh.isNotEmpty(), cachedCount = fresh.size, expiresIn = expiresIn)
@@ -280,15 +279,15 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     /**
      * Retires every expired cache entry and recomputes the load state in one CAS.
      *
-     * Returns the ads whose ownership this call took, for destruction outside the lock.
+     * Returns what this call retired, for [release] once nothing is held.
      * A [AdLoadState.Loaded] claim over an empty cache is downgraded to [AdLoadState.Idle];
      * any other state is left alone so a recorded failure is not rewritten.
      */
-    private fun pruneExpired(now: Instant, ttl: Duration): List<AdT> {
+    private fun pruneExpired(now: Instant, ttl: Duration): Retired<AdT> {
         while (true) {
             val current = slotState.value
             val (fresh, expired) = partitionCache(current.cache, now, ttl)
-            if (expired.isEmpty()) return emptyList()
+            if (expired.isEmpty()) return Retired()
             val nextLoadState = if (fresh.isEmpty() && current.loadState is AdLoadState.Loaded) {
                 AdLoadState.Idle
             } else {
@@ -325,7 +324,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 if (prepared.immediateResult == null) lastRequestOptions.store(ownedOptions)
             }
         }
-        destroyAds(preparation.retiredAds)
+        release(preparation.retired)
         preparation.immediateResult?.let { return@withLock it }
 
         var lastError: AdError? = null
@@ -426,7 +425,8 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             // matters in a finally that may already be unwinding a cancellation.
             undelivered.take()?.let(::safelyDestroyAd)
             // Still open only for an ad that arrived and was not kept: a timeout or cancellation
-            // landing as it was delivered, or a throw from onAdLoaded. A no-op otherwise.
+            // landing as it was delivered, or a throw from onAdLoaded or getResponseInfo. A no-op
+            // otherwise; requestAd reports a request that threw before any ad arrived.
             request?.finish(AdRequestOutcome.Discarded)
         }
 
@@ -438,7 +438,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 ttl = cacheTtl
             )
         }
-        destroyAds(completion.retiredAds)
+        release(completion.retired)
         completion.result
     }
 
@@ -494,7 +494,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 prepareShow(now, cacheTtl, presentabilityError)
             }
         }
-        destroyAds(preparation.retiredAds)
+        release(preparation.retired)
         preparation.errorEvent?.let(::emit)
         preparation.immediateResult?.let { return it }
 
@@ -600,8 +600,10 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     }
 
     override fun clear() {
-        val (retiredAds, staleReload) = publicationLock.withLock {
-            var result = emptyList<AdT>()
+        val now = clock()
+        val ttl = ttl()
+        val (retired, staleReload) = publicationLock.withLock {
+            var result = Retired<AdT>()
             // Retire the snapshot BEFORE publishing the new generation, and inside the same
             // lock that publishes it. Ordered the other way — the store ran after the lock was
             // released — a load for the NEW generation could store its own options in between
@@ -627,7 +629,10 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                     // discarded this slot's inventory, so there is no presentation left whose
                     // reward callback could still be expected.
                     val retiredOrphans = orphanedAds.map { it.ad }.also { orphanedAds.clear() }
-                    result = current.cache.map { it.ad } + retiredOrphans
+                    // An entry already past its TTL expired unseen before the host discarded it,
+                    // so it is still reported as an expiry; the rest were discarded fresh.
+                    val (fresh, expired) = partitionCache(current.cache, now, ttl)
+                    result = retireExpired(expired, ttl) + fresh.map { it.ad } + retiredOrphans
                     break
                 }
             }
@@ -637,7 +642,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             result to reloadJob.exchange(null)
         }
         staleReload?.cancel()
-        destroyAds(retiredAds)
+        release(retired)
     }
 
     /** Called by platform slots from SDK callbacks; never assumes a lock. See [emitLoadEventLocked]. */
@@ -685,7 +690,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             return LoadPreparation(
                 immediateResult = if (isLoading) null else nextLoadState,
                 slotsToLoad = if (isLoading) placement.cachePolicy.maxSize - fresh.size else 0,
-                retiredAds = retireExpired(expired, ttl) + retiredOrphans
+                retired = retireExpired(expired, ttl) + retiredOrphans
             )
         }
     }
@@ -752,7 +757,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             if (event != null) emitLoadEventLocked(event)
             return LoadCompletion(
                 result = nextLoadState,
-                retiredAds = retireExpired(expired, ttl)
+                retired = retireExpired(expired, ttl)
             )
         }
     }
@@ -794,7 +799,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                         if (!slotState.compareAndSet(current, cleaned)) continue
                         return ShowPreparation(
                             immediateResult = AdShowResult.NotReady,
-                            retiredAds = retireExpired(expired, ttl)
+                            retired = retireExpired(expired, ttl)
                         )
                     }
             } else {
@@ -832,7 +837,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 errorEvent = error?.let { AdEvent.ShowFailed(placement.id, it) },
                 selectedAd = selected?.ad,
                 presentation = presentation,
-                retiredAds = retireExpired(expired, ttl)
+                retired = retireExpired(expired, ttl)
             )
         }
     }
@@ -915,8 +920,8 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     }
 
     private fun finishCancelledLoad(generation: Int) {
-        val retiredAds: List<AdT> = publicationLock.withLock {
-            var result = emptyList<AdT>()
+        val retired = publicationLock.withLock {
+            var result = Retired<AdT>()
             while (true) {
                 val current = slotState.value
                 if (current.generation != generation) break
@@ -932,7 +937,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             }
             result
         }
-        destroyAds(retiredAds)
+        release(retired)
     }
 
     /**
@@ -950,27 +955,36 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     }
 
     /**
-     * Reports each entry that reached its TTL unseen and returns its ads for destruction.
+     * Takes expired entries out of service: their ads for destruction, and one
+     * [AdLoadTelemetry.CachedAdExpired] each for an entry that reached its TTL unseen.
      *
      * Every way an expired entry leaves the cache comes through here, after the compare-and-set
-     * that removed it, so each is reported exactly once. Orphans, `clear()` and a consent
-     * withdrawal retire ads by other paths and are not expiries.
+     * that removed it, so each is reported exactly once. `clear()` and a consent withdrawal come
+     * through here too for entries already past their TTL; the fresh entries they drop, and
+     * orphans, are not expiries. Nothing is emitted here: callers hold [publicationLock], and the
+     * telemetry hub may log a dropped event through a host-supplied sink. See [release].
      */
-    private fun retireExpired(expired: List<CachedAd<AdT>>, ttl: Duration): List<AdT> {
-        if (expired.isEmpty()) return emptyList()
-        val sink = telemetry
-        expired.forEach { entry ->
-            sink.emit(
-                AdLoadTelemetry.CachedAdExpired(
-                    placementId = placement.id,
-                    format = placement.format,
-                    loadedAt = entry.loadedAt,
-                    expiredAt = entry.loadedAt + ttl,
-                    responseInfo = entry.responseInfo,
-                )
+    private fun retireExpired(expired: List<CachedAd<AdT>>, ttl: Duration): Retired<AdT> {
+        if (expired.isEmpty()) return Retired()
+        val expiries = expired.map { entry ->
+            AdLoadTelemetry.CachedAdExpired(
+                placementId = placement.id,
+                format = placement.format,
+                loadedAt = entry.loadedAt,
+                expiredAt = entry.loadedAt + ttl,
+                responseInfo = entry.responseInfo,
             )
         }
-        return expired.map { it.ad }
+        return Retired(expired.map { it.ad }, expiries)
+    }
+
+    /** Reports [retired]'s expiries and destroys its ads. Call with no lock held. */
+    private fun release(retired: Retired<AdT>) {
+        if (retired.expiries.isNotEmpty()) {
+            val sink = telemetry
+            retired.expiries.forEach(sink.emit)
+        }
+        destroyAds(retired.ads)
     }
 
     /**
@@ -986,6 +1000,11 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         } catch (cancellation: CancellationException) {
             request.finish(AdRequestOutcome.Cancelled)
             throw cancellation
+        } catch (t: Throwable) {
+            // A throw from the platform load or a mapper: no ad arrived, so Failed. Left open, the
+            // caller's finally would report it as Discarded, a filled ad that was thrown away.
+            request.finish(AdRequestOutcome.Failed(AdError.message(t.message ?: "Full-screen ad request threw.")))
+            throw t
         }
         if (answer is AdAttemptResult.Failure) request.finish(AdRequestOutcome.Failed(answer.error))
         return answer
@@ -1062,15 +1081,23 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         val responseInfo: AdResponseInfo?
     )
 
+    /** What a state transition took out of the cache, for [release] once its locks are released. */
+    private class Retired<AdT>(
+        val ads: List<AdT> = emptyList(),
+        val expiries: List<AdLoadTelemetry.CachedAdExpired> = emptyList(),
+    ) {
+        operator fun plus(more: List<AdT>): Retired<AdT> = if (more.isEmpty()) this else Retired(ads + more, expiries)
+    }
+
     private data class LoadPreparation<AdT>(
         val immediateResult: AdLoadState? = null,
         val slotsToLoad: Int = 0,
-        val retiredAds: List<AdT> = emptyList()
+        val retired: Retired<AdT> = Retired()
     )
 
     private data class LoadCompletion<AdT>(
         val result: AdLoadState,
-        val retiredAds: List<AdT> = emptyList()
+        val retired: Retired<AdT> = Retired()
     )
 
     private data class ShowPreparation<AdT>(
@@ -1078,7 +1105,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         val errorEvent: AdEvent? = null,
         val selectedAd: AdT? = null,
         val presentation: FullScreenPresentationHandle? = null,
-        val retiredAds: List<AdT> = emptyList()
+        val retired: Retired<AdT> = Retired()
     )
 
     @OptIn(ExperimentalForInheritanceCoroutinesApi::class)

@@ -197,6 +197,8 @@ app starts the SDK there.
 The faster path is opt-in:
 
 ```kotlin
+import dev.avinya.ads.startFromStoredConsent
+
 // Before gatherConsent / initialize.
 adManager.startFromStoredConsent = true
 ```
@@ -209,7 +211,9 @@ update is still in flight. What stays the same:
   exactly as before. `canRequestAds` is false for them until UMP says otherwise.
 - If the update then withdraws consent (for example because the stored decision has expired),
   the request gate closes and cached ads are purged. Requests already sent in that window, usually
-  under a second, cannot be recalled.
+  under a second, cannot be recalled. A withdrawal that lands before the SDK has started (while a
+  `BeforeMobileAdsInitialize` hook is still running, say) starts nothing, and `initialize` reports
+  `ConsentRequired`.
 - On iOS it happens only once App Tracking Transparency has been answered, or when the app
   declares no `NSUserTrackingUsageDescription`. Otherwise the order stays consent, ATT, initialise,
   so the first requests carry the IDFA when the user allows it.

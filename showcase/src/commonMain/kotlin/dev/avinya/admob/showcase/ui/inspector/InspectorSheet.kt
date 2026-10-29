@@ -51,6 +51,7 @@ import dev.avinya.ads.AdManagerStatus
 import dev.avinya.ads.AdPlacement
 import dev.avinya.ads.ConsentStatus
 import dev.avinya.ads.LocalAdManager
+import dev.avinya.ads.adapterStartup
 import kotlinx.coroutines.launch
 
 /**
@@ -172,6 +173,7 @@ private fun ConsentStateTab(manager: AdManager, modifier: Modifier = Modifier) {
     val palette = showcaseColors
     val scope = rememberCoroutineScope()
     val sdkStatus by manager.status.collectAsState()
+    val adapterStartup by manager.adapterStartup.collectAsState()
     val consentStatus by manager.consent.status.collectAsState()
     val canRequestAds by manager.consent.canRequestAds.collectAsState()
     val privacyOptions by manager.consent.privacyOptionsRequirementStatus.collectAsState()
@@ -189,7 +191,8 @@ private fun ConsentStateTab(manager: AdManager, modifier: Modifier = Modifier) {
                     Column(modifier = Modifier.padding(Tokens.Spacing.s12)) {
                         StatRow(label = "Status", value = sdkStatus.label())
                         StatRow(label = "Version", value = manager.diagnostics.sdkVersion() ?: "—")
-                        val adapters = remember(sdkStatus) { manager.diagnostics.adapterStatuses() }
+                        // Also keyed on adapterStartup: Ready can arrive before the adapters report.
+                        val adapters = remember(sdkStatus, adapterStartup) { manager.diagnostics.adapterStatuses() }
                         StatRow(label = "Adapters", value = adapters.size.toString())
                     }
                 }

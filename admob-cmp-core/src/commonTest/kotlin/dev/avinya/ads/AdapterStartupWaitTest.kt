@@ -182,6 +182,38 @@ class AdapterStartupWaitTest {
     }
 
     @Test
+    fun `an adapter wait set after native initialization started but before the SDK accepts requests is the one used`() = runSlotTest {
+        val accept = CompletableDeferred<Unit>()
+        val manager = FakeGoogleAdManager(
+            adapterCompletion = CompletableDeferred(),
+            timeSource = VirtualTimeSource(testScheduler),
+            nativeInitialize = { _, _ -> accept.await() },
+        )
+        var result: AdManagerStatus? = null
+        backgroundScope.launch { result = manager.initialize(config(), ConsentMode.SkipConsent) }
+        runCurrent()
+
+        manager.adapterStartupWait = 1.seconds
+        accept.complete(Unit)
+        runCurrent()
+        val acceptedAt = testScheduler.currentTime
+
+        advanceTimeBy(999)
+        runCurrent()
+        assertEquals(AdManagerStatus.Initializing, manager.status.value, "the 1 s wait set before accept must still be running at 999 ms")
+
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(AdManagerStatus.Ready, manager.status.value)
+        assertEquals(AdManagerStatus.Ready, result)
+        assertEquals(acceptedAt + 1_000L, testScheduler.currentTime, "the wait is measured from accept")
+
+        // Drain the detached watchdog inside the test body: it must not outlive the Main reset.
+        advanceTimeBy(40_000)
+        runCurrent()
+    }
+
+    @Test
     fun `adapterStartupWait accepts the bounds and rejects anything outside them`() = runSlotTest {
         val manager = FakeGoogleAdManager(timeSource = VirtualTimeSource(testScheduler))
 
