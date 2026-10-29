@@ -387,6 +387,77 @@ abstract interface dev.avinya.ads/RewardedInterstitialAdController : dev.avinya.
     abstract suspend fun show(dev.avinya.ads/FullScreenAdOptions = ..., kotlin/Function1<dev.avinya.ads/AdReward, kotlin/Unit>): dev.avinya.ads/AdShowResult // dev.avinya.ads/RewardedInterstitialAdController.show|show(dev.avinya.ads.FullScreenAdOptions;kotlin.Function1<dev.avinya.ads.AdReward,kotlin.Unit>){}[0]
 }
 
+sealed interface dev.avinya.ads.appopen/AppOpenReturnOutcome { // dev.avinya.ads.appopen/AppOpenReturnOutcome|null[0]
+    final class CoolingDown : dev.avinya.ads.appopen/AppOpenReturnOutcome { // dev.avinya.ads.appopen/AppOpenReturnOutcome.CoolingDown|null[0]
+        constructor <init>(kotlin.time/Duration) // dev.avinya.ads.appopen/AppOpenReturnOutcome.CoolingDown.<init>|<init>(kotlin.time.Duration){}[0]
+
+        final val remaining // dev.avinya.ads.appopen/AppOpenReturnOutcome.CoolingDown.remaining|{}remaining[0]
+            final fun <get-remaining>(): kotlin.time/Duration // dev.avinya.ads.appopen/AppOpenReturnOutcome.CoolingDown.remaining.<get-remaining>|<get-remaining>(){}[0]
+
+        final fun component1(): kotlin.time/Duration // dev.avinya.ads.appopen/AppOpenReturnOutcome.CoolingDown.component1|component1(){}[0]
+        final fun copy(kotlin.time/Duration = ...): dev.avinya.ads.appopen/AppOpenReturnOutcome.CoolingDown // dev.avinya.ads.appopen/AppOpenReturnOutcome.CoolingDown.copy|copy(kotlin.time.Duration){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.appopen/AppOpenReturnOutcome.CoolingDown.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.appopen/AppOpenReturnOutcome.CoolingDown.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.appopen/AppOpenReturnOutcome.CoolingDown.toString|toString(){}[0]
+    }
+
+    final class SdkNotReady : dev.avinya.ads.appopen/AppOpenReturnOutcome { // dev.avinya.ads.appopen/AppOpenReturnOutcome.SdkNotReady|null[0]
+        constructor <init>(dev.avinya.ads/AdManagerStatus) // dev.avinya.ads.appopen/AppOpenReturnOutcome.SdkNotReady.<init>|<init>(dev.avinya.ads.AdManagerStatus){}[0]
+
+        final val status // dev.avinya.ads.appopen/AppOpenReturnOutcome.SdkNotReady.status|{}status[0]
+            final fun <get-status>(): dev.avinya.ads/AdManagerStatus // dev.avinya.ads.appopen/AppOpenReturnOutcome.SdkNotReady.status.<get-status>|<get-status>(){}[0]
+
+        final fun component1(): dev.avinya.ads/AdManagerStatus // dev.avinya.ads.appopen/AppOpenReturnOutcome.SdkNotReady.component1|component1(){}[0]
+        final fun copy(dev.avinya.ads/AdManagerStatus = ...): dev.avinya.ads.appopen/AppOpenReturnOutcome.SdkNotReady // dev.avinya.ads.appopen/AppOpenReturnOutcome.SdkNotReady.copy|copy(dev.avinya.ads.AdManagerStatus){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.appopen/AppOpenReturnOutcome.SdkNotReady.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.appopen/AppOpenReturnOutcome.SdkNotReady.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.appopen/AppOpenReturnOutcome.SdkNotReady.toString|toString(){}[0]
+    }
+
+    final class ShowAttempted : dev.avinya.ads.appopen/AppOpenReturnOutcome { // dev.avinya.ads.appopen/AppOpenReturnOutcome.ShowAttempted|null[0]
+        constructor <init>(dev.avinya.ads/AdShowResult) // dev.avinya.ads.appopen/AppOpenReturnOutcome.ShowAttempted.<init>|<init>(dev.avinya.ads.AdShowResult){}[0]
+
+        final val result // dev.avinya.ads.appopen/AppOpenReturnOutcome.ShowAttempted.result|{}result[0]
+            final fun <get-result>(): dev.avinya.ads/AdShowResult // dev.avinya.ads.appopen/AppOpenReturnOutcome.ShowAttempted.result.<get-result>|<get-result>(){}[0]
+
+        final fun component1(): dev.avinya.ads/AdShowResult // dev.avinya.ads.appopen/AppOpenReturnOutcome.ShowAttempted.component1|component1(){}[0]
+        final fun copy(dev.avinya.ads/AdShowResult = ...): dev.avinya.ads.appopen/AppOpenReturnOutcome.ShowAttempted // dev.avinya.ads.appopen/AppOpenReturnOutcome.ShowAttempted.copy|copy(dev.avinya.ads.AdShowResult){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.appopen/AppOpenReturnOutcome.ShowAttempted.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.appopen/AppOpenReturnOutcome.ShowAttempted.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.appopen/AppOpenReturnOutcome.ShowAttempted.toString|toString(){}[0]
+    }
+
+    final object AnotherAdShowing : dev.avinya.ads.appopen/AppOpenReturnOutcome { // dev.avinya.ads.appopen/AppOpenReturnOutcome.AnotherAdShowing|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.appopen/AppOpenReturnOutcome.AnotherAdShowing.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.appopen/AppOpenReturnOutcome.AnotherAdShowing.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.appopen/AppOpenReturnOutcome.AnotherAdShowing.toString|toString(){}[0]
+    }
+
+    final object AwayTooShort : dev.avinya.ads.appopen/AppOpenReturnOutcome { // dev.avinya.ads.appopen/AppOpenReturnOutcome.AwayTooShort|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.appopen/AppOpenReturnOutcome.AwayTooShort.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.appopen/AppOpenReturnOutcome.AwayTooShort.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.appopen/AppOpenReturnOutcome.AwayTooShort.toString|toString(){}[0]
+    }
+
+    final object Blocked : dev.avinya.ads.appopen/AppOpenReturnOutcome { // dev.avinya.ads.appopen/AppOpenReturnOutcome.Blocked|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.appopen/AppOpenReturnOutcome.Blocked.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.appopen/AppOpenReturnOutcome.Blocked.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.appopen/AppOpenReturnOutcome.Blocked.toString|toString(){}[0]
+    }
+
+    final object NoAdLoaded : dev.avinya.ads.appopen/AppOpenReturnOutcome { // dev.avinya.ads.appopen/AppOpenReturnOutcome.NoAdLoaded|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.appopen/AppOpenReturnOutcome.NoAdLoaded.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.appopen/AppOpenReturnOutcome.NoAdLoaded.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.appopen/AppOpenReturnOutcome.NoAdLoaded.toString|toString(){}[0]
+    }
+
+    final object ReturnedFromAdClick : dev.avinya.ads.appopen/AppOpenReturnOutcome { // dev.avinya.ads.appopen/AppOpenReturnOutcome.ReturnedFromAdClick|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.appopen/AppOpenReturnOutcome.ReturnedFromAdClick.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads.appopen/AppOpenReturnOutcome.ReturnedFromAdClick.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads.appopen/AppOpenReturnOutcome.ReturnedFromAdClick.toString|toString(){}[0]
+    }
+}
+
 sealed interface dev.avinya.ads.nativead/NativeAdSlotState { // dev.avinya.ads.nativead/NativeAdSlotState|null[0]
     final class Failed : dev.avinya.ads.nativead/NativeAdSlotState { // dev.avinya.ads.nativead/NativeAdSlotState.Failed|null[0]
         constructor <init>(dev.avinya.ads/AdError) // dev.avinya.ads.nativead/NativeAdSlotState.Failed.<init>|<init>(dev.avinya.ads.AdError){}[0]
@@ -1012,6 +1083,9 @@ sealed interface dev.avinya.ads/RequestConfigurationUpdateResult { // dev.avinya
 final class dev.avinya.ads.appopen/AppOpenAdCoordinator { // dev.avinya.ads.appopen/AppOpenAdCoordinator|null[0]
     constructor <init>(dev.avinya.ads/AdManager, dev.avinya.ads/AppOpenAdController, dev.avinya.ads.appopen/AppOpenConfig = ...) // dev.avinya.ads.appopen/AppOpenAdCoordinator.<init>|<init>(dev.avinya.ads.AdManager;dev.avinya.ads.AppOpenAdController;dev.avinya.ads.appopen.AppOpenConfig){}[0]
 
+    final val returns // dev.avinya.ads.appopen/AppOpenAdCoordinator.returns|{}returns[0]
+        final fun <get-returns>(): kotlinx.coroutines.flow/SharedFlow<dev.avinya.ads.appopen/AppOpenReturn> // dev.avinya.ads.appopen/AppOpenAdCoordinator.returns.<get-returns>|<get-returns>(){}[0]
+
     final var isBlocked // dev.avinya.ads.appopen/AppOpenAdCoordinator.isBlocked|{}isBlocked[0]
         final fun <get-isBlocked>(): kotlin/Boolean // dev.avinya.ads.appopen/AppOpenAdCoordinator.isBlocked.<get-isBlocked>|<get-isBlocked>(){}[0]
         final fun <set-isBlocked>(kotlin/Boolean) // dev.avinya.ads.appopen/AppOpenAdCoordinator.isBlocked.<set-isBlocked>|<set-isBlocked>(kotlin.Boolean){}[0]
@@ -1046,6 +1120,25 @@ final class dev.avinya.ads.appopen/AppOpenConfig { // dev.avinya.ads.appopen/App
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.appopen/AppOpenConfig.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.avinya.ads.appopen/AppOpenConfig.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.avinya.ads.appopen/AppOpenConfig.toString|toString(){}[0]
+}
+
+final class dev.avinya.ads.appopen/AppOpenReturn { // dev.avinya.ads.appopen/AppOpenReturn|null[0]
+    constructor <init>(kotlin/String, kotlin.time/Duration, dev.avinya.ads.appopen/AppOpenReturnOutcome) // dev.avinya.ads.appopen/AppOpenReturn.<init>|<init>(kotlin.String;kotlin.time.Duration;dev.avinya.ads.appopen.AppOpenReturnOutcome){}[0]
+
+    final val awayFor // dev.avinya.ads.appopen/AppOpenReturn.awayFor|{}awayFor[0]
+        final fun <get-awayFor>(): kotlin.time/Duration // dev.avinya.ads.appopen/AppOpenReturn.awayFor.<get-awayFor>|<get-awayFor>(){}[0]
+    final val outcome // dev.avinya.ads.appopen/AppOpenReturn.outcome|{}outcome[0]
+        final fun <get-outcome>(): dev.avinya.ads.appopen/AppOpenReturnOutcome // dev.avinya.ads.appopen/AppOpenReturn.outcome.<get-outcome>|<get-outcome>(){}[0]
+    final val placementId // dev.avinya.ads.appopen/AppOpenReturn.placementId|{}placementId[0]
+        final fun <get-placementId>(): kotlin/String // dev.avinya.ads.appopen/AppOpenReturn.placementId.<get-placementId>|<get-placementId>(){}[0]
+
+    final fun component1(): kotlin/String // dev.avinya.ads.appopen/AppOpenReturn.component1|component1(){}[0]
+    final fun component2(): kotlin.time/Duration // dev.avinya.ads.appopen/AppOpenReturn.component2|component2(){}[0]
+    final fun component3(): dev.avinya.ads.appopen/AppOpenReturnOutcome // dev.avinya.ads.appopen/AppOpenReturn.component3|component3(){}[0]
+    final fun copy(kotlin/String = ..., kotlin.time/Duration = ..., dev.avinya.ads.appopen/AppOpenReturnOutcome = ...): dev.avinya.ads.appopen/AppOpenReturn // dev.avinya.ads.appopen/AppOpenReturn.copy|copy(kotlin.String;kotlin.time.Duration;dev.avinya.ads.appopen.AppOpenReturnOutcome){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.appopen/AppOpenReturn.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.avinya.ads.appopen/AppOpenReturn.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.avinya.ads.appopen/AppOpenReturn.toString|toString(){}[0]
 }
 
 final class dev.avinya.ads.internal/FullScreenStateLock { // dev.avinya.ads.internal/FullScreenStateLock|null[0]

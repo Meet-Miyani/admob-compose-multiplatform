@@ -23,7 +23,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -139,6 +142,20 @@ public class AppOpenAdCoordinator internal constructor(
             showAdmissionLock.withLock { blocked = value }
         }
 
+    private val _returns = MutableSharedFlow<AppOpenReturn>(extraBufferCapacity = 64)
+
+    /**
+     * One [AppOpenReturn] per return to the foreground: how long the app was away, and what the
+     * coordinator decided — why no ad was shown, or how the show went.
+     *
+     * Never emitted for the start-up foreground, which is not a return. An entry for a shown ad
+     * comes after dismissal, once the outcome is final; its impression has already been reported
+     * as an [AdEvent.Impression]. A show cancelled by [stop] emits nothing.
+     *
+     * A hot stream, like [AdManager.events]: an entry nobody is collecting is dropped.
+     */
+    public val returns: SharedFlow<AppOpenReturn> = _returns.asSharedFlow()
+
     // A StateFlow, not a plain field, so start() can subscribe to `manager.events` only while the
     // switch is on: with it off the coordinator adds no subscriber and behaves exactly as before.
     private val skipAfterClick = MutableStateFlow(false)
@@ -238,7 +255,7 @@ public class AppOpenAdCoordinator internal constructor(
             // Never show on a background launch (push / background fetch): an app-open
             // ad shown while not actually in the foreground is a policy violation. The
             // ad stays cached for the next genuine foreground entry.
-            if (appInForeground() && tryAcquireShowAdmission()) showNow()
+            if (appInForeground() && tryAcquireShowAdmission() == null) showNow()
         } else {
             controller.load()
         }
@@ -268,16 +285,16 @@ public class AppOpenAdCoordinator internal constructor(
         // process-wide probe token and sets showInFlight, but there is nothing to launch the work
         // that would release them.
         val activeScope = lifecycle ?: return
-        val qualifies = when {
+        val declined: AppOpenReturnOutcome? = when {
             backgroundDuration < config.minBackgroundDuration -> {
                 logSkip("background for $backgroundDuration, under minBackgroundDuration ${config.minBackgroundDuration}")
-                false
+                AppOpenReturnOutcome.AwayTooShort
             }
             returningFromClick -> {
                 logSkip("first return after an ad click (skipAfterAdClick)")
-                false
+                AppOpenReturnOutcome.ReturnedFromAdClick
             }
-            else -> true
+            else -> null
         }
         // Admission is acquired INSIDE the child, never before launching it. The releasing
         // `finally` lives in showNow(), and a DEFAULT-start coroutine cancelled before its
@@ -286,7 +303,12 @@ public class AppOpenAdCoordinator internal constructor(
         // arbiter token and showInFlight for the rest of the process, silently blocking every
         // full-screen format. Nothing suspends between the acquisition and showNow()'s try.
         activeScope.launch {
-            if (qualifies && tryAcquireShowAdmission()) showNow()
+            // Exactly one outcome per return, emitted once it is final: after dismissal for a
+            // shown ad. A show cancelled by stop() throws out of here and emits nothing.
+            val outcome = declined
+                ?: tryAcquireShowAdmission()
+                ?: AppOpenReturnOutcome.ShowAttempted(showNow())
+            emitReturn(AppOpenReturn(controller.placement.id, backgroundDuration, outcome))
             if (!controller.isReady()) controller.load()
         }
     }
@@ -308,30 +330,55 @@ public class AppOpenAdCoordinator internal constructor(
      * Atomically checks coordinator admission and reserves the next show. Cold-start preload and
      * foreground collection may run in different scopes/threads, so checking [showInFlight] and
      * setting it must be one transition.
+     *
+     * @return null when the show is reserved, otherwise why it may not happen.
      */
-    private fun tryAcquireShowAdmission(): Boolean {
+    private fun tryAcquireShowAdmission(): AppOpenReturnOutcome? {
         val blockedBy = showAdmissionLock.withLock {
-            val reason = showBlockReasonLocked()
+            val block = showBlockLocked()
                 // Acquired last, after every cheap local check, so a rejected attempt never takes
                 // and immediately re-releases the process-wide token.
-                ?: if (tryAcquireProbeTokenLocked()) null else "another full-screen ad is presenting"
-            if (reason == null) showInFlight = true
-            reason
+                ?: if (tryAcquireProbeTokenLocked()) {
+                    null
+                } else {
+                    ShowBlock(AppOpenReturnOutcome.AnotherAdShowing, "another full-screen ad is presenting")
+                }
+            if (block == null) showInFlight = true
+            block
         }
         // Logged outside the lock: AdLogger may call a host-supplied sink.
-        blockedBy?.let(::logSkip)
-        return blockedBy == null
+        blockedBy?.let { logSkip(it.reason) }
+        return blockedBy?.outcome
     }
 
+    /** A declined show: the outcome reported on [returns], and the reason logged. */
+    private class ShowBlock(val outcome: AppOpenReturnOutcome, val reason: String)
+
     /** Why the coordinator may not show right now, or null if it may. Caller holds the lock. */
-    private fun showBlockReasonLocked(): String? = when {
-        blocked -> "isBlocked is true"
-        showInFlight -> "a coordinator show is already in flight"
-        manager.status.value != AdManagerStatus.Ready -> "the SDK is not Ready (${manager.status.value})"
-        elapsedSince(lastShowInstant) < config.cooldownBetweenShows ->
-            "cooldownBetweenShows ${config.cooldownBetweenShows} has not elapsed"
-        !controller.isReady() -> "no app-open ad is loaded"
-        else -> null
+    private fun showBlockLocked(): ShowBlock? {
+        val status = manager.status.value
+        val sinceLastShow = elapsedSince(lastShowInstant)
+        return when {
+            blocked -> ShowBlock(AppOpenReturnOutcome.Blocked, "isBlocked is true")
+            showInFlight -> ShowBlock(AppOpenReturnOutcome.AnotherAdShowing, "a coordinator show is already in flight")
+            status != AdManagerStatus.Ready ->
+                ShowBlock(AppOpenReturnOutcome.SdkNotReady(status), "the SDK is not Ready ($status)")
+            sinceLastShow < config.cooldownBetweenShows -> ShowBlock(
+                AppOpenReturnOutcome.CoolingDown(config.cooldownBetweenShows - sinceLastShow),
+                "cooldownBetweenShows ${config.cooldownBetweenShows} has not elapsed",
+            )
+            !controller.isReady() -> ShowBlock(AppOpenReturnOutcome.NoAdLoaded, "no app-open ad is loaded")
+            else -> null
+        }
+    }
+
+    private fun emitReturn(entry: AppOpenReturn) {
+        if (!_returns.tryEmit(entry)) {
+            AdLogger.w(
+                "App-open return DROPPED — the returns buffer was full. placement=${entry.placementId} " +
+                    "outcome=${entry.outcome::class.simpleName}"
+            )
+        }
     }
 
     // Placement ids and durations only: nothing here derives from user or ad content.
@@ -377,7 +424,7 @@ public class AppOpenAdCoordinator internal constructor(
         (manager as? FullScreenPresenceAware)?.fullScreenArbiter?.release(token)
     }
 
-    private suspend fun showNow() {
+    private suspend fun showNow(): AdShowResult {
         try {
             currentCoroutineContext().ensureActive()
             // Hand the token back before delegating: the controller's own prepareShow acquires
@@ -390,6 +437,7 @@ public class AppOpenAdCoordinator internal constructor(
                     lastShowInstant = clock()
                 }
             }
+            return result
         } finally {
             // Covers every terminal result plus direct throws and cancellation — including a
             // throw from ensureActive() before the release above, which would otherwise strand

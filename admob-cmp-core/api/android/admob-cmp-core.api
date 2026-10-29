@@ -1349,6 +1349,7 @@ public final class dev/avinya/ads/TestAdIdsKt {
 public final class dev/avinya/ads/appopen/AppOpenAdCoordinator {
 	public fun <init> (Ldev/avinya/ads/AdManager;Ldev/avinya/ads/AppOpenAdController;Ldev/avinya/ads/appopen/AppOpenConfig;)V
 	public synthetic fun <init> (Ldev/avinya/ads/AdManager;Ldev/avinya/ads/AppOpenAdController;Ldev/avinya/ads/appopen/AppOpenConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getReturns ()Lkotlinx/coroutines/flow/SharedFlow;
 	public final fun getSkipAfterAdClick ()Z
 	public final fun isBlocked ()Z
 	public final fun setBlocked (Z)V
@@ -1374,6 +1375,92 @@ public final class dev/avinya/ads/appopen/AppOpenConfig {
 	public final fun getMinBackgroundDuration-UwyO8pc ()J
 	public final fun getPreloadOnStart ()Z
 	public final fun getShowOnColdStart ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/appopen/AppOpenReturn {
+	public synthetic fun <init> (Ljava/lang/String;JLdev/avinya/ads/appopen/AppOpenReturnOutcome;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2-UwyO8pc ()J
+	public final fun component3 ()Ldev/avinya/ads/appopen/AppOpenReturnOutcome;
+	public final fun copy-8Mi8wO0 (Ljava/lang/String;JLdev/avinya/ads/appopen/AppOpenReturnOutcome;)Ldev/avinya/ads/appopen/AppOpenReturn;
+	public static synthetic fun copy-8Mi8wO0$default (Ldev/avinya/ads/appopen/AppOpenReturn;Ljava/lang/String;JLdev/avinya/ads/appopen/AppOpenReturnOutcome;ILjava/lang/Object;)Ldev/avinya/ads/appopen/AppOpenReturn;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAwayFor-UwyO8pc ()J
+	public final fun getOutcome ()Ldev/avinya/ads/appopen/AppOpenReturnOutcome;
+	public final fun getPlacementId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class dev/avinya/ads/appopen/AppOpenReturnOutcome {
+}
+
+public final class dev/avinya/ads/appopen/AppOpenReturnOutcome$AnotherAdShowing : dev/avinya/ads/appopen/AppOpenReturnOutcome {
+	public static final field INSTANCE Ldev/avinya/ads/appopen/AppOpenReturnOutcome$AnotherAdShowing;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/appopen/AppOpenReturnOutcome$AwayTooShort : dev/avinya/ads/appopen/AppOpenReturnOutcome {
+	public static final field INSTANCE Ldev/avinya/ads/appopen/AppOpenReturnOutcome$AwayTooShort;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/appopen/AppOpenReturnOutcome$Blocked : dev/avinya/ads/appopen/AppOpenReturnOutcome {
+	public static final field INSTANCE Ldev/avinya/ads/appopen/AppOpenReturnOutcome$Blocked;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/appopen/AppOpenReturnOutcome$CoolingDown : dev/avinya/ads/appopen/AppOpenReturnOutcome {
+	public synthetic fun <init> (JLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-UwyO8pc ()J
+	public final fun copy-LRDsOJo (J)Ldev/avinya/ads/appopen/AppOpenReturnOutcome$CoolingDown;
+	public static synthetic fun copy-LRDsOJo$default (Ldev/avinya/ads/appopen/AppOpenReturnOutcome$CoolingDown;JILjava/lang/Object;)Ldev/avinya/ads/appopen/AppOpenReturnOutcome$CoolingDown;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRemaining-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/appopen/AppOpenReturnOutcome$NoAdLoaded : dev/avinya/ads/appopen/AppOpenReturnOutcome {
+	public static final field INSTANCE Ldev/avinya/ads/appopen/AppOpenReturnOutcome$NoAdLoaded;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/appopen/AppOpenReturnOutcome$ReturnedFromAdClick : dev/avinya/ads/appopen/AppOpenReturnOutcome {
+	public static final field INSTANCE Ldev/avinya/ads/appopen/AppOpenReturnOutcome$ReturnedFromAdClick;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/appopen/AppOpenReturnOutcome$SdkNotReady : dev/avinya/ads/appopen/AppOpenReturnOutcome {
+	public fun <init> (Ldev/avinya/ads/AdManagerStatus;)V
+	public final fun component1 ()Ldev/avinya/ads/AdManagerStatus;
+	public final fun copy (Ldev/avinya/ads/AdManagerStatus;)Ldev/avinya/ads/appopen/AppOpenReturnOutcome$SdkNotReady;
+	public static synthetic fun copy$default (Ldev/avinya/ads/appopen/AppOpenReturnOutcome$SdkNotReady;Ldev/avinya/ads/AdManagerStatus;ILjava/lang/Object;)Ldev/avinya/ads/appopen/AppOpenReturnOutcome$SdkNotReady;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getStatus ()Ldev/avinya/ads/AdManagerStatus;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/appopen/AppOpenReturnOutcome$ShowAttempted : dev/avinya/ads/appopen/AppOpenReturnOutcome {
+	public fun <init> (Ldev/avinya/ads/AdShowResult;)V
+	public final fun component1 ()Ldev/avinya/ads/AdShowResult;
+	public final fun copy (Ldev/avinya/ads/AdShowResult;)Ldev/avinya/ads/appopen/AppOpenReturnOutcome$ShowAttempted;
+	public static synthetic fun copy$default (Ldev/avinya/ads/appopen/AppOpenReturnOutcome$ShowAttempted;Ldev/avinya/ads/AdShowResult;ILjava/lang/Object;)Ldev/avinya/ads/appopen/AppOpenReturnOutcome$ShowAttempted;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getResult ()Ldev/avinya/ads/AdShowResult;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
