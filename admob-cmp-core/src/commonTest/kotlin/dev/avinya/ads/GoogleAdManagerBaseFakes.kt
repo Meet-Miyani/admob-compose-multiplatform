@@ -5,8 +5,11 @@ import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.awaitNativeCallback
 import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
+import kotlin.time.TimeSource
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
@@ -39,7 +42,18 @@ internal class FakeGoogleAdManager(
     nativeScope: CoroutineScope? = null,
     /** Non-null makes the platform reject a runtime request-configuration update. */
     private val applyRequestConfigurationFailure: (() -> Throwable)? = null,
+    /**
+     * The adapter half of native initialization. [nativeInitialize] models the accept point
+     * (Android's `MobileAds.initialize` returning, iOS's `start` call); this models GMA's adapter
+     * callback. Already complete by default, which is the old single-callback behaviour, so a
+     * test that does not care about adapters sees Ready as soon as accept returns.
+     */
+    private val adapterCompletion: Deferred<Unit> = CompletableDeferred(Unit),
+    /** Pass `testScheduler.timeSource` so adapter-wait durations follow virtual time. */
+    private val timeSource: TimeSource = TimeSource.Monotonic,
 ) : GoogleAdManagerBase() {
+
+    override val initializationTimeSource: TimeSource get() = timeSource
 
     override val platformTag: String = "Fake"
     override val nativeInitializationDispatcher: CoroutineDispatcher = Dispatchers.Main.immediate
@@ -107,7 +121,7 @@ internal class FakeGoogleAdManager(
         config: AdConfig,
         requestedIdentity: AdInitializationConfigIdentity,
         markHandoff: suspend () -> Unit,
-    ) {
+    ): NativeInitializationHandle {
         nativeHandoffs += requestedIdentity
         failBeforeHandoff()?.let { throw it }
         markHandoff()
@@ -115,6 +129,7 @@ internal class FakeGoogleAdManager(
         awaitNativeCallback("Fake MobileAds.initialize", InitializationTimeouts.nativeInitialize) {
             nativeInitialize(config, requestedIdentity)
         }
+        return NativeInitializationHandle(adapterCompletion)
     }
 
     private fun unreachable(): Nothing =

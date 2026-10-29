@@ -448,8 +448,10 @@ public final class dev/avinya/ads/AdLogger {
 }
 
 public abstract interface class dev/avinya/ads/AdManager {
+	public static final field Companion Ldev/avinya/ads/AdManager$Companion;
 	public abstract fun appOpen (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/AppOpenAdController;
 	public abstract fun banner (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/BannerAdController;
+	public fun getAdapterStartupWait-UwyO8pc ()J
 	public abstract fun getConsent ()Ldev/avinya/ads/ConsentController;
 	public abstract fun getDiagnostics ()Ldev/avinya/ads/AdDiagnostics;
 	public abstract fun getEvents ()Lkotlinx/coroutines/flow/SharedFlow;
@@ -461,10 +463,18 @@ public abstract interface class dev/avinya/ads/AdManager {
 	public abstract fun interstitial (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/InterstitialAdController;
 	public abstract fun rewarded (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/RewardedAdController;
 	public abstract fun rewardedInterstitial (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/RewardedInterstitialAdController;
+	public fun setAdapterStartupWait-LRDsOJo (J)V
+}
+
+public final class dev/avinya/ads/AdManager$Companion {
+	public final fun getDEFAULT_ADAPTER_STARTUP_WAIT-UwyO8pc ()J
+	public final fun getMAX_ADAPTER_STARTUP_WAIT-UwyO8pc ()J
 }
 
 public final class dev/avinya/ads/AdManager$DefaultImpls {
+	public static fun getAdapterStartupWait-UwyO8pc (Ldev/avinya/ads/AdManager;)J
 	public static synthetic fun initialize$default (Ldev/avinya/ads/AdManager;Ldev/avinya/ads/AdConfig;Ldev/avinya/ads/ConsentMode;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static fun setAdapterStartupWait-LRDsOJo (Ldev/avinya/ads/AdManager;J)V
 }
 
 public final class dev/avinya/ads/AdManagerKt {
@@ -856,6 +866,58 @@ public final class dev/avinya/ads/AdapterInitializationStatus {
 	public fun toString ()Ljava/lang/String;
 }
 
+public abstract interface class dev/avinya/ads/AdapterStartup {
+}
+
+public final class dev/avinya/ads/AdapterStartup$Finished : dev/avinya/ads/AdapterStartup {
+	public synthetic fun <init> (Ljava/util/List;JLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun component2-UwyO8pc ()J
+	public final fun copy-HG0u8IE (Ljava/util/List;J)Ldev/avinya/ads/AdapterStartup$Finished;
+	public static synthetic fun copy-HG0u8IE$default (Ldev/avinya/ads/AdapterStartup$Finished;Ljava/util/List;JILjava/lang/Object;)Ldev/avinya/ads/AdapterStartup$Finished;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdapters ()Ljava/util/List;
+	public final fun getElapsed-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdapterStartup$InProgress : dev/avinya/ads/AdapterStartup {
+	public static final field INSTANCE Ldev/avinya/ads/AdapterStartup$InProgress;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdapterStartup$NotReported : dev/avinya/ads/AdapterStartup {
+	public synthetic fun <init> (JLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-UwyO8pc ()J
+	public final fun copy-LRDsOJo (J)Ldev/avinya/ads/AdapterStartup$NotReported;
+	public static synthetic fun copy-LRDsOJo$default (Ldev/avinya/ads/AdapterStartup$NotReported;JILjava/lang/Object;)Ldev/avinya/ads/AdapterStartup$NotReported;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getElapsed-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdapterStartup$NotStarted : dev/avinya/ads/AdapterStartup {
+	public static final field INSTANCE Ldev/avinya/ads/AdapterStartup$NotStarted;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdapterStartup$Unavailable : dev/avinya/ads/AdapterStartup {
+	public static final field INSTANCE Ldev/avinya/ads/AdapterStartup$Unavailable;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/avinya/ads/AdapterStartupKt {
+	public static final fun getAdapterStartup (Ldev/avinya/ads/AdManager;)Lkotlinx/coroutines/flow/StateFlow;
+}
+
 public final class dev/avinya/ads/AgeRestrictedTreatment : java/lang/Enum {
 	public static final field Child Ldev/avinya/ads/AgeRestrictedTreatment;
 	public static final field Teen Ldev/avinya/ads/AgeRestrictedTreatment;
@@ -1123,6 +1185,7 @@ public final class dev/avinya/ads/NoOpAdManager : dev/avinya/ads/AdManager {
 	public static final field INSTANCE Ldev/avinya/ads/NoOpAdManager;
 	public fun appOpen (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/AppOpenAdController;
 	public fun banner (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/BannerAdController;
+	public fun getAdapterStartupWait-UwyO8pc ()J
 	public fun getConsent ()Ldev/avinya/ads/ConsentController;
 	public fun getDiagnostics ()Ldev/avinya/ads/AdDiagnostics;
 	public fun getEvents ()Lkotlinx/coroutines/flow/SharedFlow;
@@ -1133,6 +1196,7 @@ public final class dev/avinya/ads/NoOpAdManager : dev/avinya/ads/AdManager {
 	public fun interstitial (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/InterstitialAdController;
 	public fun rewarded (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/RewardedAdController;
 	public fun rewardedInterstitial (Ldev/avinya/ads/AdPlacement;)Ldev/avinya/ads/RewardedInterstitialAdController;
+	public fun setAdapterStartupWait-LRDsOJo (J)V
 }
 
 public final class dev/avinya/ads/PaidEvent {

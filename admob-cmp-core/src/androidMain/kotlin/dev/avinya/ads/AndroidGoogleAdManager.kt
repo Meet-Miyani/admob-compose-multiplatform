@@ -8,16 +8,18 @@ import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeAdManagerImpl
 import dev.avinya.ads.internal.awaitNativeCallback
 import dev.avinya.ads.internal.emitOrLogDrop
-import dev.avinya.ads.internal.suspendSingleShot
 import dev.avinya.ads.nativead.AndroidNativeAdPlatform
 import dev.avinya.ads.nativead.AndroidNativeMemorySignal
 import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
 import com.google.android.libraries.ads.mobile.sdk.MobileAds
 import com.google.android.libraries.ads.mobile.sdk.initialization.InitializationConfig
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 
 internal class AndroidGoogleAdManager(
     val appContext: Context,
@@ -136,11 +138,19 @@ internal class AndroidGoogleAdManager(
         androidDiagnostics.captureSnapshotOnMain()
     }
 
+    // MobileAds.initialize blocks its thread (GMA Next-Gen documents it as @WorkerThread doing
+    // disk and network work), so it runs on its own detached IO scope rather than on the caller's
+    // coroutine. That is what lets the accept watchdog below actually give up: a timeout cannot
+    // interrupt a blocked thread, and a watchdog running on that same blocked coroutine would never
+    // fire. A call that hangs past the watchdog keeps one IO thread until it returns; GMA has already
+    // been handed the configuration by then, which handedOffConfigIdentity records.
+    private val blockingInitializationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override suspend fun initializeMobileAdsNative(
         config: AdConfig,
         requestedIdentity: AdInitializationConfigIdentity,
         markHandoff: suspend () -> Unit,
-    ) {
+    ): NativeInitializationHandle {
         AdLogger.d("Android initializing MobileAds with global request configuration.")
         val initializationConfig = InitializationConfig.Builder(config.androidAppId)
             .setRequestConfiguration(requestedIdentity.globalRequestConfiguration.toAndroidRequestConfiguration())
@@ -148,25 +158,25 @@ internal class AndroidGoogleAdManager(
         // The builder and request-configuration mapping can reject a malformed app ID;
         // nothing is owned by GMA until MobileAds.initialize is actually called.
         markHandoff()
-        withContext(Dispatchers.IO) {
-            // MUST stay bounded: GMA can accept the call and never invoke the callback, which
-            // would leave initialize() suspended forever otherwise. A timeout is NOT a
-            // CancellationException (see awaitNativeCallback), so it reaches the catch below as a
-            // real failure. The requested identity is pinned as handed-off before this call
-            // regardless, so retrying the SAME configuration is still the correct next step, while
-            // a retry with a DIFFERENT one is refused deterministically instead of being
-            // reported as applied. See GoogleAdManagerBase.handedOffConfigIdentity.
-            awaitNativeCallback(
-                operation = "MobileAds.initialize",
-                timeout = InitializationTimeouts.nativeInitialize
-            ) {
-                suspendSingleShot { continuation ->
-                    MobileAds.initialize(appContext, initializationConfig) {
-                        continuation.resume(Unit)
-                    }
-                }
-            }
+        // GMA Next-Gen's reference: "When this method returns, the SDK is ready to accept requests
+        // but not all 3P SDKs may be ready yet." The listener is the adapters' own signal, and can
+        // fire before initialize returns, later, or never.
+        val adapters = CompletableDeferred<Unit>()
+        val accepted = blockingInitializationScope.async {
+            MobileAds.initialize(appContext, initializationConfig) { adapters.complete(Unit) }
         }
+        // MUST stay bounded: a timeout is NOT a CancellationException (see awaitNativeCallback), so
+        // it reaches the base class as a real, retryable failure. The requested identity is pinned
+        // as handed-off before this call regardless, so retrying the SAME configuration is still
+        // the correct next step, while a retry with a DIFFERENT one is refused deterministically.
+        awaitNativeCallback(
+            operation = "MobileAds.initialize",
+            timeout = InitializationTimeouts.nativeInitialize
+        ) {
+            accepted.await()
+        }
+        // Applied at the accept point, not after the adapter callback, so they are in force for
+        // every request once Ready is published — which no longer waits for every adapter.
         config.globalRequestConfiguration.publisherFirstPartyIdEnabled?.let {
             MobileAds.putPublisherFirstPartyIdEnabled(it)
         }
@@ -176,6 +186,7 @@ internal class AndroidGoogleAdManager(
         config.globalRequestConfiguration.appVolume?.let {
             MobileAds.setUserControlledAppVolume(it.coerceIn(0f, 1f))
         }
+        return NativeInitializationHandle(adapters)
     }
 
     /**

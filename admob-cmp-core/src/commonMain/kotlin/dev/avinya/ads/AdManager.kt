@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The primary entry point to the AdMob CMP SDK. 
@@ -92,6 +94,34 @@ public interface AdManager {
     public fun rewardedInterstitial(placement: AdPlacement): RewardedInterstitialAdController
     /** Returns an [AppOpenAdController] for [placement], cached by id. */
     public fun appOpen(placement: AdPlacement): AppOpenAdController
+
+    /**
+     * How long [AdManagerStatus.Ready] waits for mediation adapters once the Google Mobile Ads
+     * SDK accepts ad requests. Ready comes when the adapters report back, or this long after the
+     * SDK started accepting requests, whichever is first. Default [DEFAULT_ADAPTER_STARTUP_WAIT].
+     *
+     * A longer wait lets more ad networks take part in the first requests; a shorter one gets the
+     * first ad sooner. Google's guidance is to wait for adapters but never without a limit (its
+     * "Set an initialization timeout" section, five seconds in every example). Zero publishes
+     * Ready as soon as the SDK accepts requests. [MAX_ADAPTER_STARTUP_WAIT] matches the SDK's own
+     * bound and restores the behaviour from before this setting existed. Follow
+     * [dev.avinya.ads.adapterStartup] for the adapters themselves.
+     *
+     * Read when native initialization starts, so set it before calling [initialize]. Must be
+     * between zero and [MAX_ADAPTER_STARTUP_WAIT]. The default implementation, used by custom
+     * implementations of this interface, reports the default and ignores the value.
+     */
+    public var adapterStartupWait: Duration
+        get() = DEFAULT_ADAPTER_STARTUP_WAIT
+        set(@Suppress("UNUSED_PARAMETER") value) {}
+
+    public companion object {
+        /** Default [adapterStartupWait]: the value in every example of Google's guidance. */
+        public val DEFAULT_ADAPTER_STARTUP_WAIT: Duration = 5.seconds
+
+        /** Largest [adapterStartupWait]: the bound the SDK itself documents for adapter initialization. */
+        public val MAX_ADAPTER_STARTUP_WAIT: Duration = 30.seconds
+    }
 }
 
 /**
@@ -188,11 +218,12 @@ public interface AdDiagnostics {
     /**
      * Returns the initialization status of all ad adapters.
      *
-     * This is an **initialization-time snapshot**, captured on the main thread while
-     * the SDK initializes. It returns an empty list before initialization completes,
-     * and an adapter whose status changes afterwards is not reflected until the
-     * manager re-initializes. Accepted because adapter statuses are near-static
-     * post-init and this is debug/support tooling, not part of the ad-serving path.
+     * This is an **initialization-time snapshot**, captured on the main thread when the
+     * SDK starts accepting requests and refreshed once the adapters report back (see
+     * [dev.avinya.ads.adapterStartup]). It returns an empty list before initialization, may
+     * be partial while adapters are still starting, and an adapter whose status changes after
+     * they report is not reflected. Accepted because this is debug/support tooling, not part
+     * of the ad-serving path.
      */
     public fun adapterStatuses(): List<AdapterInitializationStatus>
 }

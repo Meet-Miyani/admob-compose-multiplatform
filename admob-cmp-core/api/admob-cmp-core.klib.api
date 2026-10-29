@@ -303,12 +303,23 @@ abstract interface dev.avinya.ads/AdManager { // dev.avinya.ads/AdManager|null[0
     abstract val tracking // dev.avinya.ads/AdManager.tracking|{}tracking[0]
         abstract fun <get-tracking>(): dev.avinya.ads/AdTrackingController // dev.avinya.ads/AdManager.tracking.<get-tracking>|<get-tracking>(){}[0]
 
+    open var adapterStartupWait // dev.avinya.ads/AdManager.adapterStartupWait|{}adapterStartupWait[0]
+        open fun <get-adapterStartupWait>(): kotlin.time/Duration // dev.avinya.ads/AdManager.adapterStartupWait.<get-adapterStartupWait>|<get-adapterStartupWait>(){}[0]
+        open fun <set-adapterStartupWait>(kotlin.time/Duration) // dev.avinya.ads/AdManager.adapterStartupWait.<set-adapterStartupWait>|<set-adapterStartupWait>(kotlin.time.Duration){}[0]
+
     abstract fun appOpen(dev.avinya.ads/AdPlacement): dev.avinya.ads/AppOpenAdController // dev.avinya.ads/AdManager.appOpen|appOpen(dev.avinya.ads.AdPlacement){}[0]
     abstract fun banner(dev.avinya.ads/AdPlacement): dev.avinya.ads/BannerAdController // dev.avinya.ads/AdManager.banner|banner(dev.avinya.ads.AdPlacement){}[0]
     abstract fun interstitial(dev.avinya.ads/AdPlacement): dev.avinya.ads/InterstitialAdController // dev.avinya.ads/AdManager.interstitial|interstitial(dev.avinya.ads.AdPlacement){}[0]
     abstract fun rewarded(dev.avinya.ads/AdPlacement): dev.avinya.ads/RewardedAdController // dev.avinya.ads/AdManager.rewarded|rewarded(dev.avinya.ads.AdPlacement){}[0]
     abstract fun rewardedInterstitial(dev.avinya.ads/AdPlacement): dev.avinya.ads/RewardedInterstitialAdController // dev.avinya.ads/AdManager.rewardedInterstitial|rewardedInterstitial(dev.avinya.ads.AdPlacement){}[0]
     abstract suspend fun initialize(dev.avinya.ads/AdConfig, dev.avinya.ads/ConsentMode = ...): dev.avinya.ads/AdManagerStatus // dev.avinya.ads/AdManager.initialize|initialize(dev.avinya.ads.AdConfig;dev.avinya.ads.ConsentMode){}[0]
+
+    final object Companion { // dev.avinya.ads/AdManager.Companion|null[0]
+        final val DEFAULT_ADAPTER_STARTUP_WAIT // dev.avinya.ads/AdManager.Companion.DEFAULT_ADAPTER_STARTUP_WAIT|{}DEFAULT_ADAPTER_STARTUP_WAIT[0]
+            final fun <get-DEFAULT_ADAPTER_STARTUP_WAIT>(): kotlin.time/Duration // dev.avinya.ads/AdManager.Companion.DEFAULT_ADAPTER_STARTUP_WAIT.<get-DEFAULT_ADAPTER_STARTUP_WAIT>|<get-DEFAULT_ADAPTER_STARTUP_WAIT>(){}[0]
+        final val MAX_ADAPTER_STARTUP_WAIT // dev.avinya.ads/AdManager.Companion.MAX_ADAPTER_STARTUP_WAIT|{}MAX_ADAPTER_STARTUP_WAIT[0]
+            final fun <get-MAX_ADAPTER_STARTUP_WAIT>(): kotlin.time/Duration // dev.avinya.ads/AdManager.Companion.MAX_ADAPTER_STARTUP_WAIT.<get-MAX_ADAPTER_STARTUP_WAIT>|<get-MAX_ADAPTER_STARTUP_WAIT>(){}[0]
+    }
 }
 
 abstract interface dev.avinya.ads/AdTrackingController { // dev.avinya.ads/AdTrackingController|null[0]
@@ -837,6 +848,55 @@ sealed interface dev.avinya.ads/AdSizePolicy { // dev.avinya.ads/AdSizePolicy|nu
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdSizePolicy.Fluid.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.avinya.ads/AdSizePolicy.Fluid.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.avinya.ads/AdSizePolicy.Fluid.toString|toString(){}[0]
+    }
+}
+
+sealed interface dev.avinya.ads/AdapterStartup { // dev.avinya.ads/AdapterStartup|null[0]
+    final class Finished : dev.avinya.ads/AdapterStartup { // dev.avinya.ads/AdapterStartup.Finished|null[0]
+        constructor <init>(kotlin.collections/List<dev.avinya.ads/AdapterInitializationStatus>, kotlin.time/Duration) // dev.avinya.ads/AdapterStartup.Finished.<init>|<init>(kotlin.collections.List<dev.avinya.ads.AdapterInitializationStatus>;kotlin.time.Duration){}[0]
+
+        final val adapters // dev.avinya.ads/AdapterStartup.Finished.adapters|{}adapters[0]
+            final fun <get-adapters>(): kotlin.collections/List<dev.avinya.ads/AdapterInitializationStatus> // dev.avinya.ads/AdapterStartup.Finished.adapters.<get-adapters>|<get-adapters>(){}[0]
+        final val elapsed // dev.avinya.ads/AdapterStartup.Finished.elapsed|{}elapsed[0]
+            final fun <get-elapsed>(): kotlin.time/Duration // dev.avinya.ads/AdapterStartup.Finished.elapsed.<get-elapsed>|<get-elapsed>(){}[0]
+
+        final fun component1(): kotlin.collections/List<dev.avinya.ads/AdapterInitializationStatus> // dev.avinya.ads/AdapterStartup.Finished.component1|component1(){}[0]
+        final fun component2(): kotlin.time/Duration // dev.avinya.ads/AdapterStartup.Finished.component2|component2(){}[0]
+        final fun copy(kotlin.collections/List<dev.avinya.ads/AdapterInitializationStatus> = ..., kotlin.time/Duration = ...): dev.avinya.ads/AdapterStartup.Finished // dev.avinya.ads/AdapterStartup.Finished.copy|copy(kotlin.collections.List<dev.avinya.ads.AdapterInitializationStatus>;kotlin.time.Duration){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdapterStartup.Finished.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdapterStartup.Finished.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdapterStartup.Finished.toString|toString(){}[0]
+    }
+
+    final class NotReported : dev.avinya.ads/AdapterStartup { // dev.avinya.ads/AdapterStartup.NotReported|null[0]
+        constructor <init>(kotlin.time/Duration) // dev.avinya.ads/AdapterStartup.NotReported.<init>|<init>(kotlin.time.Duration){}[0]
+
+        final val elapsed // dev.avinya.ads/AdapterStartup.NotReported.elapsed|{}elapsed[0]
+            final fun <get-elapsed>(): kotlin.time/Duration // dev.avinya.ads/AdapterStartup.NotReported.elapsed.<get-elapsed>|<get-elapsed>(){}[0]
+
+        final fun component1(): kotlin.time/Duration // dev.avinya.ads/AdapterStartup.NotReported.component1|component1(){}[0]
+        final fun copy(kotlin.time/Duration = ...): dev.avinya.ads/AdapterStartup.NotReported // dev.avinya.ads/AdapterStartup.NotReported.copy|copy(kotlin.time.Duration){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdapterStartup.NotReported.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdapterStartup.NotReported.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdapterStartup.NotReported.toString|toString(){}[0]
+    }
+
+    final object InProgress : dev.avinya.ads/AdapterStartup { // dev.avinya.ads/AdapterStartup.InProgress|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdapterStartup.InProgress.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdapterStartup.InProgress.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdapterStartup.InProgress.toString|toString(){}[0]
+    }
+
+    final object NotStarted : dev.avinya.ads/AdapterStartup { // dev.avinya.ads/AdapterStartup.NotStarted|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdapterStartup.NotStarted.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdapterStartup.NotStarted.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdapterStartup.NotStarted.toString|toString(){}[0]
+    }
+
+    final object Unavailable : dev.avinya.ads/AdapterStartup { // dev.avinya.ads/AdapterStartup.Unavailable|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdapterStartup.Unavailable.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdapterStartup.Unavailable.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdapterStartup.Unavailable.toString|toString(){}[0]
     }
 }
 
@@ -1836,6 +1896,8 @@ final object dev.avinya.ads/TestAdIds { // dev.avinya.ads/TestAdIds|null[0]
     final fun isTestAdUnitId(kotlin/String): kotlin/Boolean // dev.avinya.ads/TestAdIds.isTestAdUnitId|isTestAdUnitId(kotlin.String){}[0]
 }
 
+final val dev.avinya.ads/adapterStartup // dev.avinya.ads/adapterStartup|@dev.avinya.ads.AdManager{}adapterStartup[0]
+    final fun (dev.avinya.ads/AdManager).<get-adapterStartup>(): kotlinx.coroutines.flow/StateFlow<dev.avinya.ads/AdapterStartup> // dev.avinya.ads/adapterStartup.<get-adapterStartup>|<get-adapterStartup>@dev.avinya.ads.AdManager(){}[0]
 final val dev.avinya.ads/debugAdConfig // dev.avinya.ads/debugAdConfig|{}debugAdConfig[0]
     final fun <get-debugAdConfig>(): dev.avinya.ads/AdConfig // dev.avinya.ads/debugAdConfig.<get-debugAdConfig>|<get-debugAdConfig>(){}[0]
 final val dev.avinya.ads/debugAdPlacements // dev.avinya.ads/debugAdPlacements|{}debugAdPlacements[0]

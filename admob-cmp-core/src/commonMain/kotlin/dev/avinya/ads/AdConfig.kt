@@ -125,13 +125,17 @@ public enum class AdInitializationPhase {
     BeforeMobileAdsInitialize,
 
     /**
-     * After the GMA SDK initialization completes and [AdManager.status] has been published as
+     * After the GMA SDK accepts ad requests and [AdManager.status] has been published as
      * [AdManagerStatus.Ready].
      *
      * Ads can therefore be loaded from this hook, and waiting for `Ready` here returns
      * immediately. The trade-off is the other direction: because the manager is already
      * `Ready`, an ad request elsewhere in the app may begin while this hook is still running.
      * Anything that must precede every request belongs in [BeforeMobileAdsInitialize].
+     *
+     * Mediation adapters may still be initializing: `Ready` waits for them only up to
+     * [AdManager.adapterStartupWait]. Work that needs their final statuses should follow
+     * [dev.avinya.ads.adapterStartup] instead.
      *
      * The leading `initialize()` call does not return until these hooks finish.
      */

@@ -7,6 +7,7 @@ import dev.avinya.ads.internal.AppliedConfigurationDecision
 import dev.avinya.ads.internal.ConsentSessionState
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
 import dev.avinya.ads.internal.FullScreenStateLock
+import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.LaunchConsentUpdater
 import dev.avinya.ads.internal.AppIdVerdict
 import dev.avinya.ads.internal.DeclaredAppId
@@ -22,6 +23,9 @@ import dev.avinya.ads.internal.ownedSnapshot
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Duration
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -37,11 +41,21 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+
+/**
+ * What a platform's native initialization returns once the SDK accepts ad requests.
+ *
+ * [adapters] completes when the SDK's adapter-initialization callback fires, which can be before
+ * the accept point, later, or never. It is never completed exceptionally.
+ */
+internal class NativeInitializationHandle(val adapters: Deferred<Unit>)
 
 /** Registry key for a full-screen slot: one controller per (placement id, format) pair. */
 internal data class AdSlotKey(val placementId: String, val format: AdFormat)
@@ -62,9 +76,30 @@ internal data class AdSlotKey(val placementId: String, val format: AdFormat)
  * `IosGoogleAdManager.kt`, that means shared policy has leaked into a platform subclass, not
  * that this class needs a platform-specific branch.
  */
-internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware, RequestConfigurationUpdater {
+internal abstract class GoogleAdManagerBase :
+    AdManager, FullScreenPresenceAware, RequestConfigurationUpdater, AdapterStartupSource {
     /** "Android" or "iOS" — the only textual difference in this class's log messages. */
     protected abstract val platformTag: String
+
+    private val _adapterStartup = MutableStateFlow<AdapterStartup>(AdapterStartup.NotStarted)
+    override val adapterStartupState: StateFlow<AdapterStartup> = _adapterStartup.asStateFlow()
+
+    @Volatile
+    private var adapterStartupWaitSetting: Duration = AdManager.DEFAULT_ADAPTER_STARTUP_WAIT
+
+    /**
+     * Clock for the adapter wait and [AdapterStartup] durations. A getter, not a stored
+     * property, so a subclass override is never read before it is initialized. Tests substitute
+     * the coroutine test scheduler's clock.
+     */
+    protected open val initializationTimeSource: TimeSource get() = TimeSource.Monotonic
+
+    override var adapterStartupWait: Duration
+        get() = adapterStartupWaitSetting
+        set(value) {
+            requireValidAdapterStartupWait(value)
+            adapterStartupWaitSetting = value
+        }
 
     private val _status = MutableStateFlow<AdManagerStatus>(AdManagerStatus.Idle)
     /** Mutable event sink. Not `_events`: detekt's underscore-prefix convention is reserved for
@@ -202,19 +237,28 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
 
     /**
      * Reads GMA's/GAD's version and adapter statuses onto the platform's diagnostics object.
-     * MUST run on Main, immediately after [initializeMobileAdsNative] returns and before
-     * [dev.avinya.ads.internal.dispatchAfterInitializeHooks] runs, so a publisher hook can read
-     * populated adapter statuses.
+     * MUST run on Main. Called once the SDK accepts requests, before
+     * [dev.avinya.ads.internal.dispatchAfterInitializeHooks] runs, and again when the adapters
+     * report back. A hook that runs before the adapters have finished therefore sees partial
+     * adapter statuses; [AdapterStartup.Finished] carries the complete ones.
      */
     protected abstract fun captureDiagnosticsSnapshotOnMain()
 
     /**
      * Applies [requestedIdentity]'s global request configuration to the native SDK, starts it,
      * and applies `publisherFirstPartyIdEnabled`/`appMuted`/`appVolume` from [config] — the one
-     * point where this class actually touches GMA (Android) or GAD (iOS). Must suspend until the
-     * SDK reports completion or [dev.avinya.ads.internal.InitializationTimeouts.nativeInitialize]
-     * elapses; a timeout must surface as a thrown failure, not a `CancellationException` (see
-     * `awaitNativeCallback`), so a retry after a timeout is possible.
+     * point where this class actually touches GMA (Android) or GAD (iOS).
+     *
+     * Returns once the SDK **accepts ad requests**: on Android when `MobileAds.initialize` has
+     * returned, on iOS once `start` has been called. Those three settings are applied before
+     * returning, so they are in force at Ready. The returned handle's
+     * [NativeInitializationHandle.adapters] completes when the SDK's adapter-initialization
+     * callback fires; Ready waits for it only up to [adapterStartupWait].
+     *
+     * Reaching the accept point must stay bounded by
+     * [dev.avinya.ads.internal.InitializationTimeouts.nativeInitialize]; a timeout must surface as
+     * a thrown failure, not a `CancellationException` (see `awaitNativeCallback`), so a retry
+     * after a timeout is possible.
      *
      * [markHandoff] MUST be invoked exactly once, immediately before the FIRST irreversible touch of
      * the process-global native SDK, and MUST NOT be invoked on any path that fails before that point.
@@ -227,7 +271,7 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
         config: AdConfig,
         requestedIdentity: AdInitializationConfigIdentity,
         markHandoff: suspend () -> Unit,
-    )
+    ): NativeInitializationHandle
 
     private data class InitializationAttempt(
         val identity: AdInitializationConfigIdentity,
@@ -637,6 +681,9 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
         }
 
         val generation = ++nativeInitializationGeneration
+        // Read once, at the start: the setting documents that it applies when native
+        // initialization starts, so a later change cannot move a Ready already being waited for.
+        val adapterWait = adapterStartupWaitSetting
         // MUST run on nativeInitializationScope (a detached SupervisorJob scope), not on any
         // individual caller's coroutine: cancelling one initialize() caller must never interrupt
         // this operation — every caller (leader and followers) only awaits its result. That
@@ -660,12 +707,29 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
                 // iOS mutates GADMobileAds.sharedInstance.requestConfiguration before start(), while
                 // Android builds its InitializationConfig first and only marks immediately before
                 // MobileAds.initialize. From that mark on, this identity is what the process owns.
-                initializeMobileAdsNative(config, requestedIdentity) {
+                val handle = initializeMobileAdsNative(config, requestedIdentity) {
                     mobileAdsInitializationMutex.withLock { handedOffConfigIdentity = requestedIdentity }
                 }
-                // Captured after the native call returns so adapter statuses are populated, and
-                // before the After hook so a publisher hook can read them.
+                // The SDK accepts requests from here. Adapters may still be starting: Google's
+                // guidance is to wait for them, but never without a limit, so Ready waits only up
+                // to adapterWait. The adapters keep their own signal (adapterStartup) after that.
+                val acceptedAt = initializationTimeSource.markNow()
+                AdLogger.i("$platformTag MobileAds accepts ad requests. Waiting up to $adapterWait for mediation adapters.")
                 captureDiagnosticsSnapshotOnMain()
+                _adapterStartup.value = AdapterStartup.InProgress
+                val adaptersReported = awaitAdaptersWithin(handle, adapterWait)
+                if (adaptersReported) {
+                    recordAdaptersFinished(acceptedAt)
+                } else {
+                    AdLogger.i(
+                        "$platformTag publishing Ready after waiting $adapterWait; mediation adapters are " +
+                            "still initializing and will report through adapterStartup."
+                    )
+                }
+                // The identity commit stays here, with Ready, rather than moving to the accept
+                // point above. handedOffConfigIdentity, pinned at markHandoff, already refuses a
+                // different configuration during the wait, and committing earlier would leave the
+                // applied-configuration decision seeing an applied identity with no terminal status.
                 mobileAdsInitializationMutex.withLock {
                     // Native GMA is initialized at this point and can never be reconfigured, so
                     // the identity commit must be unconditional.
@@ -703,6 +767,11 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
                 // AFTER the commit, and isolated: a publisher hook is host code, so its failure is
                 // reported but must never make the native singleton look unapplied.
                 dispatchAfterInitializeHooks(config)
+                if (!adaptersReported) {
+                    // Detached on the same caller-independent scope as this operation: no caller
+                    // can cancel it, and it never touches status, so Ready cannot regress.
+                    nativeInitializationScope.launch { awaitAdapterTail(handle, acceptedAt) }
+                }
                 NativeInitializationResult.Applied
             } catch (failure: Throwable) {
                 NativeInitializationResult.Failed(failure)
@@ -744,6 +813,53 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
             nativeInitialization = it
             completion.start()
         }
+    }
+
+    /** Whether the adapters reported back within [wait]. A zero wait still sees an early callback. */
+    private suspend fun awaitAdaptersWithin(handle: NativeInitializationHandle, wait: Duration): Boolean {
+        if (handle.adapters.isCompleted) return true
+        if (wait <= Duration.ZERO) return false
+        return withTimeoutOrNull(wait) { handle.adapters.await() } != null
+    }
+
+    /**
+     * After Ready: waits for the adapters until [InitializationTimeouts.nativeInitialize] has
+     * passed since accept, then reports them, or reports that the SDK never did.
+     */
+    private suspend fun awaitAdapterTail(handle: NativeInitializationHandle, acceptedAt: TimeMark) {
+        val remaining = InitializationTimeouts.nativeInitialize - acceptedAt.elapsedNow()
+        val reported = remaining > Duration.ZERO &&
+            withTimeoutOrNull(remaining) { handle.adapters.await() } != null
+        if (reported) {
+            recordAdaptersFinished(acceptedAt)
+        } else {
+            val elapsed = acceptedAt.elapsedNow()
+            AdLogger.w(
+                "$platformTag MobileAds never reported mediation adapter initialization within " +
+                    "${InitializationTimeouts.nativeInitialize}. Ads keep loading; adapters that never " +
+                    "started do not take part."
+            )
+            _adapterStartup.value = AdapterStartup.NotReported(elapsed)
+        }
+    }
+
+    /** Refreshes the diagnostics snapshot, logs each adapter, and publishes [AdapterStartup.Finished]. Main only. */
+    private fun recordAdaptersFinished(acceptedAt: TimeMark) {
+        val elapsed = acceptedAt.elapsedNow()
+        captureDiagnosticsSnapshotOnMain()
+        val adapters = diagnostics.adapterStatuses()
+        AdLogger.i(
+            "$platformTag mediation adapters finished in ${elapsed.inWholeMilliseconds} ms: " +
+                "${adapters.count { it.initialized }} of ${adapters.size} ready."
+        )
+        adapters.forEach { adapter ->
+            val description = adapter.description?.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
+            AdLogger.i(
+                "$platformTag adapter ${adapter.adapterName}: " +
+                    "${if (adapter.initialized) "ready" else "not ready"} in ${adapter.latencyMillis} ms$description"
+            )
+        }
+        _adapterStartup.value = AdapterStartup.Finished(adapters, elapsed)
     }
 
     private fun completedNativeInitialization(
