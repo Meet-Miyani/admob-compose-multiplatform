@@ -4,7 +4,11 @@ import dev.avinya.ads.internal.ConsentStateHolder
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TestTimeSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
@@ -539,5 +543,36 @@ class ConsentStateHolderTest {
         assertEquals(ConsentStatus.Unknown, holder.status.value, "a pre-reset generation cannot republish")
         assertEquals(PrivacyOptionsRequirementStatus.NotRequired, holder.privacyOptionsRequirementStatus.value)
         assertTrue(holder.canRequestAds.value, "truth reconciliation survives the reset")
+    }
+
+    @Test
+    fun `successfulInfoUpdateAge is null before any successful info update`() {
+        val holder = ConsentStateHolder()
+
+        assertNull(holder.successfulInfoUpdateAge())
+    }
+
+    @Test
+    fun `successfulInfoUpdateAge measures time since the recorded success`() {
+        val testTimeSource = TestTimeSource()
+        val holder = ConsentStateHolder(testTimeSource)
+
+        holder.recordSuccessfulInfoUpdate()
+
+        assertEquals(Duration.ZERO, holder.successfulInfoUpdateAge(), "age is zero immediately after recording")
+        testTimeSource += 3.seconds
+        assertEquals(3.seconds, holder.successfulInfoUpdateAge(), "age advances with the time source")
+    }
+
+    @Test
+    fun `reset forgets a recorded successful info update`() {
+        val testTimeSource = TestTimeSource()
+        val holder = ConsentStateHolder(testTimeSource)
+        holder.recordSuccessfulInfoUpdate()
+        assertEquals(Duration.ZERO, holder.successfulInfoUpdateAge())
+
+        holder.reset()
+
+        assertNull(holder.successfulInfoUpdateAge(), "a reset must make the launch's update no longer reusable")
     }
 }

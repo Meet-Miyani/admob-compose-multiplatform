@@ -7,6 +7,7 @@ import dev.avinya.ads.internal.AppliedConfigurationDecision
 import dev.avinya.ads.internal.ConsentSessionState
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
 import dev.avinya.ads.internal.FullScreenStateLock
+import dev.avinya.ads.internal.LaunchConsentUpdater
 import dev.avinya.ads.internal.AppIdVerdict
 import dev.avinya.ads.internal.DeclaredAppId
 import dev.avinya.ads.internal.NativeHandoffDecision
@@ -471,13 +472,19 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
                 }
                 null -> Unit
             }
-            // UMP guidance: request a consent info update on every app launch; do not
-            // rely on the previous session's cached state. Once this manager reaches
-            // Ready, equivalent calls are handled above and must not regress status or
-            // rerun consent, hooks, or the process-wide GMA singleton.
+            // UMP guidance: request a consent info update on every app launch — once. Each one
+            // is a network round trip, so InitializeOnlyIfAlreadyAllowed reuses an update that
+            // gatherConsent or requestConsentInfoUpdate already completed in this process
+            // rather than making a second one in a row before GMA can start. (The guidance does
+            // not forbid reading the previous session's answer: UMP's own canRequestAds returns
+            // it once an update has been called.) Once this manager reaches Ready, equivalent
+            // calls are handled above and must not regress status or rerun consent, hooks, or
+            // the process-wide GMA singleton.
             when (consentMode) {
                 ConsentMode.GatherBeforeInitialize -> consent.gatherConsent(config)
-                ConsentMode.InitializeOnlyIfAlreadyAllowed -> consent.requestConsentInfoUpdate(config)
+                ConsentMode.InitializeOnlyIfAlreadyAllowed ->
+                    (consent as? LaunchConsentUpdater)?.ensureUpdatedThisLaunch(config)
+                        ?: consent.requestConsentInfoUpdate(config)
                 ConsentMode.SkipConsent -> Unit
             }
             val effectiveCanRequest = withContext(Dispatchers.Main.immediate) {
