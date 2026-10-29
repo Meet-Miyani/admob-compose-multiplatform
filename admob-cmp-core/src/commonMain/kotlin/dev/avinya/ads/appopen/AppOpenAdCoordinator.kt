@@ -17,6 +17,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
@@ -40,9 +41,12 @@ import kotlinx.coroutines.withTimeoutOrNull
  *   shows. [Duration.ZERO] disables the check.
  * @param preloadOnStart Preload an ad when [start] is called, without
  *   showing it. Useful for apps that do not want a cold-start show but
- *   want the ad ready for the next foreground event.
- * @param coldStartTimeout Maximum time allowed for the cold-start load
- *   before skipping the show. Default 5s.
+ *   want the ad ready for the next foreground event. It is the only load the
+ *   coordinator makes before the first return, on both platforms: the
+ *   start-up foreground is not a return (see [AppOpenAdCoordinator]).
+ * @param coldStartTimeout Maximum time the cold-start show waits for its ad.
+ *   Default 5s. The load itself is not cancelled: an ad that arrives later is
+ *   kept for the next qualifying return, never shown late.
  */
 public data class AppOpenConfig(
     val showOnColdStart: Boolean = false,
@@ -73,13 +77,21 @@ public data class AppOpenConfig(
  * foreground (gated by background duration, cooldown, and SDK readiness), reload after
  * consumption. Set [isBlocked] while the user is in flows that must not be interrupted
  * (purchases, onboarding, another full-screen ad).
+ *
+ * A return needs a background before it. The foreground the platform reports as the app starts —
+ * Android replays the process's current ON_START to a new lifecycle observer, and iOS posts its
+ * foreground notification as an app launches into the foreground — has none, and is the
+ * start-up foreground: it neither shows nor loads.
  */
 public class AppOpenAdCoordinator internal constructor(
     private val manager: AdManager,
     private val controller: AppOpenAdController,
     private val config: AppOpenConfig = AppOpenConfig(),
     internal val foregroundEvents: Flow<Boolean>,
-    internal val clock: () -> Instant
+    internal val clock: () -> Instant,
+    // Test seam for the cold-start show's "is the app really in the foreground" check, which reads
+    // a main-thread-only platform API in production.
+    internal val appInForeground: suspend () -> Boolean = { isAppInForeground() },
 ) {
     public constructor(
         manager: AdManager,
@@ -162,6 +174,9 @@ public class AppOpenAdCoordinator internal constructor(
      */
     public fun start(scope: CoroutineScope) {
         stop()
+        // A background seen by an earlier lifecycle must not make this one's first foreground
+        // look like a return.
+        backgroundedAtInstant = null
         val lifecycle = CoroutineScope(
             scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job])
         )
@@ -204,11 +219,26 @@ public class AppOpenAdCoordinator internal constructor(
 
     private suspend fun preloadColdStart() {
         if (config.showOnColdStart) {
-            withTimeoutOrNull(config.coldStartTimeout) { controller.load() }
+            val lifecycleScope = lifecycle ?: return
+            // The load is a sibling child of the coordinator's lifecycle, so the timeout below
+            // stops only the wait, never the request. Cancelling it at the timeout used to destroy
+            // the ad when it arrived: an ad the network had already filled, never shown. Google's
+            // guidance is not to show an app-open ad once the user has reached the app's content,
+            // and its sample apps keep a late ad for the next foreground; the 4-hour TTL is the only
+            // limit on holding it. stop() still cancels the load with the rest of the lifecycle.
+            val load = lifecycleScope.async { controller.load() }
+            val inTime = withTimeoutOrNull(config.coldStartTimeout) { load.await() } != null
+            if (!inTime) {
+                AdLogger.d(
+                    "App-open cold start: no ad within ${config.coldStartTimeout}. placement=${controller.placement.id} " +
+                        "The load continues; its ad is kept for the next qualifying return."
+                )
+                return
+            }
             // Never show on a background launch (push / background fetch): an app-open
             // ad shown while not actually in the foreground is a policy violation. The
             // ad stays cached for the next genuine foreground entry.
-            if (isAppInForeground() && tryAcquireShowAdmission()) showNow()
+            if (appInForeground() && tryAcquireShowAdmission()) showNow()
         } else {
             controller.load()
         }
@@ -225,8 +255,12 @@ public class AppOpenAdCoordinator internal constructor(
     }
 
     private suspend fun onForeground() {
-        val backgroundedAt = backgroundedAtInstant
-        val backgroundDuration = backgroundedAt?.let { elapsedSince(it) } ?: Duration.ZERO
+        // The start-up foreground: no background seen by this lifecycle before it, so it is not a
+        // return. It neither shows nor loads; a load at start comes only from preloadOnStart or
+        // showOnColdStart. Loading here made preloadOnStart = false load anyway on Android, where
+        // ProcessLifecycleOwner replays ON_START to a new observer, but not on iOS.
+        val backgroundedAt = backgroundedAtInstant ?: return
+        val backgroundDuration = elapsedSince(backgroundedAt)
         backgroundedAtInstant = null
         val returningFromClick = consumeClick()
         // Capture the lifecycle scope BEFORE acquiring admission. If stop() already cleared it,
@@ -236,11 +270,7 @@ public class AppOpenAdCoordinator internal constructor(
         val activeScope = lifecycle ?: return
         val qualifies = when {
             backgroundDuration < config.minBackgroundDuration -> {
-                // The initial foreground replayed when start() subscribes is not a return, so it
-                // is not worth a log line; the decision itself is unchanged.
-                if (backgroundedAt != null) {
-                    logSkip("background for $backgroundDuration, under minBackgroundDuration ${config.minBackgroundDuration}")
-                }
+                logSkip("background for $backgroundDuration, under minBackgroundDuration ${config.minBackgroundDuration}")
                 false
             }
             returningFromClick -> {
