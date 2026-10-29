@@ -13,6 +13,7 @@ import dev.avinya.ads.internal.AppIdVerdict
 import dev.avinya.ads.internal.DeclaredAppId
 import dev.avinya.ads.internal.NativeHandoffDecision
 import dev.avinya.ads.internal.RequestConfigurationUpdater
+import dev.avinya.ads.internal.StoredConsentStart
 import dev.avinya.ads.internal.affectsServedAds
 import dev.avinya.ads.internal.appIdPreflightError
 import dev.avinya.ads.internal.appIdVerdict
@@ -100,6 +101,39 @@ internal abstract class GoogleAdManagerBase :
             requireValidAdapterStartupWait(value)
             adapterStartupWaitSetting = value
         }
+
+    @Volatile
+    private var startFromStoredConsentSetting = false
+
+    override var startFromStoredConsent: Boolean
+        get() = startFromStoredConsentSetting
+        set(value) {
+            startFromStoredConsentSetting = value
+        }
+
+    /**
+     * Handed to the platform consent controllers so every info update they make can start
+     * initialization from the stored answer. See [onStoredConsentAllows].
+     */
+    protected val storedConsentStart: StoredConsentStart =
+        StoredConsentStart(enabled = { startFromStoredConsentSetting }, onAllowed = ::onStoredConsentAllows)
+
+    // Runs the stored-consent start off the consent operation that triggered it, which must never
+    // suspend for it. Main.immediate like admissionScope, and process-wide for the same reason.
+    private val storedConsentStartScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    // Set once native initialization has been started from stored consent. Read by the consent
+    // gate in runInitializationAttempt so a withdrawal reported afterwards does not republish
+    // ConsentRequired over a Mobile Ads SDK that is already initialized.
+    @Volatile
+    private var startedFromStoredConsent = false
+
+    /**
+     * Why this platform may not start from stored consent right now, or null if it may.
+     * Android always may. iOS may once App Tracking Transparency has been answered (or can never
+     * be asked), so requests made from the stored answer never precede the ATT prompt.
+     */
+    protected open fun storedConsentStartRefusal(): String? = null
 
     private val _status = MutableStateFlow<AdManagerStatus>(AdManagerStatus.Idle)
     /** Mutable event sink. Not `_events`: detekt's underscore-prefix convention is reserved for
@@ -292,6 +326,8 @@ internal abstract class GoogleAdManagerBase :
     // narrower SDK mutex protects the native-applied identity and terminal state.
     private val initializationStateMutex = Mutex()
     private val mobileAdsInitializationMutex = Mutex()
+    // Taken before mobileAdsInitializationMutex, never inside it: see startOrJoinNativeInitialization.
+    private val nativeStartMutex = Mutex()
 
     /**
      * Dispatcher [nativeInitializationScope] runs on. Android uses `Dispatchers.Main.immediate`;
@@ -540,6 +576,20 @@ internal abstract class GoogleAdManagerBase :
             }
 
             AdLogger.i("$platformTag consent gate complete. canRequestAds=$effectiveCanRequest mode=$consentMode")
+            if (!effectiveCanRequest && startedFromStoredConsent) {
+                // The Mobile Ads SDK was already started from consent stored in an earlier
+                // session, and the update has since withdrawn it. The SDK cannot be
+                // un-initialized; admission (now Revoked) is what blocks requests. Report the
+                // initialization's own outcome rather than ConsentRequired over it.
+                awaitAbandonedNativeInitialization()
+                val result = appliedTerminalStatus() ?: _status.value
+                AdLogger.w(
+                    "$platformTag consent no longer allows ad requests, but MobileAds was already started " +
+                        "from stored consent. Status stays $result; ad requests stay blocked."
+                )
+                completeAttempt(attempt, result)
+                return result
+            }
             if (!effectiveCanRequest) {
                 AdLogger.w("$platformTag initialize deferred because consent does not allow ad requests yet.")
                 val result = AdManagerStatus.ConsentRequired.also {
@@ -556,6 +606,99 @@ internal abstract class GoogleAdManagerBase :
         } catch (failure: Throwable) {
             initializationFailed(failure).also { completeAttempt(attempt, it) }
         }
+    }
+
+    /**
+     * Starts native initialization from consent stored in an earlier session. Called by the
+     * consent controllers, through [storedConsentStart], right after a UMP update has been
+     * requested and while it is still in flight. Never suspends that consent operation.
+     */
+    internal fun onStoredConsentAllows(config: AdConfig) {
+        storedConsentStartScope.launch {
+            try {
+                startFromStoredConsentNow(config)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Throwable) {
+                // A throwing BeforeMobileAdsInitialize hook, typically. Nothing was started, so
+                // initialize() runs the ordinary path and reports the failure itself.
+                AdLogger.e("$platformTag could not start from stored consent; initialize() will retry.", failure)
+            }
+        }
+    }
+
+    private suspend fun startFromStoredConsentNow(config: AdConfig) {
+        val owned = config.ownedSnapshot()
+        val identity = owned.initializationIdentity(appId(owned))
+        // Anything already handed to the native SDK — in flight, applied, or failed — belongs to
+        // the ordinary initialize() path and its conflict rules.
+        val nativeTouched = mobileAdsInitializationMutex.withLock {
+            nativeInitialization != null || appliedConfigIdentity != null || handedOffConfigIdentity != null
+        }
+        if (nativeTouched) return
+        storedConsentStartRefusal()?.let { reason ->
+            AdLogger.i("$platformTag not starting from stored consent: $reason.")
+            return
+        }
+        val verdict = appIdVerdict(
+            configuredAppId = appId(owned),
+            declared = declaredAppId(),
+            declaredAppIdSource = declaredAppIdSource,
+            declaredAppIdConsumerDescription = declaredAppIdConsumerDescription,
+            requiredByPlatformSdk = declaredAppIdRequiredByPlatformSdk,
+            policy = AdAppIdVerification.policy,
+        )
+        if (verdict is AppIdVerdict.Fail) {
+            AdLogger.i("$platformTag not starting from stored consent: the app ID check failed; initialize() reports it.")
+            return
+        }
+        // Admission is derived from the CURRENT canRequestAds, never set to Allowed outright: the
+        // update's own callback can land between the trigger and this point, and a hard-coded
+        // Allowed would reopen a gate it has just closed. Checked and recorded in one Main step.
+        val admitted = withContext(Dispatchers.Main.immediate) {
+            if (!consent.canRequestAds.value) return@withContext false
+            consentSession.recordCompletedGate(ConsentMode.InitializeOnlyIfAlreadyAllowed)
+            val next = consentSession.admission(true)
+            _admission.value = next
+            next == AdRequestAdmission.Allowed
+        }
+        if (!admitted) {
+            AdLogger.i("$platformTag not starting from stored consent: the UMP update has already withdrawn it.")
+            return
+        }
+        AdLogger.i(
+            "$platformTag starting MobileAds from consent stored in an earlier session; the UMP " +
+                "consent info update is still in flight."
+        )
+        startedFromStoredConsent = true
+        startOrJoinNativeInitialization(owned, identity)
+        mobileAdsInitializationMutex.withLock {
+            // Only while the operation is still running: it publishes its own terminal status.
+            if (appliedTerminalStatus == null && nativeInitialization != null) {
+                _status.value = AdManagerStatus.Initializing
+            }
+        }
+    }
+
+    /**
+     * Runs the BeforeMobileAdsInitialize hooks and starts native initialization, or joins the
+     * one already started. Serialized, so two paths that both find nothing started — the
+     * stored-consent start and initialize()'s own — dispatch the hooks exactly once.
+     */
+    private suspend fun startOrJoinNativeInitialization(
+        config: AdConfig,
+        requestedIdentity: AdInitializationConfigIdentity,
+    ): NativeInitialization = nativeStartMutex.withLock {
+        val (inFlight, applied) = mobileAdsInitializationMutex.withLock {
+            nativeInitialization to (appliedConfigIdentity != null)
+        }
+        if (inFlight != null) return@withLock inFlight
+        if (!applied) {
+            withContext(Dispatchers.Main.immediate) {
+                config.dispatchInitializationHooks(AdInitializationPhase.BeforeMobileAdsInitialize)
+            }
+        }
+        startNativeInitialization(config, requestedIdentity)
     }
 
     private suspend fun completeAttempt(
@@ -638,13 +781,7 @@ internal abstract class GoogleAdManagerBase :
         // that loops after a leader's attempt settled and re-enters with its own identity.
         refusedByNativeHandoff(requestedIdentity)?.let { return it }
 
-        var operation = mobileAdsInitializationMutex.withLock { nativeInitialization }
-        if (operation == null) {
-            withContext(Dispatchers.Main.immediate) {
-                config.dispatchInitializationHooks(AdInitializationPhase.BeforeMobileAdsInitialize)
-            }
-            operation = startNativeInitialization(config, requestedIdentity)
-        }
+        val operation = startOrJoinNativeInitialization(config, requestedIdentity)
 
         // Never regress a terminal status that has already been published. The detached native
         // operation now publishes Ready as soon as GMA accepts, so a caller arriving after that

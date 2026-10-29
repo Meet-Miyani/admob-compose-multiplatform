@@ -306,6 +306,9 @@ abstract interface dev.avinya.ads/AdManager { // dev.avinya.ads/AdManager|null[0
     open var adapterStartupWait // dev.avinya.ads/AdManager.adapterStartupWait|{}adapterStartupWait[0]
         open fun <get-adapterStartupWait>(): kotlin.time/Duration // dev.avinya.ads/AdManager.adapterStartupWait.<get-adapterStartupWait>|<get-adapterStartupWait>(){}[0]
         open fun <set-adapterStartupWait>(kotlin.time/Duration) // dev.avinya.ads/AdManager.adapterStartupWait.<set-adapterStartupWait>|<set-adapterStartupWait>(kotlin.time.Duration){}[0]
+    open var startFromStoredConsent // dev.avinya.ads/AdManager.startFromStoredConsent|{}startFromStoredConsent[0]
+        open fun <get-startFromStoredConsent>(): kotlin/Boolean // dev.avinya.ads/AdManager.startFromStoredConsent.<get-startFromStoredConsent>|<get-startFromStoredConsent>(){}[0]
+        open fun <set-startFromStoredConsent>(kotlin/Boolean) // dev.avinya.ads/AdManager.startFromStoredConsent.<set-startFromStoredConsent>|<set-startFromStoredConsent>(kotlin.Boolean){}[0]
 
     abstract fun appOpen(dev.avinya.ads/AdPlacement): dev.avinya.ads/AppOpenAdController // dev.avinya.ads/AdManager.appOpen|appOpen(dev.avinya.ads.AdPlacement){}[0]
     abstract fun banner(dev.avinya.ads/AdPlacement): dev.avinya.ads/BannerAdController // dev.avinya.ads/AdManager.banner|banner(dev.avinya.ads.AdPlacement){}[0]

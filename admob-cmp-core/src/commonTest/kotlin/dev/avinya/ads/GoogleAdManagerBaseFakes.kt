@@ -51,7 +51,14 @@ internal class FakeGoogleAdManager(
     private val adapterCompletion: Deferred<Unit> = CompletableDeferred(Unit),
     /** Pass `testScheduler.timeSource` so adapter-wait durations follow virtual time. */
     private val timeSource: TimeSource = TimeSource.Monotonic,
+    /** Non-null models iOS before App Tracking Transparency has been answered. */
+    private val storedConsentRefusal: () -> String? = { null },
 ) : GoogleAdManagerBase() {
+
+    override fun storedConsentStartRefusal(): String? = storedConsentRefusal()
+
+    /** The trigger the platform consent controllers are given; a test fake can call it directly. */
+    val storedConsentTrigger: dev.avinya.ads.internal.StoredConsentStart get() = storedConsentStart
 
     override val initializationTimeSource: TimeSource get() = timeSource
 

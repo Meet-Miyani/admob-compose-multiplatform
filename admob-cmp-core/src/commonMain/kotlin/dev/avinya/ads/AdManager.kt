@@ -115,6 +115,41 @@ public interface AdManager {
         get() = DEFAULT_ADAPTER_STARTUP_WAIT
         set(@Suppress("UNUSED_PARAMETER") value) {}
 
+    /**
+     * Opt-in. When true, the SDK starts the Google Mobile Ads SDK from consent stored in an
+     * earlier session, instead of after the launch's UMP update returns. Off by default.
+     *
+     * Every UMP consent info update this SDK makes — from [ConsentController.gatherConsent],
+     * [ConsentController.requestConsentInfoUpdate] or [initialize] — then reads UMP's stored
+     * answer as soon as the update has been requested. If that answer allows ad requests,
+     * initialization starts with the [AdConfig] passed to that call while the update is still in
+     * flight. Google documents this ("Immediately after you have called
+     * requestConsentInfoUpdate(). The UMP SDK might have obtained consent in the previous app
+     * session.") and every Google sample app starts the Mobile Ads SDK there.
+     *
+     * - A first run, a declined user, or any stored answer that does not allow ads waits for UMP
+     *   exactly as before.
+     * - If the update then withdraws consent — for instance a stored decision that has expired —
+     *   the request gate closes and cached inventory is purged. Requests already sent in that
+     *   window cannot be recalled. [status] stays [AdManagerStatus.Ready]: the SDK is
+     *   initialized; consent is what blocks requests.
+     * - On iOS it happens only once App Tracking Transparency has been answered, or when the app
+     *   declares no `NSUserTrackingUsageDescription`. Otherwise the order stays consent, ATT,
+     *   initialize, so the first requests can carry the IDFA.
+     * - `BeforeMobileAdsInitialize` hooks still run before the Mobile Ads SDK starts.
+     *
+     * Turn it on only if nothing the app does between consent and [initialize] has to come before
+     * the Mobile Ads SDK starts; move anything that does into a `BeforeMobileAdsInitialize` hook.
+     * Pass the same [AdConfig] to the consent call and to [initialize]: a different one is an
+     * initialization conflict, as it is today.
+     *
+     * Set it before the first consent call. The default implementation, used by custom
+     * implementations of this interface, reports false and ignores the value.
+     */
+    public var startFromStoredConsent: Boolean
+        get() = false
+        set(@Suppress("UNUSED_PARAMETER") value) {}
+
     public companion object {
         /** Default [adapterStartupWait]: the value in every example of Google's guidance. */
         public val DEFAULT_ADAPTER_STARTUP_WAIT: Duration = 5.seconds

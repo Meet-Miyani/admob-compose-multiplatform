@@ -8,6 +8,7 @@ import dev.avinya.ads.internal.ConsentInfoUpdateOutcome
 import dev.avinya.ads.internal.ConsentStateHolder
 import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.LaunchConsentUpdater
+import dev.avinya.ads.internal.StoredConsentStart
 import dev.avinya.ads.internal.NativeCallbackTimeoutException
 import dev.avinya.ads.internal.awaitHost
 import dev.avinya.ads.internal.awaitNativeCallback
@@ -32,7 +33,8 @@ import kotlin.time.TimeSource
 internal class AndroidConsentController(
     private val activityProvider: () -> Activity?,
     private val appContext: Context,
-    private val onCanRequestAds: suspend (AdConfig) -> Unit
+    private val onCanRequestAds: suspend (AdConfig) -> Unit,
+    private val storedConsentStart: StoredConsentStart = StoredConsentStart.Disabled,
 ) : ConsentController, LaunchConsentUpdater {
     // Kotlin initializes properties in declaration order, so the holder must exist before the
     // exposed flows delegate to it.
@@ -188,6 +190,16 @@ internal class AndroidConsentController(
                                 logInfoUpdateFinished(startedAt.elapsedNow(), status)
                             }
                         },
+                    )
+                    // From here UMP's canRequestAds returns the previous session's answer until
+                    // the update completes. See StoredConsentStart.
+                    storedConsentStart.onInfoUpdateRequested(
+                        state = state,
+                        generation = generation,
+                        config = config,
+                        privacyRequirement = privacyRequirementOf(consentInformation),
+                        canRequestAds = consentInformation.canRequestAds(),
+                        status = consentInformationStatus(consentInformation),
                     )
                 }
             }

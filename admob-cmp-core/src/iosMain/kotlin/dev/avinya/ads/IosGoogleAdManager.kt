@@ -42,10 +42,13 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
     // this is preserved rather than unified.
     override val nativeInitializationDispatcher: CoroutineDispatcher = Dispatchers.Main
 
-    override val consent: ConsentController = IosConsentController(resume@{ config ->
-        val mode = privacyOptionsResumeMode() ?: return@resume
-        initialize(config, mode)
-    })
+    override val consent: ConsentController = IosConsentController(
+        onCanRequestAds = resume@{ config ->
+            val mode = privacyOptionsResumeMode() ?: return@resume
+            initialize(config, mode)
+        },
+        storedConsentStart = storedConsentStart,
+    )
     private val iosDiagnostics = IosAdDiagnostics()
     override val diagnostics: AdDiagnostics = iosDiagnostics
     override val tracking: AdTrackingController = IosTrackingController
@@ -122,6 +125,18 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
 
     override fun captureDiagnosticsSnapshotOnMain() {
         iosDiagnostics.captureSnapshotOnMain()
+    }
+
+    /**
+     * Invariant 11: ATT precedes the first iOS request when the app requests ATT at all. A
+     * stored-consent start before the prompt has been answered would send the first requests,
+     * and any ads GMA preloads during start, without the IDFA. Without the usage description the
+     * app can never ask, so waiting would gain nothing.
+     */
+    override fun storedConsentStartRefusal(): String? {
+        val notAnswered = tracking.status() == AdTrackingAuthorization.NotDetermined
+        val canAsk = NSBundle.mainBundle.objectForInfoDictionaryKey("NSUserTrackingUsageDescription") != null
+        return if (notAnswered && canAsk) "App Tracking Transparency has not been answered yet" else null
     }
 
     override suspend fun initializeMobileAdsNative(

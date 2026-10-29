@@ -82,6 +82,9 @@ internal class ConsentStateHolder(private val timeSource: TimeSource = TimeSourc
     /** See [ConsentOperationCoordinator.releaseInfoUpdate]. */
     fun releaseInfoUpdate(generation: Long): Unit = coordinator.releaseInfoUpdate(generation)
 
+    /** See [ConsentOperationCoordinator.isInfoUpdateOutstanding]. */
+    fun isInfoUpdateOutstanding(generation: Long): Boolean = coordinator.isInfoUpdateOutstanding(generation)
+
     /** Records that a native info update reported success just now. Call from its success callback. */
     fun recordSuccessfulInfoUpdate() {
         lastSuccessfulInfoUpdate = timeSource.markNow()

@@ -40,10 +40,15 @@ internal class AndroidGoogleAdManager(
         AndroidFullScreenAudioController { appliedConfigIdentitySnapshot()?.globalRequestConfiguration }
 
     override val consent: ConsentController =
-        AndroidConsentController(activityProvider, appContext, resume@{ config ->
-            val mode = privacyOptionsResumeMode() ?: return@resume
-            initialize(config, mode)
-        })
+        AndroidConsentController(
+            activityProvider,
+            appContext,
+            onCanRequestAds = resume@{ config ->
+                val mode = privacyOptionsResumeMode() ?: return@resume
+                initialize(config, mode)
+            },
+            storedConsentStart = storedConsentStart,
+        )
     private val androidDiagnostics = AndroidAdDiagnostics(activityProvider)
     override val diagnostics: AdDiagnostics = androidDiagnostics
     override val tracking: AdTrackingController = AndroidTrackingController
