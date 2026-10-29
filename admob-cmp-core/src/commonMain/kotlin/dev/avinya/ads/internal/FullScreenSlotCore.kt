@@ -7,7 +7,10 @@ import dev.avinya.ads.AdAvailability
 import dev.avinya.ads.AdError
 import dev.avinya.ads.AdEvent
 import dev.avinya.ads.AdLogger
+import dev.avinya.ads.AdLoadOrigin
 import dev.avinya.ads.AdLoadState
+import dev.avinya.ads.AdLoadTelemetry
+import dev.avinya.ads.AdRequestOutcome
 import dev.avinya.ads.AdPlacement
 import dev.avinya.ads.AdRequestOptions
 import dev.avinya.ads.AdResponseInfo
@@ -27,6 +30,9 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
+import kotlin.concurrent.Volatile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -35,6 +41,7 @@ import kotlinx.coroutines.ExperimentalForInheritanceCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -177,8 +184,19 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     // the cache removal and arbiter acquisition commit together. There is no suspension point
     // inside that transaction by design — it runs under publicationLock — so this is the only
     // place two slots can be deterministically interleaved on a single-threaded test dispatcher.
-    private val beforeShowCommit: suspend () -> Unit = {}
+    private val beforeShowCommit: suspend () -> Unit = {},
+    // Clock for request durations in AdLoadTelemetry. Monotonic, unlike [clock], which is wall
+    // time because cache TTLs are compared against load instants. A test seam.
+    internal val requestTimeSource: TimeSource = TimeSource.Monotonic,
 ) : FullScreenAdController {
+    /**
+     * Where this slot reports load telemetry. Attached by the manager when it registers the slot,
+     * before the slot is handed to anyone, so every load sees the manager's sink;
+     * [FullScreenLoadTelemetrySink.None] until then (and for a slot built outside a manager, in tests).
+     */
+    @Volatile
+    internal var telemetry: FullScreenLoadTelemetrySink = FullScreenLoadTelemetrySink.None
+
     // loadMutex coalesces callers across SDK attempts/retry delay. slotState atomically owns the
     // generation, public load state, and immutable FIFO cache. operationMutex only serializes the
     // short show-selection transaction, while publicationLock linearizes cache visibility with
@@ -277,7 +295,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 current.loadState
             }
             val updated = SlotState(current.generation, nextLoadState, fresh)
-            if (slotState.compareAndSet(current, updated)) return expired.map { it.ad }
+            if (slotState.compareAndSet(current, updated)) return retireExpired(expired, ttl)
         }
     }
 
@@ -285,12 +303,13 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         // Capture before the first suspension. A clear while this call waits behind a coalesced
         // load invalidates it instead of letting it silently adopt the next generation.
         val requestedGeneration = slotState.value.generation
-        return loadForGeneration(requestOptions, requestedGeneration)
+        return loadForGeneration(requestOptions, requestedGeneration, currentLoadOrigin())
     }
 
     private suspend fun loadForGeneration(
         requestOptions: AdRequestOptions,
-        requiredGeneration: Int
+        requiredGeneration: Int,
+        origin: AdLoadOrigin,
     ): AdLoadState = loadMutex.withLock {
         val initialNow = clock()
         val cacheTtl = ttl()
@@ -317,6 +336,10 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
         // its result if the caller was cancelled during the dispatch back — both silently, and
         // both after SingleShotContinuation.onUndelivered has already run.
         val undelivered = UndeliveredLoad<AdT>()
+        // The request whose outcome may not be reported yet. Every RequestStarted gets exactly one
+        // RequestFinished: where the outcome is known (the SDK's answer, admission, the attempt's
+        // own cancellation), or in the finally below for an ad that arrived and was never kept.
+        var request: LoadRequestTracker? = null
         try {
             // Repeat count only — no per-iteration index is needed, each iteration fills one
             // more cache slot independently. A `while` loop (not `for`/`repeat`) because the
@@ -326,6 +349,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             while (slotsLoaded < preparation.slotsToLoad) {
                 slotsLoaded++
                 if (!isCurrentGeneration(requiredGeneration)) break
+                var attempt = 0
                 // Bounds the WHOLE attempt sequence including retry backoff, not each
                 // attempt: a listener that never calls back would otherwise restart the
                 // clock on every retry and still never finish. Scoped per-slot so a
@@ -333,7 +357,19 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 val result = withTimeoutOrNull(placement.timeoutPolicy.loadTimeout) {
                     retryAdLoad(placement.retryPolicy, { it.isRetryableLoadFailure() }) {
                         if (isCurrentGeneration(requiredGeneration)) {
-                            undelivered.capture(loadAd(requestOptions))
+                            attempt++
+                            val started = startLoadRequest(origin, attempt).also { request = it }
+                            val answer = try {
+                                loadAd(requestOptions)
+                            } catch (cancellation: CancellationException) {
+                                started.finish(
+                                    if (cancellation is TimeoutCancellationException) AdRequestOutcome.TimedOut
+                                    else AdRequestOutcome.Cancelled
+                                )
+                                throw cancellation
+                            }
+                            if (answer is AdAttemptResult.Failure) started.finish(AdRequestOutcome.Failed(answer.error))
+                            undelivered.capture(answer)
                         } else {
                             AdAttemptResult.Failure(AdError.message("Full-screen load was cleared."))
                         }
@@ -369,8 +405,10 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                         }
                         if (accepted) {
                             acceptedAny = true
+                            request?.finish(AdRequestOutcome.Loaded(entry.responseInfo))
                         } else {
                             safelyDestroyAd(loadedAd)
+                            request?.finish(AdRequestOutcome.Discarded)
                         }
                     }
                     is AdAttemptResult.Failure -> {
@@ -397,6 +435,9 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             // only remaining reference. safelyDestroyAd swallows platform throws, which
             // matters in a finally that may already be unwinding a cancellation.
             undelivered.take()?.let(::safelyDestroyAd)
+            // Still open only for an ad that arrived and was not kept: a timeout or cancellation
+            // landing as it was delivered, or a throw from onAdLoaded. A no-op otherwise.
+            request?.finish(AdRequestOutcome.Discarded)
         }
 
         val completion = publicationLock.withLock {
@@ -654,7 +695,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             return LoadPreparation(
                 immediateResult = if (isLoading) null else nextLoadState,
                 slotsToLoad = if (isLoading) placement.cachePolicy.maxSize - fresh.size else 0,
-                retiredAds = expired.map { it.ad } + retiredOrphans
+                retiredAds = retireExpired(expired, ttl) + retiredOrphans
             )
         }
     }
@@ -721,7 +762,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             if (event != null) emitLoadEventLocked(event)
             return LoadCompletion(
                 result = nextLoadState,
-                retiredAds = expired.map { it.ad }
+                retiredAds = retireExpired(expired, ttl)
             )
         }
     }
@@ -763,7 +804,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                         if (!slotState.compareAndSet(current, cleaned)) continue
                         return ShowPreparation(
                             immediateResult = AdShowResult.NotReady,
-                            retiredAds = expired.map { it.ad }
+                            retiredAds = retireExpired(expired, ttl)
                         )
                     }
             } else {
@@ -801,7 +842,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 errorEvent = error?.let { AdEvent.ShowFailed(placement.id, it) },
                 selectedAd = selected?.ad,
                 presentation = presentation,
-                retiredAds = expired.map { it.ad }
+                retiredAds = retireExpired(expired, ttl)
             )
         }
     }
@@ -864,7 +905,11 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             // Load state needs no repair: loadForGeneration runs finishCancelledLoad() before it
             // rethrows, so the slot is already in a terminal state and a later manual load works.
             try {
-                loadForGeneration(lastRequestOptions.load() ?: placement.requestOptions, requiredGeneration = generation)
+                loadForGeneration(
+                    lastRequestOptions.load() ?: placement.requestOptions,
+                    requiredGeneration = generation,
+                    origin = AdLoadOrigin.ReloadAfterShow,
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
@@ -891,7 +936,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                 } ?: AdLoadState.Idle
                 val updated = SlotState(generation, nextLoadState, fresh)
                 if (slotState.compareAndSet(current, updated)) {
-                    result = expired.map { it.ad }
+                    result = retireExpired(expired, ttl())
                     break
                 }
             }
@@ -912,6 +957,67 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     private fun emitLoadEventLocked(event: AdEvent) {
         _events.emitOrLogDrop(event, "FullScreenSlotCore(${placement.id})")
         globalEvents.emitOrLogDrop(event, "FullScreenSlotCore(${placement.id}) global")
+    }
+
+    /**
+     * Reports each entry that reached its TTL unseen and returns its ads for destruction.
+     *
+     * Every way an expired entry leaves the cache comes through here, after the compare-and-set
+     * that removed it, so each is reported exactly once. Orphans, `clear()` and a consent
+     * withdrawal retire ads by other paths and are not expiries.
+     */
+    private fun retireExpired(expired: List<CachedAd<AdT>>, ttl: Duration): List<AdT> {
+        if (expired.isEmpty()) return emptyList()
+        val sink = telemetry
+        expired.forEach { entry ->
+            sink.emit(
+                AdLoadTelemetry.CachedAdExpired(
+                    placementId = placement.id,
+                    format = placement.format,
+                    loadedAt = entry.loadedAt,
+                    expiredAt = entry.loadedAt + ttl,
+                    responseInfo = entry.responseInfo,
+                )
+            )
+        }
+        return expired.map { it.ad }
+    }
+
+    private fun startLoadRequest(origin: AdLoadOrigin, attempt: Int): LoadRequestTracker {
+        val sink = telemetry
+        val requestId = sink.nextRequestId()
+        sink.emit(AdLoadTelemetry.RequestStarted(placement.id, placement.format, requestId, origin, attempt))
+        return LoadRequestTracker(sink, requestId, origin, attempt, requestTimeSource.markNow())
+    }
+
+    /**
+     * One ad request's open outcome. Touched only by the loading coroutine, which runs its steps
+     * one after another, so a plain flag is enough to report exactly once.
+     */
+    private inner class LoadRequestTracker(
+        private val sink: FullScreenLoadTelemetrySink,
+        private val requestId: Long,
+        private val origin: AdLoadOrigin,
+        private val attempt: Int,
+        private val startedAt: TimeMark,
+    ) {
+        private var reported = false
+
+        fun finish(outcome: AdRequestOutcome) {
+            if (reported) return
+            reported = true
+            sink.emit(
+                AdLoadTelemetry.RequestFinished(
+                    placementId = placement.id,
+                    format = placement.format,
+                    requestId = requestId,
+                    origin = origin,
+                    attempt = attempt,
+                    duration = startedAt.elapsedNow(),
+                    outcome = outcome,
+                )
+            )
+        }
     }
 
     private fun isCurrentGeneration(generation: Int): Boolean =

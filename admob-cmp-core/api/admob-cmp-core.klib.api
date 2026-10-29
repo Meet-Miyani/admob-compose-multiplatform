@@ -753,6 +753,39 @@ sealed interface dev.avinya.ads/AdEvent { // dev.avinya.ads/AdEvent|null[0]
     }
 }
 
+sealed interface dev.avinya.ads/AdLoadOrigin { // dev.avinya.ads/AdLoadOrigin|null[0]
+    final class App : dev.avinya.ads/AdLoadOrigin { // dev.avinya.ads/AdLoadOrigin.App|null[0]
+        constructor <init>(kotlin/String?) // dev.avinya.ads/AdLoadOrigin.App.<init>|<init>(kotlin.String?){}[0]
+
+        final val tag // dev.avinya.ads/AdLoadOrigin.App.tag|{}tag[0]
+            final fun <get-tag>(): kotlin/String? // dev.avinya.ads/AdLoadOrigin.App.tag.<get-tag>|<get-tag>(){}[0]
+
+        final fun component1(): kotlin/String? // dev.avinya.ads/AdLoadOrigin.App.component1|component1(){}[0]
+        final fun copy(kotlin/String? = ...): dev.avinya.ads/AdLoadOrigin.App // dev.avinya.ads/AdLoadOrigin.App.copy|copy(kotlin.String?){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdLoadOrigin.App.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdLoadOrigin.App.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdLoadOrigin.App.toString|toString(){}[0]
+    }
+
+    final object AppOpenAfterReturn : dev.avinya.ads/AdLoadOrigin { // dev.avinya.ads/AdLoadOrigin.AppOpenAfterReturn|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdLoadOrigin.AppOpenAfterReturn.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdLoadOrigin.AppOpenAfterReturn.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdLoadOrigin.AppOpenAfterReturn.toString|toString(){}[0]
+    }
+
+    final object AppOpenStart : dev.avinya.ads/AdLoadOrigin { // dev.avinya.ads/AdLoadOrigin.AppOpenStart|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdLoadOrigin.AppOpenStart.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdLoadOrigin.AppOpenStart.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdLoadOrigin.AppOpenStart.toString|toString(){}[0]
+    }
+
+    final object ReloadAfterShow : dev.avinya.ads/AdLoadOrigin { // dev.avinya.ads/AdLoadOrigin.ReloadAfterShow|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdLoadOrigin.ReloadAfterShow.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdLoadOrigin.ReloadAfterShow.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdLoadOrigin.ReloadAfterShow.toString|toString(){}[0]
+    }
+}
+
 sealed interface dev.avinya.ads/AdLoadState { // dev.avinya.ads/AdLoadState|null[0]
     final class Failed : dev.avinya.ads/AdLoadState { // dev.avinya.ads/AdLoadState.Failed|null[0]
         constructor <init>(dev.avinya.ads/AdError) // dev.avinya.ads/AdLoadState.Failed.<init>|<init>(dev.avinya.ads.AdError){}[0]
@@ -790,6 +823,94 @@ sealed interface dev.avinya.ads/AdLoadState { // dev.avinya.ads/AdLoadState|null
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdLoadState.Loading.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.avinya.ads/AdLoadState.Loading.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.avinya.ads/AdLoadState.Loading.toString|toString(){}[0]
+    }
+}
+
+sealed interface dev.avinya.ads/AdLoadTelemetry { // dev.avinya.ads/AdLoadTelemetry|null[0]
+    abstract val format // dev.avinya.ads/AdLoadTelemetry.format|{}format[0]
+        abstract fun <get-format>(): dev.avinya.ads/AdFormat // dev.avinya.ads/AdLoadTelemetry.format.<get-format>|<get-format>(){}[0]
+    abstract val placementId // dev.avinya.ads/AdLoadTelemetry.placementId|{}placementId[0]
+        abstract fun <get-placementId>(): kotlin/String // dev.avinya.ads/AdLoadTelemetry.placementId.<get-placementId>|<get-placementId>(){}[0]
+
+    final class CachedAdExpired : dev.avinya.ads/AdLoadTelemetry { // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired|null[0]
+        constructor <init>(kotlin/String, dev.avinya.ads/AdFormat, kotlin.time/Instant, kotlin.time/Instant, dev.avinya.ads/AdResponseInfo?) // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.<init>|<init>(kotlin.String;dev.avinya.ads.AdFormat;kotlin.time.Instant;kotlin.time.Instant;dev.avinya.ads.AdResponseInfo?){}[0]
+
+        final val expiredAt // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.expiredAt|{}expiredAt[0]
+            final fun <get-expiredAt>(): kotlin.time/Instant // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.expiredAt.<get-expiredAt>|<get-expiredAt>(){}[0]
+        final val format // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.format|{}format[0]
+            final fun <get-format>(): dev.avinya.ads/AdFormat // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.format.<get-format>|<get-format>(){}[0]
+        final val loadedAt // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.loadedAt|{}loadedAt[0]
+            final fun <get-loadedAt>(): kotlin.time/Instant // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.loadedAt.<get-loadedAt>|<get-loadedAt>(){}[0]
+        final val placementId // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.placementId|{}placementId[0]
+            final fun <get-placementId>(): kotlin/String // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.placementId.<get-placementId>|<get-placementId>(){}[0]
+        final val responseInfo // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.responseInfo|{}responseInfo[0]
+            final fun <get-responseInfo>(): dev.avinya.ads/AdResponseInfo? // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.responseInfo.<get-responseInfo>|<get-responseInfo>(){}[0]
+
+        final fun component1(): kotlin/String // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.component1|component1(){}[0]
+        final fun component2(): dev.avinya.ads/AdFormat // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.component2|component2(){}[0]
+        final fun component3(): kotlin.time/Instant // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.component3|component3(){}[0]
+        final fun component4(): kotlin.time/Instant // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.component4|component4(){}[0]
+        final fun component5(): dev.avinya.ads/AdResponseInfo? // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.component5|component5(){}[0]
+        final fun copy(kotlin/String = ..., dev.avinya.ads/AdFormat = ..., kotlin.time/Instant = ..., kotlin.time/Instant = ..., dev.avinya.ads/AdResponseInfo? = ...): dev.avinya.ads/AdLoadTelemetry.CachedAdExpired // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.copy|copy(kotlin.String;dev.avinya.ads.AdFormat;kotlin.time.Instant;kotlin.time.Instant;dev.avinya.ads.AdResponseInfo?){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdLoadTelemetry.CachedAdExpired.toString|toString(){}[0]
+    }
+
+    final class RequestFinished : dev.avinya.ads/AdLoadTelemetry { // dev.avinya.ads/AdLoadTelemetry.RequestFinished|null[0]
+        constructor <init>(kotlin/String, dev.avinya.ads/AdFormat, kotlin/Long, dev.avinya.ads/AdLoadOrigin, kotlin/Int, kotlin.time/Duration, dev.avinya.ads/AdRequestOutcome) // dev.avinya.ads/AdLoadTelemetry.RequestFinished.<init>|<init>(kotlin.String;dev.avinya.ads.AdFormat;kotlin.Long;dev.avinya.ads.AdLoadOrigin;kotlin.Int;kotlin.time.Duration;dev.avinya.ads.AdRequestOutcome){}[0]
+
+        final val attempt // dev.avinya.ads/AdLoadTelemetry.RequestFinished.attempt|{}attempt[0]
+            final fun <get-attempt>(): kotlin/Int // dev.avinya.ads/AdLoadTelemetry.RequestFinished.attempt.<get-attempt>|<get-attempt>(){}[0]
+        final val duration // dev.avinya.ads/AdLoadTelemetry.RequestFinished.duration|{}duration[0]
+            final fun <get-duration>(): kotlin.time/Duration // dev.avinya.ads/AdLoadTelemetry.RequestFinished.duration.<get-duration>|<get-duration>(){}[0]
+        final val format // dev.avinya.ads/AdLoadTelemetry.RequestFinished.format|{}format[0]
+            final fun <get-format>(): dev.avinya.ads/AdFormat // dev.avinya.ads/AdLoadTelemetry.RequestFinished.format.<get-format>|<get-format>(){}[0]
+        final val origin // dev.avinya.ads/AdLoadTelemetry.RequestFinished.origin|{}origin[0]
+            final fun <get-origin>(): dev.avinya.ads/AdLoadOrigin // dev.avinya.ads/AdLoadTelemetry.RequestFinished.origin.<get-origin>|<get-origin>(){}[0]
+        final val outcome // dev.avinya.ads/AdLoadTelemetry.RequestFinished.outcome|{}outcome[0]
+            final fun <get-outcome>(): dev.avinya.ads/AdRequestOutcome // dev.avinya.ads/AdLoadTelemetry.RequestFinished.outcome.<get-outcome>|<get-outcome>(){}[0]
+        final val placementId // dev.avinya.ads/AdLoadTelemetry.RequestFinished.placementId|{}placementId[0]
+            final fun <get-placementId>(): kotlin/String // dev.avinya.ads/AdLoadTelemetry.RequestFinished.placementId.<get-placementId>|<get-placementId>(){}[0]
+        final val requestId // dev.avinya.ads/AdLoadTelemetry.RequestFinished.requestId|{}requestId[0]
+            final fun <get-requestId>(): kotlin/Long // dev.avinya.ads/AdLoadTelemetry.RequestFinished.requestId.<get-requestId>|<get-requestId>(){}[0]
+
+        final fun component1(): kotlin/String // dev.avinya.ads/AdLoadTelemetry.RequestFinished.component1|component1(){}[0]
+        final fun component2(): dev.avinya.ads/AdFormat // dev.avinya.ads/AdLoadTelemetry.RequestFinished.component2|component2(){}[0]
+        final fun component3(): kotlin/Long // dev.avinya.ads/AdLoadTelemetry.RequestFinished.component3|component3(){}[0]
+        final fun component4(): dev.avinya.ads/AdLoadOrigin // dev.avinya.ads/AdLoadTelemetry.RequestFinished.component4|component4(){}[0]
+        final fun component5(): kotlin/Int // dev.avinya.ads/AdLoadTelemetry.RequestFinished.component5|component5(){}[0]
+        final fun component6(): kotlin.time/Duration // dev.avinya.ads/AdLoadTelemetry.RequestFinished.component6|component6(){}[0]
+        final fun component7(): dev.avinya.ads/AdRequestOutcome // dev.avinya.ads/AdLoadTelemetry.RequestFinished.component7|component7(){}[0]
+        final fun copy(kotlin/String = ..., dev.avinya.ads/AdFormat = ..., kotlin/Long = ..., dev.avinya.ads/AdLoadOrigin = ..., kotlin/Int = ..., kotlin.time/Duration = ..., dev.avinya.ads/AdRequestOutcome = ...): dev.avinya.ads/AdLoadTelemetry.RequestFinished // dev.avinya.ads/AdLoadTelemetry.RequestFinished.copy|copy(kotlin.String;dev.avinya.ads.AdFormat;kotlin.Long;dev.avinya.ads.AdLoadOrigin;kotlin.Int;kotlin.time.Duration;dev.avinya.ads.AdRequestOutcome){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdLoadTelemetry.RequestFinished.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdLoadTelemetry.RequestFinished.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdLoadTelemetry.RequestFinished.toString|toString(){}[0]
+    }
+
+    final class RequestStarted : dev.avinya.ads/AdLoadTelemetry { // dev.avinya.ads/AdLoadTelemetry.RequestStarted|null[0]
+        constructor <init>(kotlin/String, dev.avinya.ads/AdFormat, kotlin/Long, dev.avinya.ads/AdLoadOrigin, kotlin/Int) // dev.avinya.ads/AdLoadTelemetry.RequestStarted.<init>|<init>(kotlin.String;dev.avinya.ads.AdFormat;kotlin.Long;dev.avinya.ads.AdLoadOrigin;kotlin.Int){}[0]
+
+        final val attempt // dev.avinya.ads/AdLoadTelemetry.RequestStarted.attempt|{}attempt[0]
+            final fun <get-attempt>(): kotlin/Int // dev.avinya.ads/AdLoadTelemetry.RequestStarted.attempt.<get-attempt>|<get-attempt>(){}[0]
+        final val format // dev.avinya.ads/AdLoadTelemetry.RequestStarted.format|{}format[0]
+            final fun <get-format>(): dev.avinya.ads/AdFormat // dev.avinya.ads/AdLoadTelemetry.RequestStarted.format.<get-format>|<get-format>(){}[0]
+        final val origin // dev.avinya.ads/AdLoadTelemetry.RequestStarted.origin|{}origin[0]
+            final fun <get-origin>(): dev.avinya.ads/AdLoadOrigin // dev.avinya.ads/AdLoadTelemetry.RequestStarted.origin.<get-origin>|<get-origin>(){}[0]
+        final val placementId // dev.avinya.ads/AdLoadTelemetry.RequestStarted.placementId|{}placementId[0]
+            final fun <get-placementId>(): kotlin/String // dev.avinya.ads/AdLoadTelemetry.RequestStarted.placementId.<get-placementId>|<get-placementId>(){}[0]
+        final val requestId // dev.avinya.ads/AdLoadTelemetry.RequestStarted.requestId|{}requestId[0]
+            final fun <get-requestId>(): kotlin/Long // dev.avinya.ads/AdLoadTelemetry.RequestStarted.requestId.<get-requestId>|<get-requestId>(){}[0]
+
+        final fun component1(): kotlin/String // dev.avinya.ads/AdLoadTelemetry.RequestStarted.component1|component1(){}[0]
+        final fun component2(): dev.avinya.ads/AdFormat // dev.avinya.ads/AdLoadTelemetry.RequestStarted.component2|component2(){}[0]
+        final fun component3(): kotlin/Long // dev.avinya.ads/AdLoadTelemetry.RequestStarted.component3|component3(){}[0]
+        final fun component4(): dev.avinya.ads/AdLoadOrigin // dev.avinya.ads/AdLoadTelemetry.RequestStarted.component4|component4(){}[0]
+        final fun component5(): kotlin/Int // dev.avinya.ads/AdLoadTelemetry.RequestStarted.component5|component5(){}[0]
+        final fun copy(kotlin/String = ..., dev.avinya.ads/AdFormat = ..., kotlin/Long = ..., dev.avinya.ads/AdLoadOrigin = ..., kotlin/Int = ...): dev.avinya.ads/AdLoadTelemetry.RequestStarted // dev.avinya.ads/AdLoadTelemetry.RequestStarted.copy|copy(kotlin.String;dev.avinya.ads.AdFormat;kotlin.Long;dev.avinya.ads.AdLoadOrigin;kotlin.Int){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdLoadTelemetry.RequestStarted.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdLoadTelemetry.RequestStarted.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdLoadTelemetry.RequestStarted.toString|toString(){}[0]
     }
 }
 
@@ -845,6 +966,52 @@ sealed interface dev.avinya.ads/AdManagerStatus { // dev.avinya.ads/AdManagerSta
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdManagerStatus.Ready.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.avinya.ads/AdManagerStatus.Ready.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.avinya.ads/AdManagerStatus.Ready.toString|toString(){}[0]
+    }
+}
+
+sealed interface dev.avinya.ads/AdRequestOutcome { // dev.avinya.ads/AdRequestOutcome|null[0]
+    final class Failed : dev.avinya.ads/AdRequestOutcome { // dev.avinya.ads/AdRequestOutcome.Failed|null[0]
+        constructor <init>(dev.avinya.ads/AdError) // dev.avinya.ads/AdRequestOutcome.Failed.<init>|<init>(dev.avinya.ads.AdError){}[0]
+
+        final val error // dev.avinya.ads/AdRequestOutcome.Failed.error|{}error[0]
+            final fun <get-error>(): dev.avinya.ads/AdError // dev.avinya.ads/AdRequestOutcome.Failed.error.<get-error>|<get-error>(){}[0]
+
+        final fun component1(): dev.avinya.ads/AdError // dev.avinya.ads/AdRequestOutcome.Failed.component1|component1(){}[0]
+        final fun copy(dev.avinya.ads/AdError = ...): dev.avinya.ads/AdRequestOutcome.Failed // dev.avinya.ads/AdRequestOutcome.Failed.copy|copy(dev.avinya.ads.AdError){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdRequestOutcome.Failed.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdRequestOutcome.Failed.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdRequestOutcome.Failed.toString|toString(){}[0]
+    }
+
+    final class Loaded : dev.avinya.ads/AdRequestOutcome { // dev.avinya.ads/AdRequestOutcome.Loaded|null[0]
+        constructor <init>(dev.avinya.ads/AdResponseInfo?) // dev.avinya.ads/AdRequestOutcome.Loaded.<init>|<init>(dev.avinya.ads.AdResponseInfo?){}[0]
+
+        final val responseInfo // dev.avinya.ads/AdRequestOutcome.Loaded.responseInfo|{}responseInfo[0]
+            final fun <get-responseInfo>(): dev.avinya.ads/AdResponseInfo? // dev.avinya.ads/AdRequestOutcome.Loaded.responseInfo.<get-responseInfo>|<get-responseInfo>(){}[0]
+
+        final fun component1(): dev.avinya.ads/AdResponseInfo? // dev.avinya.ads/AdRequestOutcome.Loaded.component1|component1(){}[0]
+        final fun copy(dev.avinya.ads/AdResponseInfo? = ...): dev.avinya.ads/AdRequestOutcome.Loaded // dev.avinya.ads/AdRequestOutcome.Loaded.copy|copy(dev.avinya.ads.AdResponseInfo?){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdRequestOutcome.Loaded.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdRequestOutcome.Loaded.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdRequestOutcome.Loaded.toString|toString(){}[0]
+    }
+
+    final object Cancelled : dev.avinya.ads/AdRequestOutcome { // dev.avinya.ads/AdRequestOutcome.Cancelled|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdRequestOutcome.Cancelled.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdRequestOutcome.Cancelled.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdRequestOutcome.Cancelled.toString|toString(){}[0]
+    }
+
+    final object Discarded : dev.avinya.ads/AdRequestOutcome { // dev.avinya.ads/AdRequestOutcome.Discarded|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdRequestOutcome.Discarded.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdRequestOutcome.Discarded.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdRequestOutcome.Discarded.toString|toString(){}[0]
+    }
+
+    final object TimedOut : dev.avinya.ads/AdRequestOutcome { // dev.avinya.ads/AdRequestOutcome.TimedOut|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads/AdRequestOutcome.TimedOut.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.avinya.ads/AdRequestOutcome.TimedOut.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.avinya.ads/AdRequestOutcome.TimedOut.toString|toString(){}[0]
     }
 }
 
@@ -1524,6 +1691,17 @@ final class dev.avinya.ads/AdExpirationPolicy { // dev.avinya.ads/AdExpirationPo
     final fun toString(): kotlin/String // dev.avinya.ads/AdExpirationPolicy.toString|toString(){}[0]
 }
 
+final class dev.avinya.ads/AdLoadTag : kotlin.coroutines/AbstractCoroutineContextElement { // dev.avinya.ads/AdLoadTag|null[0]
+    constructor <init>(kotlin/String) // dev.avinya.ads/AdLoadTag.<init>|<init>(kotlin.String){}[0]
+
+    final val value // dev.avinya.ads/AdLoadTag.value|{}value[0]
+        final fun <get-value>(): kotlin/String // dev.avinya.ads/AdLoadTag.value.<get-value>|<get-value>(){}[0]
+
+    final fun toString(): kotlin/String // dev.avinya.ads/AdLoadTag.toString|toString(){}[0]
+
+    final object Key : kotlin.coroutines/CoroutineContext.Key<dev.avinya.ads/AdLoadTag> // dev.avinya.ads/AdLoadTag.Key|null[0]
+}
+
 final class dev.avinya.ads/AdNetworkResponseInfo { // dev.avinya.ads/AdNetworkResponseInfo|null[0]
     constructor <init>(kotlin/String? = ..., kotlin/Long? = ..., dev.avinya.ads/AdError? = ..., kotlin/String? = ..., kotlin/String? = ..., kotlin/String? = ..., kotlin/String? = ...) // dev.avinya.ads/AdNetworkResponseInfo.<init>|<init>(kotlin.String?;kotlin.Long?;dev.avinya.ads.AdError?;kotlin.String?;kotlin.String?;kotlin.String?;kotlin.String?){}[0]
 
@@ -1998,6 +2176,8 @@ final val dev.avinya.ads/debugAdConfig // dev.avinya.ads/debugAdConfig|{}debugAd
     final fun <get-debugAdConfig>(): dev.avinya.ads/AdConfig // dev.avinya.ads/debugAdConfig.<get-debugAdConfig>|<get-debugAdConfig>(){}[0]
 final val dev.avinya.ads/debugAdPlacements // dev.avinya.ads/debugAdPlacements|{}debugAdPlacements[0]
     final fun <get-debugAdPlacements>(): kotlin.collections/List<dev.avinya.ads/AdPlacement> // dev.avinya.ads/debugAdPlacements.<get-debugAdPlacements>|<get-debugAdPlacements>(){}[0]
+final val dev.avinya.ads/loadTelemetry // dev.avinya.ads/loadTelemetry|@dev.avinya.ads.AdManager{}loadTelemetry[0]
+    final fun (dev.avinya.ads/AdManager).<get-loadTelemetry>(): kotlinx.coroutines.flow/SharedFlow<dev.avinya.ads/AdLoadTelemetry> // dev.avinya.ads/loadTelemetry.<get-loadTelemetry>|<get-loadTelemetry>@dev.avinya.ads.AdManager(){}[0]
 
 final fun (dev.avinya.ads.nativead/NativeAdSession).dev.avinya.ads.nativead/acquireIosNativeAdRenderLease(kotlin/String, dev.avinya.ads/AdPlacement, kotlin/String): dev.avinya.ads.nativead/IosNativeAdRenderLease? // dev.avinya.ads.nativead/acquireIosNativeAdRenderLease|acquireIosNativeAdRenderLease@dev.avinya.ads.nativead.NativeAdSession(kotlin.String;dev.avinya.ads.AdPlacement;kotlin.String){}[0]
 final fun (dev.avinya.ads/BannerAdController).dev.avinya.ads/attachIosBanner() // dev.avinya.ads/attachIosBanner|attachIosBanner@dev.avinya.ads.BannerAdController(){}[0]

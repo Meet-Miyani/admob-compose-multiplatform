@@ -6,6 +6,8 @@ import dev.avinya.ads.internal.AdRequestAdmission
 import dev.avinya.ads.internal.AppliedConfigurationDecision
 import dev.avinya.ads.internal.ConsentSessionState
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
+import dev.avinya.ads.internal.FullScreenLoadTelemetrySink
+import dev.avinya.ads.internal.FullScreenSlotCore
 import dev.avinya.ads.internal.FullScreenStateLock
 import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.LaunchConsentUpdater
@@ -42,6 +44,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -78,9 +81,28 @@ internal data class AdSlotKey(val placementId: String, val format: AdFormat)
  * that this class needs a platform-specific branch.
  */
 internal abstract class GoogleAdManagerBase :
-    AdManager, FullScreenPresenceAware, RequestConfigurationUpdater, AdapterStartupSource {
+    AdManager, FullScreenPresenceAware, RequestConfigurationUpdater, AdapterStartupSource, LoadTelemetrySource {
     /** "Android" or "iOS" — the only textual difference in this class's log messages. */
     protected abstract val platformTag: String
+
+    private val _loadTelemetry = MutableSharedFlow<AdLoadTelemetry>(extraBufferCapacity = 128)
+    override val loadTelemetryFlow: SharedFlow<AdLoadTelemetry> = _loadTelemetry.asSharedFlow()
+
+    // Request ids are unique for the process, not per slot, so one analytics table can key on them.
+    private val requestIdLock = FullScreenStateLock()
+    private var lastRequestId = 0L
+
+    private val loadTelemetrySink = FullScreenLoadTelemetrySink(
+        emit = { signal ->
+            if (!_loadTelemetry.tryEmit(signal)) {
+                AdLogger.w(
+                    "Load telemetry DROPPED — the buffer was full. placement=${signal.placementId} " +
+                        "signal=${signal::class.simpleName}"
+                )
+            }
+        },
+        nextRequestId = { requestIdLock.withLock { ++lastRequestId } },
+    )
 
     private val _adapterStartup = MutableStateFlow<AdapterStartup>(AdapterStartup.NotStarted)
     override val adapterStartupState: StateFlow<AdapterStartup> = _adapterStartup.asStateFlow()
@@ -216,7 +238,10 @@ internal abstract class GoogleAdManagerBase :
                 "The factory function and placement.format must agree."
         }
         checkPlacementCollision(ownedPlacement)
-        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { create(ownedPlacement) }
+        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) {
+            // Attached here, before the slot is returned to anyone, so its first load already reports.
+            create(ownedPlacement).also { slot -> (slot as? FullScreenSlotCore<*>)?.telemetry = loadTelemetrySink }
+        }
     }
 
     /**

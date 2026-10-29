@@ -4,6 +4,7 @@ package dev.avinya.ads.appopen
 
 import dev.avinya.ads.AdEvent
 import dev.avinya.ads.AdLogger
+import dev.avinya.ads.AdLoadOrigin
 import dev.avinya.ads.AdManager
 import dev.avinya.ads.AdManagerStatus
 import dev.avinya.ads.AdShowResult
@@ -11,6 +12,7 @@ import dev.avinya.ads.AppOpenAdController
 import dev.avinya.ads.FullScreenPresenceAware
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
 import dev.avinya.ads.internal.FullScreenStateLock
+import dev.avinya.ads.internal.LoadOriginElement
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -29,6 +31,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -243,7 +246,7 @@ public class AppOpenAdCoordinator internal constructor(
             // guidance is not to show an app-open ad once the user has reached the app's content,
             // and its sample apps keep a late ad for the next foreground; the 4-hour TTL is the only
             // limit on holding it. stop() still cancels the load with the rest of the lifecycle.
-            val load = lifecycleScope.async { controller.load() }
+            val load = lifecycleScope.async(LoadOriginElement(AdLoadOrigin.AppOpenStart)) { controller.load() }
             val inTime = withTimeoutOrNull(config.coldStartTimeout) { load.await() } != null
             if (!inTime) {
                 AdLogger.d(
@@ -257,7 +260,7 @@ public class AppOpenAdCoordinator internal constructor(
             // ad stays cached for the next genuine foreground entry.
             if (appInForeground() && tryAcquireShowAdmission() == null) showNow()
         } else {
-            controller.load()
+            withContext(LoadOriginElement(AdLoadOrigin.AppOpenStart)) { controller.load() }
         }
     }
 
@@ -309,7 +312,9 @@ public class AppOpenAdCoordinator internal constructor(
                 ?: tryAcquireShowAdmission()
                 ?: AppOpenReturnOutcome.ShowAttempted(showNow())
             emitReturn(AppOpenReturn(controller.placement.id, backgroundDuration, outcome))
-            if (!controller.isReady()) controller.load()
+            if (!controller.isReady()) {
+                withContext(LoadOriginElement(AdLoadOrigin.AppOpenAfterReturn)) { controller.load() }
+            }
         }
     }
 
