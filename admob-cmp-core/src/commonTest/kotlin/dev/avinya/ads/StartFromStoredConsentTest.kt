@@ -230,7 +230,7 @@ class StartFromStoredConsentTest {
     }
 
     @Test
-    fun `the switch defaults off on the fake, reads back on, and NoOpAdManager ignores it`() = runSlotTest {
+    fun `the switch defaults off on the fake and reads back on while NoOpAdManager ignores it`() = runSlotTest {
         assertFalse(NoOpAdManager.startFromStoredConsent, "NoOpAdManager must report the switch off")
         NoOpAdManager.startFromStoredConsent = true
         assertFalse(NoOpAdManager.startFromStoredConsent, "NoOpAdManager must ignore the switch")

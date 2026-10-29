@@ -232,7 +232,7 @@ class AppOpenReturnsTest {
     }
 
     @Test
-    fun `the start-up foreground emits nothing, and a later real return still does`() = runTest(StandardTestDispatcher()) {
+    fun `the start-up foreground emits nothing and a later real return still does`() = runTest(StandardTestDispatcher()) {
         val controller = FakeAppOpenAdController()
         val h = ReturnHarness(controller = controller, initiallyForeground = true)
         h.collectReturns(this)
@@ -280,7 +280,7 @@ class AppOpenReturnsTest {
     }
 
     @Test
-    fun `each qualifying return emits exactly one entry, in order`() = runTest(UnconfinedTestDispatcher()) {
+    fun `each qualifying return emits exactly one entry in order`() = runTest(UnconfinedTestDispatcher()) {
         val h = ReturnHarness()
         h.collectReturns(this)
         h.coordinator.start(CoroutineScope(UnconfinedTestDispatcher()))

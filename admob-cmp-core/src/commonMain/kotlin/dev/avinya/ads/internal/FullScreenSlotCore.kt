@@ -359,17 +359,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
                         if (isCurrentGeneration(requiredGeneration)) {
                             attempt++
                             val started = startLoadRequest(origin, attempt).also { request = it }
-                            val answer = try {
-                                loadAd(requestOptions)
-                            } catch (cancellation: CancellationException) {
-                                started.finish(
-                                    if (cancellation is TimeoutCancellationException) AdRequestOutcome.TimedOut
-                                    else AdRequestOutcome.Cancelled
-                                )
-                                throw cancellation
-                            }
-                            if (answer is AdAttemptResult.Failure) started.finish(AdRequestOutcome.Failed(answer.error))
-                            undelivered.capture(answer)
+                            undelivered.capture(requestAd(requestOptions, started))
                         } else {
                             AdAttemptResult.Failure(AdError.message("Full-screen load was cleared."))
                         }
@@ -981,6 +971,24 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
             )
         }
         return expired.map { it.ad }
+    }
+
+    /**
+     * One native ad request, reporting how it ended unless an ad arrived: that outcome — kept or
+     * discarded — is only known once the caller has tried to admit it.
+     */
+    private suspend fun requestAd(requestOptions: AdRequestOptions, request: LoadRequestTracker): AdAttemptResult<AdT> {
+        val answer = try {
+            loadAd(requestOptions)
+        } catch (timeout: TimeoutCancellationException) {
+            request.finish(AdRequestOutcome.TimedOut)
+            throw timeout
+        } catch (cancellation: CancellationException) {
+            request.finish(AdRequestOutcome.Cancelled)
+            throw cancellation
+        }
+        if (answer is AdAttemptResult.Failure) request.finish(AdRequestOutcome.Failed(answer.error))
+        return answer
     }
 
     private fun startLoadRequest(origin: AdLoadOrigin, attempt: Int): LoadRequestTracker {
