@@ -7,6 +7,7 @@ import dev.avinya.ads.AdError
 import dev.avinya.ads.AdEvent
 import dev.avinya.ads.AdLogger
 import dev.avinya.ads.AdPlacement
+import dev.avinya.ads.AdResponseInfo
 import dev.avinya.ads.INTERNAL_LOAD_ERROR_CODE
 import dev.avinya.ads.isRetryableLoadFailure
 import dev.avinya.ads.retryAdLoad
@@ -143,6 +144,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
         var owner: SlotOwner?,
         val placement: AdPlacement,
         val mediaInfo: dev.avinya.ads.nativead.NativeMediaInfo?,
+        val responseInfo: AdResponseInfo?,
         val adInstanceId: String,
         val loadedAt: Instant,
         var rendererId: String? = null,
@@ -769,7 +771,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
     /** Platform callbacks are accepted only while their owned record is current. */
     private fun routeEvent(recordId: NativeAdRecordId, instanceId: String, event: AdEvent) {
         val current = lock.withLock {
-            val entry = records[recordId]?.takeIf { recordId.value.toString() == instanceId }
+            val entry = records[recordId]?.takeIf { it.adInstanceId == instanceId }
             if (entry != null && event.marksEngagement()) {
                 entry.impressed = true
             }
@@ -987,7 +989,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                                 } else {
                                     sparePermits[index]?.id ?: return@forEachIndexed
                                 }
-                                val instanceId = recordId.value.toString()
+                                val instanceId = recordId.adInstanceId
                                 platform.bindEvents(ad, instanceId) { event -> routeEvent(recordId, instanceId, event) }
                             }
                         } catch (failure: Throwable) {
@@ -1222,32 +1224,13 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 val owner = reservationOwners.remove(reservation.id)
                 try {
                     val recordId = governor.admit(reservation)
-                    activeRecordIds.add(recordId)
                     val admittedOwner = owner?.takeIf {
                         it.reservation === reservation && it.slotGeneration == entry.generation
                     }
-                    val admitted = admittedOwner?.let {
-                        sessions[it.sessionKey]?.core?.recordAdmitted(
-                            it.slotKey,
-                            recordId,
-                            platform.mediaInfo(ad),
-                            entry.generation,
-                        )
-                    } == true
-                    if (!admitted) {
+                    if (admittedOwner == null || !admitLocked(admittedOwner, entry, recordId, ad)) {
                         governor.retire(recordId)
                         effects.destroy += ad
-                        return@forEachIndexed
                     }
-                    records[recordId] = RecordEntry(
-                        ad = ad,
-                        placementId = placementId,
-                        owner = SlotOwner(requireNotNull(admittedOwner).sessionKey, entry.key, entry.generation),
-                        placement = entry.placement,
-                        mediaInfo = platform.mediaInfo(ad),
-                        adInstanceId = recordId.value.toString(),
-                        loadedAt = nowLocked(),
-                    )
                 } catch (e: IllegalStateException) {
                     reservationOwners.remove(reservation.id)
                     effects.destroy += ad
@@ -1256,6 +1239,46 @@ internal class NativeAdCoordinatorCore<A : Any>(
             ads.drop(launchedPairs.size).forEach { effects.destroy += it }
             activeReservations.removeAll { active -> launchedPairs.any { it.reservation === active.reservation } }
         }
+
+        /**
+         * Gives [ad] to [owner]'s slot as record [recordId]. Returns false when the session refuses
+         * it; the caller then retires the permit and destroys the ad, and nothing here refers to
+         * [recordId], so the scheduler can still go idle.
+         */
+        private fun admitLocked(
+            owner: ReservationOwner,
+            entry: SlotDemandEntry,
+            recordId: NativeAdRecordId,
+            ad: A,
+        ): Boolean {
+            val record = newRecordLocked(recordId, ad, entry.placement, SlotOwner(owner.sessionKey, entry.key, entry.generation))
+            val core = sessions[owner.sessionKey]?.core ?: return false
+            if (!core.recordAdmitted(owner.slotKey, recordId, record.mediaInfo, entry.generation)) return false
+            records[recordId] = record
+            activeRecordIds.add(recordId)
+            return true
+        }
+
+        /**
+         * The single place a record takes its platform snapshot. [NativeAdPlatform.mediaInfo] and
+         * [NativeAdPlatform.responseInfo] are field reads of what the platform captured at load,
+         * which is what makes calling them here, under [lock], safe.
+         */
+        private fun newRecordLocked(
+            recordId: NativeAdRecordId,
+            ad: A,
+            placement: AdPlacement,
+            owner: SlotOwner?,
+        ): RecordEntry = RecordEntry(
+            ad = ad,
+            placementId = placementId,
+            owner = owner,
+            placement = placement,
+            mediaInfo = platform.mediaInfo(ad),
+            responseInfo = platform.responseInfo(ad),
+            adInstanceId = recordId.adInstanceId,
+            loadedAt = nowLocked(),
+        )
 
         private fun settleUnfilledPair(
             pair: ReservationSlotPair,
@@ -1345,15 +1368,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 // A memory trim or visible demand cancelled the permit after binding.
                 return false
             }
-            val record = RecordEntry(
-                ad = ad,
-                placementId = placementId,
-                owner = null,
-                placement = pair.entry.placement,
-                mediaInfo = platform.mediaInfo(ad),
-                adInstanceId = recordId.value.toString(),
-                loadedAt = nowLocked(),
-            )
+            val record = newRecordLocked(recordId, ad, pair.entry.placement, owner = null)
             records[recordId] = record
             activeRecordIds.add(recordId)
             AdLogger.d("Native late arrival kept. placement=$placementId")
