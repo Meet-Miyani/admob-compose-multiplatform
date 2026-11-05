@@ -3,7 +3,9 @@ package dev.avinya.ads.nativead
 import dev.avinya.ads.AdError
 import dev.avinya.ads.AdFormat
 import dev.avinya.ads.AdPlacement
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 
 /**
@@ -177,10 +179,11 @@ public data class NativeAdManagerState(
  * Declared stable in `admob-cmp-compose/compose_compiler_config.conf` (this type is compiled
  * without the Compose plugin and would otherwise carry no stability metadata at all). An
  * implementation must honor that promise: [key] and [policy] never change identity after
- * construction, and every other observable change — slot admission, activation, closure —
- * must be visible only through [state]. Adding a plain `var` here, or a method whose effect
- * isn't reflected in [state], would silently break recomposition for anything holding this
- * session across a `remember`.
+ * construction, and every other observable change — slot admission, activation, closure, the
+ * ad each slot holds — must be visible only through [state] and [adInfo], `StateFlow`s whose
+ * identity never changes. Adding a plain `var` here, or a method whose effect isn't reflected
+ * in those flows, would silently break recomposition for anything holding this session across
+ * a `remember`.
  */
 public interface NativeAdSession {
     /** Stable session key. Identifies the session inside the [NativeAdManager]. */
@@ -191,6 +194,35 @@ public interface NativeAdSession {
 
     /** Current slot map and active flag. */
     public val state: StateFlow<NativeAdSessionState>
+
+    /**
+     * The native ad in each slot of this session, by slot key: which ad it is, and who served it.
+     *
+     * A slot has an entry exactly while its state in [state] is [NativeAdSlotState.Ready],
+     * [NativeAdSlotState.Mounted] or [NativeAdSlotState.Retained]. A failed slot has none; the
+     * mediation chain of its failed request is on [NativeAdSlotState.Failed]'s
+     * [dev.avinya.ads.AdError.responseInfo].
+     *
+     * Follow this flow, not [state], to notice that a slot has a new ad. When a slot's ad expires
+     * and an unshown ad kept by [NativeAdManager.reuseUnshownAds] replaces it in the same step,
+     * [state] can report an equal `Ready` value and emit nothing; this map always changes,
+     * because the new ad has a new [NativeAdInfo.adInstanceId]. It is updated before [state], so
+     * it is never older than the state you are handling.
+     *
+     * With [NativeAdManager.reuseUnshownAds] on, an ad that was never shown can move to a slot
+     * of another session and keeps its [NativeAdInfo]. An ad that reached a view never moves.
+     *
+     * This is state, not a log: an ad that fills a slot and leaves it between two collections may
+     * never be seen here. To count every native fill, collect [dev.avinya.ads.AdEvent.Loaded] from
+     * [dev.avinya.ads.AdManager.events].
+     *
+     * Empty before [dev.avinya.ads.AdManager.initialize] succeeds, and the same flow afterwards;
+     * empty for good once the session is closed. The map has no defined order. The default
+     * implementation, used by implementations of this interface outside this SDK, reports an
+     * empty map that never changes.
+     */
+    public val adInfo: StateFlow<Map<String, NativeAdInfo>>
+        get() = NoNativeAdInfo
 
     /**
      * Reports the new viewport window to the session. The session ranks the
@@ -311,3 +343,7 @@ public interface NativeAdManager {
         get() = false
         set(@Suppress("UNUSED_PARAMETER") value) {}
 }
+
+/** What [NativeAdSession.adInfo] reports for a session that does not publish ads: empty, for good. */
+private val NoNativeAdInfo: StateFlow<Map<String, NativeAdInfo>> =
+    MutableStateFlow<Map<String, NativeAdInfo>>(emptyMap()).asStateFlow()

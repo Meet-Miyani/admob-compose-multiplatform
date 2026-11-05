@@ -29,6 +29,7 @@ import dev.avinya.admob.showcase.ui.theme.Tokens
 import dev.avinya.admob.showcase.ui.theme.showcaseColors
 import androidx.compose.material3.Text
 import dev.avinya.ads.LocalAdManager
+import dev.avinya.ads.nativead.NativeAdInfo
 import dev.avinya.ads.nativead.NativeAdSession
 import dev.avinya.ads.nativead.NativeAdSlot
 import dev.avinya.ads.nativead.NativeAdSlotState
@@ -199,12 +200,17 @@ fun NativeLabScreen(
 @Composable
 private fun SlotStateNote(session: NativeAdSession, slotKey: String) {
     val state by session.state.collectAsState()
+    val adInfo by session.adInfo.collectAsState()
     val slot = state.slots[slotKey]
+    val ad = adInfo[slotKey]
     Column(verticalArrangement = Arrangement.spacedBy(Tokens.Spacing.s4)) {
         LabStatus(text = "slot: ${slot.label()}")
         LabStatus(
             text = "active: ${state.active} · tracked slots: ${state.slots.size}",
         )
+        if (ad != null) {
+            LabStatus(text = "served by: ${ad.servedBy()} · ad ${ad.adInstanceId}")
+        }
         if (slot == null || slot is NativeAdSlotState.Empty) {
             Text(
                 text = "Nothing is rendered until the SDK reports the slot renderable — " +
@@ -249,6 +255,15 @@ private fun ValidationReport(layout: AdLayout) {
             }
         }
     }
+}
+
+/**
+ * The ad source that served the ad, by the name Google reports for it. Adapter class names differ
+ * between Android and iOS, so they are only the fallback.
+ */
+private fun NativeAdInfo.servedBy(): String {
+    val winner = responseInfo?.loadedAdNetworkResponseInfo
+    return winner?.adSourceName ?: winner?.adapterClassName ?: responseInfo?.adapterClassName ?: "unknown"
 }
 
 /** Exhaustive so a new SDK slot state is a compile error, not a blank label. */

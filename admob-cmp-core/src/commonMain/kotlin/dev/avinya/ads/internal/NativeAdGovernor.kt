@@ -13,7 +13,13 @@ import dev.avinya.ads.nativead.NativeAdMemoryPolicy
  * all later operations (touch, setMounted, reclassify, retire) without
  * keeping a separate handle.
  */
-internal data class NativeAdRecordId(val value: Long)
+internal data class NativeAdRecordId(val value: Long) {
+    /**
+     * The `adInstanceId` the app sees for this record. Platform events are bound under it before
+     * the record exists, and the record reports it afterwards, so both must come from here.
+     */
+    val adInstanceId: String get() = value.toString()
+}
 
 /**
  * Demand classification attached to every reservation. The class

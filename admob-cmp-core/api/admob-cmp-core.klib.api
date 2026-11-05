@@ -272,6 +272,8 @@ abstract interface dev.avinya.ads.nativead/NativeAdSession { // dev.avinya.ads.n
         abstract fun <get-policy>(): dev.avinya.ads.nativead/NativeAdSessionPolicy // dev.avinya.ads.nativead/NativeAdSession.policy.<get-policy>|<get-policy>(){}[0]
     abstract val state // dev.avinya.ads.nativead/NativeAdSession.state|{}state[0]
         abstract fun <get-state>(): kotlinx.coroutines.flow/StateFlow<dev.avinya.ads.nativead/NativeAdSessionState> // dev.avinya.ads.nativead/NativeAdSession.state.<get-state>|<get-state>(){}[0]
+    open val adInfo // dev.avinya.ads.nativead/NativeAdSession.adInfo|{}adInfo[0]
+        open fun <get-adInfo>(): kotlinx.coroutines.flow/StateFlow<kotlin.collections/Map<kotlin/String, dev.avinya.ads.nativead/NativeAdInfo>> // dev.avinya.ads.nativead/NativeAdSession.adInfo.<get-adInfo>|<get-adInfo>(){}[0]
 
     abstract fun close() // dev.avinya.ads.nativead/NativeAdSession.close|close(){}[0]
     abstract fun deactivate() // dev.avinya.ads.nativead/NativeAdSession.deactivate|deactivate(){}[0]
@@ -1305,6 +1307,21 @@ final class dev.avinya.ads.internal/FullScreenStateLock { // dev.avinya.ads.inte
     constructor <init>() // dev.avinya.ads.internal/FullScreenStateLock.<init>|<init>(){}[0]
 
     final fun <#A1: kotlin/Any?> withLock(kotlin/Function0<#A1>): #A1 // dev.avinya.ads.internal/FullScreenStateLock.withLock|withLock(kotlin.Function0<0:0>){0§<kotlin.Any?>}[0]
+}
+
+final class dev.avinya.ads.nativead/NativeAdInfo { // dev.avinya.ads.nativead/NativeAdInfo|null[0]
+    constructor <init>(kotlin/String, kotlin/String, dev.avinya.ads/AdResponseInfo?) // dev.avinya.ads.nativead/NativeAdInfo.<init>|<init>(kotlin.String;kotlin.String;dev.avinya.ads.AdResponseInfo?){}[0]
+
+    final val adInstanceId // dev.avinya.ads.nativead/NativeAdInfo.adInstanceId|{}adInstanceId[0]
+        final fun <get-adInstanceId>(): kotlin/String // dev.avinya.ads.nativead/NativeAdInfo.adInstanceId.<get-adInstanceId>|<get-adInstanceId>(){}[0]
+    final val placementId // dev.avinya.ads.nativead/NativeAdInfo.placementId|{}placementId[0]
+        final fun <get-placementId>(): kotlin/String // dev.avinya.ads.nativead/NativeAdInfo.placementId.<get-placementId>|<get-placementId>(){}[0]
+    final val responseInfo // dev.avinya.ads.nativead/NativeAdInfo.responseInfo|{}responseInfo[0]
+        final fun <get-responseInfo>(): dev.avinya.ads/AdResponseInfo? // dev.avinya.ads.nativead/NativeAdInfo.responseInfo.<get-responseInfo>|<get-responseInfo>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.avinya.ads.nativead/NativeAdInfo.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.avinya.ads.nativead/NativeAdInfo.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.avinya.ads.nativead/NativeAdInfo.toString|toString(){}[0]
 }
 
 final class dev.avinya.ads.nativead/NativeAdManagerState { // dev.avinya.ads.nativead/NativeAdManagerState|null[0]

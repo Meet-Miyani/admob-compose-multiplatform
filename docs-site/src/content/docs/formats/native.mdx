@@ -184,6 +184,55 @@ adManager.nativeAds.reuseUnshownAds = true
 With reuse on, a slot can go straight from `Empty` to `Ready`, and you will see fewer ad requests and
 load events. It is off by default so that upgrading never changes how an app loads ads.
 
+## Which network served an ad
+
+Native ads report who served them the way banner and full-screen ads do: once per load as an event,
+and as state for the ad a slot is showing now.
+
+**Loads, on `AdManager.events`.** Every native ad that enters the SDK's inventory reports
+`AdEvent.Loaded` with the `AdResponseInfo` the Google Mobile Ads SDK returned for it. Every slot
+whose load fails reports `AdEvent.LoadFailed` once, after the placement's retries. A slot that takes
+a kept ad (see above) reports nothing, because nothing was requested. Use these to count fill by ad
+source:
+
+```kotlin
+adManager.events.collect { event ->
+    when (event) {
+        is AdEvent.Loaded -> analytics.fill(event.placementId, event.responseInfo?.loadedAdNetworkResponseInfo?.adSourceName)
+        is AdEvent.LoadFailed -> analytics.noFill(event.placementId, event.error.code)
+        else -> Unit
+    }
+}
+```
+
+**The ad in each slot, on `NativeAdSession.adInfo`.** A `StateFlow<Map<String, NativeAdInfo>>`
+keyed by slot key. A slot has an entry exactly while it is `Ready`, `Mounted`, or `Retained`.
+`NativeAdInfo` carries the ad's `adInstanceId`, its `placementId`, and its `responseInfo`. The
+`adInstanceId` is the value the ad's `Impression`, `Clicked`, and `Paid` events carry, so you can
+attribute them to the network that served the ad:
+
+```kotlin
+val session = adManager.nativeAds.session("home-feed")
+adManager.events.filterIsInstance<AdEvent.Clicked>().collect { click ->
+    val info = session.adInfo.value.values.firstOrNull { it.adInstanceId == click.adInstanceId }
+    analytics.click(click.placementId, info?.responseInfo?.loadedAdNetworkResponseInfo?.adSourceName)
+}
+```
+
+- Follow `adInfo`, not `state`, to notice that a slot has a new ad. After a TTL expiry the
+  replacement can leave the slot's state equal to the old one; `adInfo` always changes. It is
+  updated before `state`, so it is never older than the state you are handling.
+- `adInfo` is state, not a log. An ad that fills a slot and leaves it between two collections may
+  never be seen there. Count fills with `AdEvent.Loaded`.
+- `adInstanceId` is opaque and lasts only for the process. To match an ad with Google's reporting
+  or a support request, use `responseInfo.responseId`.
+- Group by `adSourceName`, not `adapterClassName`: adapter class names differ between Android and
+  iOS.
+- A failed slot has no entry. Its mediation chain is on `NativeAdSlotState.Failed`'s
+  `error.responseInfo`.
+- With reuse on, a kept ad that moves to another slot keeps its `adInstanceId` and its
+  `responseInfo`.
+
 ## Layout DSL and media
 
 Build custom layouts once with `remember`; DSL nodes are functions with named arguments, and
