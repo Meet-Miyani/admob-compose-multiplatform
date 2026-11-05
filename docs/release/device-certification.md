@@ -213,3 +213,85 @@ Findings from the run:
   app-open loads only on the next return. All three are tracked as a follow-up.
 - The nine `app_open` `LoadFailed` events were all `consent_required`, from before
   ads were turned on in onboarding: the consent gate working as designed.
+
+## Run record — 2026-11-05, #66 + #67 combined (iOS simulator only)
+
+iOS: iPhone 17 Pro simulator, iOS 26.5 (23F77), `iosApp` scheme built at `fcf8a69f`
+(PR #66 head, with #67 merged in through `3d550e3e`). Fresh install, Google test ad
+units, showcase defaults (`startFromStoredConsent` on, adapter wait 5 s). EEA rows use
+the showcase's debug geography; the simulator counts as a UMP test device without an ID.
+Evidence comes from the SDK's `[AdMobCMP]` log lines in the simulator's unified log, the
+showcase's `ad_events`, `policy_decisions` and `reward_grants` tables read from the app
+container, screenshots, and one crash report.
+
+**This run does not certify the release on its own.** There is no Android column, because
+the owner skipped the Android device for this run. There is no physical iPhone: the owner
+accepted the simulator for the iOS column of this release, which is a deviation from the
+device rule above. Rows 8, 14 and 15 could not run; see the table.
+
+| # | Scenario | iOS sim | Evidence |
+|---|---|---|---|
+| 1 | EEA, consent accepted → ads serve | PASS | No ad events between relaunch and the tap. After **Consent**: `initialize` reused the launch's UMP update ("no second request"), gate `canRequestAds=true`, adapters 71 ms, `app_open` and `feed_native` `Loaded` 1.3–1.5 s later |
+| 2 | Consent denied → no ad requests | NOTE | UMP sets `canRequestAds=true` after **Do not consent** (Google serves limited ads), and the SDK follows UMP. Verified instead: no request while `canRequestAds=false`, both before the form was answered and before ATT. The row's wording needs updating |
+| 3 | Revoke after ads were allowed → `load()`/`show()` blocked | PASS | Revoked through the SDK's own path ("Reset consent state"): "consent revoked … purging cached inventory", purge `fullScreen=1`; the next interstitial `load()` failed with `consent_required`, and Show stayed disabled. **Do not consent** in the privacy options form does not revoke, as in row 2 |
+| 4 | Grant after prior denial → initialization resumes once | PASS | Cold start with consent cleared: stored-consent start waited, UMP `Required canRequestAds=false`, nothing started while the form was open. After **Consent**, exactly one each of `initialize requested`, "accepts ad requests" and "initialization succeeded", and one UMP update, reused |
+| 5 | Background/foreground during a load → no stuck state | PASS | Interstitial `Load`, then Home at once; `Loaded` arrived while backgrounded; after return the state was "ready · cached 1", and Show opened it |
+| 6 | Background/foreground during a full-screen ad → not force-closed | PASS | App-open ad on screen, Home, return: same ad still shown, no `ClosedFullScreen` until dismissed by hand; the next app-open ad reloaded in between |
+| 7 | Rotation → geometry survives | PASS, see F4 | Banners reloaded at landscape width, native card re-laid out and re-bound the same ad (`ad 1`) on return to portrait, validator "No findings"; no crash |
+| 8 | Offline → typed error, retry works | NOT RUN | Taking a simulator offline means taking the Mac offline |
+| 9 | All six formats render | PASS | Banner adaptive, fixed and collapsible; interstitial; rewarded; rewarded interstitial; app-open on a warm return; native. Each `Loaded` (or `OpenedFullScreen`) + `Impression` + `Paid` |
+| 10 | Reward exactly once per presentation | PASS | Rewarded and rewarded interstitial each `RewardEarned` once; `reward_grants` has two keys, wallet 20 coins |
+| 11 | Native ad validator clean | PASS | "No implementation issues found"; `AdLayoutValidator` "No findings" |
+| 12 | Ordering UMP → ATT → first ad request | PASS | UMP update 15:55:07.5 → UMP explainer → ATT requested 15:55:31.2, authorized 15:55:51.8 → `initialize` 15:55:52.4 → first `Loaded` 15:55:54.9. Before ATT the only events were two `app_open` `consent_required` refusals |
+| 13 | Double-tap privacy options → one form, no spurious failure | PARTIAL | Two rapid taps: one form, no error, no crash. The launch-time refresh (300–900 ms) cannot be hit by simulator automation, and the UI cannot show whether the second tap reached the SDK |
+| 14 | Slow mediation adapter → `Ready`, no spurious failure | NOT RUN | The test app's mediation config lists ten adapters, all "No such adapter in the application"; nothing slow to wait for |
+| 15 | Airplane mode during the launch consent refresh | NOT RUN | Same as row 8 |
+| 16, 17 | Android only | n/a | — |
+
+#66 behaviour seen on every launch:
+
+- **Stored-consent start** (opt-in, on in the showcase): on all 8 returning launches,
+  GMA accepted requests 5–42 ms after the UMP update was requested ("starting MobileAds
+  from consent stored in an earlier session" 2–19 ms after it, where logged), before UMP
+  answered. With no stored consent, or consent cleared, it waited for UMP.
+- **One UMP update per launch:** every `initialize` after `gatherConsent` logged
+  "Reusing the UMP consent info update … no second request".
+- **Bounded adapter wait:** "Waiting up to 5s for mediation adapters"; the adapters
+  reported in 56–1222 ms, so `Ready` came at their callback every time.
+- **App-open:** no show at launch (`FirstSession`); shown on a warm return after the 4 s
+  minimum background; the next ad reloaded after the show.
+
+Device measurements owed by #66's research (M1–M3; M4 needs real mediation):
+
+- **M1:** confirmed on iOS: right after `requestConsentInfoUpdate`, UMP reports the
+  previous session's answer, and the early start uses it.
+- **M2:** confirmed: the iOS UMP update is a network round trip on every launch,
+  309–906 ms here.
+- **M3:** cold launch to `Ready`, five launches each, same simulator and state (EEA,
+  consent stored, ATT allowed). 2.6.0 median **1733 ms**, #66 median **1112 ms**, about
+  0.6 s sooner. 2.6.0 also made a second UMP request inside `initialize`. First
+  `app_open` loaded at a median 1756 ms with #66; the 2.6.0 showcase preloads app-open
+  only on a return, so it has no comparable figure.
+
+Native ad info (#67) on iOS: native `Loaded` events with response IDs; the lab's slot
+note "served by: Reservation campaign · ad 1", and the same id on that ad's `Impression`.
+
+Findings from the run:
+
+- **F1 — crash, pre-existing since 2.0.0, high.** `NativeAdSession.updateWindow` throws
+  `IllegalStateException("Native ad session '…' is no longer active.")` on a session that
+  is closed, and its KDoc lists only `IllegalArgumentException`. The showcase's native
+  lab **Close → Recreate** reproduces it: uncaught Kotlin exception, `SIGABRT`, two crash
+  reports. The SDK also closes sessions itself on consent revocation and inactive reap.
+  A unit probe (not committed) confirmed that after `onConsentRevoked()` the same handle's
+  next `updateWindow` throws, so an app with a native feed or slot composed crashes on its
+  next scroll after consent is revoked. #66's opt-in stored-consent start adds one more
+  way to reach it: a launch-time UMP update that withdraws stored consent. Fix needs an
+  owner decision.
+- **F2 — matrix wording.** Rows 2 and 3 assume **Do not consent** blocks requests; UMP's
+  `canRequestAds` is true after any choice.
+- **F3 — showcase.** After a revocation the SDK Lab header still reads "Ready — ads may
+  load": `status` is `Ready` by design, and the gate is what is closed.
+- **F4 — unverified, pre-existing code.** In landscape the Fixed 320×50 banner's creative
+  looked wider than 320 pt. Banner code is unchanged since 2.6.0; a view-frame
+  measurement is needed before calling it a defect.
