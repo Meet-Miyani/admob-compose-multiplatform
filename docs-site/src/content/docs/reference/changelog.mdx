@@ -34,6 +34,20 @@ release is **2.6.0**.
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
 
+## Unreleased
+
+Native ads report who served them. Every addition is additive: against 2.6.0 the
+core ABI dumps add declarations and remove none, and `admob-cmp-compose.klib.api` is
+unchanged. One default changes behaviour; it is listed under **Behaviour changes**.
+
+### Behaviour changes
+
+**Native ads report `AdEvent.Loaded` and `AdEvent.LoadFailed` again.** Banner and full-screen ads have always reported each load on `AdManager.events`, with the ad's `AdResponseInfo` on `Loaded`. Native ads did too until 2.0.0 replaced the native ad pool with sessions; from then on they reported only impressions, clicks, paid events and iOS video events, so an app had no way to see native fill or which ad source served it. Each native ad that enters the SDK's inventory, by being admitted to a slot or, with `reuseUnshownAds` on, kept as a spare, now reports `Loaded(placementId, responseInfo)`. Each slot whose load fails reports `LoadFailed(placementId, error)` once, after the placement's retries; that includes a consent refusal and the unfilled part of a `GoogleOnly` batch. A slot that takes a kept ad reports nothing, because nothing was requested. A load that no slot waits for any more reports nothing either, unless reuse keeps its ad, which then reports `Loaded` like any other. These events carry no `adInstanceId`, so a `NativeAdView`'s `onEvent` does not receive them. An app that counts `Loaded` across every placement will now see native loads in that count.
+
+### Added
+
+**`NativeAdSession.adInfo` and `NativeAdInfo`: which ad is in each native slot, and who served it.** A `StateFlow<Map<String, NativeAdInfo>>` keyed by slot key, with an entry exactly while the slot is `Ready`, `Mounted` or `Retained`. `NativeAdInfo` carries the ad's `adInstanceId`, the same value its `Impression`, `Clicked` and `Paid` events carry, its `placementId`, and the `AdResponseInfo` the Google Mobile Ads SDK reported when it loaded: the response ID, the ad source that served it and the mediation chain. The map changes whenever a slot gets a different ad, even when the slot's state compares equal, and it is updated before `state`. It is a member of `NativeAdSession` with a default, so custom sessions and test fakes compile unchanged and can supply their own. `NativeAdInfo` is a plain class rather than a data class, so it can gain fields later without a binary break.
+
 ## 2.6.0
 
 A fix release for full-screen presentation on Android, plus two opt-in features and

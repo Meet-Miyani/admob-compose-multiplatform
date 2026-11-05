@@ -179,6 +179,17 @@ consent revocation, a serving-affecting configuration change, `clear()` and turn
 destroy them. Turn it on for feeds that prefetch ahead or screens that close sessions with unseen
 prefetched ads.
 
+**Who served a native ad.** Two layers, like banner and full-screen ads. On `AdManager.events`,
+each native ad that enters inventory (admitted to a slot, or kept as a spare) reports
+`AdEvent.Loaded(placementId, responseInfo)`, and each slot whose load fails reports
+`AdEvent.LoadFailed` once, after retries; adopting a spare reports nothing. On the session,
+`NativeAdSession.adInfo: StateFlow<Map<String, NativeAdInfo>>` holds the ad in each `Ready`,
+`Mounted` or `Retained` slot: its `adInstanceId` (the id on its `Impression`/`Clicked`/`Paid`
+events), `placementId` and `responseInfo`. Follow `adInfo` to notice a new ad in a slot; slot
+states can compare equal across a swap. It is state, not a log: count fills with `Loaded`. The
+coordinator emits load events only from `Effects.run()`, outside its lock, after state is
+published; never call `eventSink` under the lock. `NativeAdInfo` is deliberately not a data class.
+
 For custom native-ad typography, prefer
 `AdFontFamily.FromCompose(resourceBackedFontFamily)`. Preview uses the Compose family directly;
 Android applies Compose's resolved `Typeface`, and iOS registers loaded resource bytes with
