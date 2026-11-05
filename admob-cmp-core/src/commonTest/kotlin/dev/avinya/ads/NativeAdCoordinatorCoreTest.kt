@@ -507,9 +507,9 @@ class NativeAdCoordinatorCoreTest {
         coord.clear()
         coord.tickForTest(31.minutes)
 
-        assertEquals(null, coord.sessionGeneration("inactive"))
+        assertEquals(0, coord.managerState().inactiveSessions, "still reaped on schedule")
         coord.session("inactive")
-        assertTrue(coord.sessionGeneration("inactive") != generation)
+        assertEquals(generation, coord.sessionGeneration("inactive"), "a reaped session resumes, it is not replaced")
     }
 
     // --- Test 4: cleanup of idle per-placement schedulers --------------------

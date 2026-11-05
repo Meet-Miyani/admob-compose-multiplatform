@@ -263,8 +263,9 @@ internal class NativeAdManagerImpl<A : Any>(
             val first = managerLock.withLock { !reportedIgnoredUpdate.also { reportedIgnoredUpdate = true } }
             if (first) {
                 AdLogger.w(
-                    "Native ad session '$key' is closed, so its window updates are ignored. " +
-                        "Call NativeAdManager.session(\"$key\") for a new session.",
+                    "Native ad session '$key' ignored a window update: it is closed, or it was " +
+                        "reaped while inactive and the session registry is full. Call " +
+                        "NativeAdManager.session(\"$key\") for a live session.",
                 )
             }
         }

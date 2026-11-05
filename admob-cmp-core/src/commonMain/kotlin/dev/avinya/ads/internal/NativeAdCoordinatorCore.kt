@@ -72,7 +72,9 @@ internal const val MAX_SPARES_PER_PLACEMENT: Int = 2
  * **Session lifecycle.** Only the app ends a session, through [closeSession]; a handle's calls on
  * an ended session change nothing. [onConsentRevoked] destroys every ad and stops every load but
  * keeps each session and the slots its window wants. Those slots wait, unrequested, while
- * [canRequestAds] is false, and [onRequestsAllowed] re-offers them.
+ * [canRequestAds] is false, and [onRequestsAllowed] re-offers them. An inactive session reaped by
+ * the TTL or the LRU cap is parked, not ended ([parkLocked]): the next window update from any of
+ * its handles resumes it.
  *
  * **Generation model.** Each placement has a generation counter. [clear]
  * and [onConsentRevoked] bump every placement's generation. A late
@@ -101,7 +103,8 @@ internal const val MAX_SPARES_PER_PLACEMENT: Int = 2
  *    (default 30 minutes). The coordinator tracks the inactive set in
  *    insertion order (LinkedHashMap) so eviction is LRU.
  *  - [NativeAdMemoryPolicy.maxSessionRecords] is the hard cap on
- *    live + inactive sessions; the 65th call to [session] throws.
+ *    live + inactive sessions; the 65th call to [session] throws. Parked
+ *    sessions do not count.
  *
  * **Locking.** One [FullScreenStateLock] per coordinator instance. The
  * lock is held across every mutator; per-placement work is launched on
@@ -121,6 +124,10 @@ internal class NativeAdCoordinatorCore<A : Any>(
     private val governor = NativeAdGovernor(memoryPolicy)
     private val sessions = mutableMapOf<String, SessionHolder>()
     private val inactiveOrder = LinkedHashMap<String, Instant>()
+    // Inactive sessions reaped by the TTL or the LRU cap, oldest first. They hold no ads and no
+    // loads and count toward no limit, but keep their core, flows and generation; see parkLocked.
+    // A key is never in both this map and [sessions].
+    private val parked = LinkedHashMap<String, SessionHolder>()
     private val schedulers = mutableMapOf<String, PlacementScheduler>()
     // Sole record of every admitted platform ad. Destroyed exactly once.
     private val records = mutableMapOf<NativeAdRecordId, RecordEntry>()
@@ -267,8 +274,20 @@ internal class NativeAdCoordinatorCore<A : Any>(
                 }
                 return@withLock holder.binding() to effects
             }
+            // A reaped session used to be gone, so its key could be reused with any policy. A
+            // parked one keeps that: another policy replaces it instead of throwing.
+            parked[key]?.takeIf { it.core.policy != policy }?.let { replaced ->
+                parked.remove(key)
+                replaced.core.close()
+            }
             if (sessions.size >= memoryPolicy.maxSessionRecords) {
                 throw IllegalStateException(sessionRegistryFullMessage(memoryPolicy.maxSessionRecords, key))
+            }
+            parked.remove(key)?.let { holder ->
+                sessions[key] = holder
+                holder.lastActive = nowLocked()
+                holder.active = true
+                return@withLock holder.binding() to effects
             }
             val holder = SessionHolder(
                 core = NativeAdSessionCore(
@@ -288,11 +307,42 @@ internal class NativeAdCoordinatorCore<A : Any>(
         return binding
     }
 
-    /** Coordinator-issued identity for session-scoped operations. */
-    fun sessionGeneration(key: String): Long? = lock.withLock { sessions[key]?.generation }
+    /** Coordinator-issued identity for session-scoped operations, of a live or a parked session. */
+    fun sessionGeneration(key: String): Long? = lock.withLock { (sessions[key] ?: parked[key])?.generation }
 
     private fun currentHolderLocked(key: String, generation: Long): SessionHolder? =
         sessions[key]?.takeIf { it.generation == generation }
+
+    /**
+     * Moves the parked session with this generation back into the registry and returns it, or
+     * returns null. While the registry is full the session stays parked.
+     */
+    private fun unparkLocked(key: String, generation: Long): SessionHolder? {
+        val holder = parked[key]?.takeIf { it.generation == generation } ?: return null
+        if (sessions.size >= memoryPolicy.maxSessionRecords) return null
+        parked.remove(key)
+        sessions[key] = holder
+        return holder
+    }
+
+    /**
+     * Reaps an inactive session without ending it. Its ads are destroyed, never pooled, as a reap
+     * always did; its core, flows and generation are kept, so every handle stays valid and the
+     * next window update resumes the session. A handle held by a ViewModel easily outlives the
+     * inactive TTL, and ending the session here ended it under that handle.
+     *
+     * At most [NativeAdMemoryPolicy.maxSessionRecords] stay parked, so an app that opens a key
+     * per screen and never closes them cannot grow this without bound; past it the oldest ends.
+     */
+    private fun parkLocked(key: String, holder: SessionHolder, effects: Effects) {
+        applySessionMutationLocked(holder, holder.core.purgeRecords(), effects)
+        schedulers.values.toList().forEach { it.cancelForSessionLocked(key, effects) }
+        parked[key] = holder
+        while (parked.size > memoryPolicy.maxSessionRecords) {
+            val oldest = parked.keys.first()
+            parked.remove(oldest)?.core?.close()
+        }
+    }
 
     fun closeSession(key: String) {
         val effects = lock.withLock {
@@ -307,6 +357,8 @@ internal class NativeAdCoordinatorCore<A : Any>(
 
     /** Caller must hold [lock]. Shared by both [closeSession] overloads. */
     private fun closeSessionLocked(key: String, effects: Effects) {
+        // A parked session holds no ads and no loads: closing it only ends it for its handles.
+        parked.remove(key)?.let { it.core.close(); return }
         val holder = sessions.remove(key) ?: return
         inactiveOrder.remove(key)
         applySessionMutationLocked(holder, holder.core.close(), effects, poolable = true)
@@ -323,7 +375,8 @@ internal class NativeAdCoordinatorCore<A : Any>(
         val effects = lock.withLock {
             val effects = Effects()
             tickLocked(effects)
-            if (currentHolderLocked(key, sessionGeneration) == null) return@withLock effects
+            val known = currentHolderLocked(key, sessionGeneration) ?: parked[key]?.takeIf { it.generation == sessionGeneration }
+            if (known == null) return@withLock effects
             closeSessionLocked(key, effects)
             reconsiderDeferredLocked(effects)
             effects
@@ -390,7 +443,9 @@ internal class NativeAdCoordinatorCore<A : Any>(
         val effects = lock.withLock {
             val effects = Effects()
             tickLocked(effects)
-            val holder = sessions[sessionKey] ?: return@withLock effects
+            val holder = sessions[sessionKey]
+                ?: parked[sessionKey]?.let { unparkLocked(sessionKey, it.generation) }
+                ?: return@withLock effects
             holder.lastActive = nowLocked()
             if (!holder.active) {
                 holder.active = true
@@ -403,14 +458,17 @@ internal class NativeAdCoordinatorCore<A : Any>(
     }
 
     /**
-     * Applies [window] to the session with this generation. Returns false, changing nothing, when
-     * that session no longer exists: it was closed, or replaced under the same key.
+     * Applies [window] to the session with this generation, resuming it if it was parked. Returns
+     * false, changing nothing, when that session was closed or replaced under the same key, or is
+     * parked while the registry is full.
      */
     fun updateWindow(sessionKey: String, sessionGeneration: Long, window: NativeAdWindow): Boolean {
         val (applied, effects) = lock.withLock {
             val effects = Effects()
             tickLocked(effects)
-            val holder = currentHolderLocked(sessionKey, sessionGeneration) ?: return@withLock false to effects
+            val holder = currentHolderLocked(sessionKey, sessionGeneration)
+                ?: unparkLocked(sessionKey, sessionGeneration)
+                ?: return@withLock false to effects
             holder.lastActive = nowLocked()
             if (!holder.active) {
                 holder.active = true
@@ -619,16 +677,14 @@ internal class NativeAdCoordinatorCore<A : Any>(
         for (key in toReap) {
             val holder = sessions.remove(key) ?: continue
             inactiveOrder.remove(key)
-            applySessionMutationLocked(holder, holder.core.close(), effects)
-            schedulers.values.toList().forEach { it.cancelForSessionLocked(key, effects) }
+            parkLocked(key, holder, effects)
         }
         // Enforce the LRU cap on inactive sessions.
         while (inactiveOrder.size > memoryPolicy.maxInactiveSessions) {
             val oldest = inactiveOrder.entries.firstOrNull()?.key ?: break
             val holder = sessions.remove(oldest) ?: break
             inactiveOrder.remove(oldest)
-            applySessionMutationLocked(holder, holder.core.close(), effects)
-            schedulers.values.toList().forEach { it.cancelForSessionLocked(oldest, effects) }
+            parkLocked(oldest, holder, effects)
         }
 
         sweepAgedSparesLocked(now, effects)
