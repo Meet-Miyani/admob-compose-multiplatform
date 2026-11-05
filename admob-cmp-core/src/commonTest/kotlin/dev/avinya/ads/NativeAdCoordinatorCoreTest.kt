@@ -64,6 +64,8 @@ class NativeAdCoordinatorCoreTest {
         eventSink = eventSink,
     )
 
+    private fun List<AdEvent>.engagement() = filterNot { it is AdEvent.Loaded || it is AdEvent.LoadFailed }
+
     private fun windowWith(vararg visible: String): NativeAdWindow = NativeAdWindow(
         visible = visible.map { NativeAdSlot(it, nativePlacement) },
     )
@@ -322,9 +324,9 @@ class NativeAdCoordinatorCoreTest {
         )
         val event = AdEvent.Impression("first")
         platform.emit(cancelledAd, event)
-        assertTrue(emitted.isEmpty(), "the cancelled ad's old callback identity is stale")
+        assertTrue(emitted.engagement().isEmpty(), "the cancelled ad's old callback identity is stale")
         platform.emit(survivingAd, event)
-        assertEquals(listOf<AdEvent>(event), emitted)
+        assertEquals(listOf<AdEvent>(event), emitted.engagement())
     }
 
     @Test fun `google only demand twelve is scheduled as five five two`() = runTest(dispatcher) {
@@ -463,12 +465,12 @@ class NativeAdCoordinatorCoreTest {
         advanceUntilIdle()
         val event = AdEvent.Impression("p")
         platform.emit(ad, event)
-        assertEquals(1, emitted.size, "current record event emits after admission")
-        assertEquals(event, emitted.single())
+        assertEquals(1, emitted.engagement().size, "current record event emits after admission")
+        assertEquals(event, emitted.engagement().single())
 
         coord.updateWindow("s1", NativeAdWindow(visible = emptyList()))
         platform.emit(ad, event)
-        assertEquals(1, emitted.size, "retired instance callback is stale and dropped")
+        assertEquals(1, emitted.engagement().size, "retired instance callback is stale and dropped")
     }
 
     // --- Test 3: clear during load destroys late callbacks -------------------
@@ -1183,7 +1185,7 @@ class NativeAdCoordinatorCoreTest {
 
         platform.emit(ad, AdEvent.Impression("p"))
 
-        assertEquals(listOf<AdEvent>(AdEvent.Impression("p")), emitted)
+        assertEquals(listOf<AdEvent>(AdEvent.Impression("p")), emitted.engagement())
         assertEquals(1, loads)
     }
 
@@ -1547,7 +1549,7 @@ class NativeAdCoordinatorCoreTest {
 
         platform.emit(ad, AdEvent.Impression("p"))
 
-        assertEquals(listOf<AdEvent>(AdEvent.Impression("p")), emitted)
+        assertEquals(listOf<AdEvent>(AdEvent.Impression("p")), emitted.engagement())
         assertEquals(1, loads)
     }
 
@@ -1663,6 +1665,7 @@ internal class FakePlatform(
     val loadCalls = mutableListOf<Triple<AdPlacement, Int, Long>>()
     var bindFailure: Throwable? = null
     var bindGate: CompletableDeferred<Unit>? = null
+    var responseInfoFor: (FakeAd) -> AdResponseInfo? = { null }
     val bindStarted = CompletableDeferred<FakeAd>()
     private val callbacks = mutableMapOf<FakeAd, (AdEvent) -> Unit>()
     override suspend fun load(placement: AdPlacement, count: Int, generation: Long): AdAttemptResult<NativeAdPlatformBatch<FakeAd>> {
@@ -1679,6 +1682,6 @@ internal class FakePlatform(
     }
     fun emit(ad: FakeAd, event: AdEvent) { callbacks[ad]?.invoke(event) }
     override fun destroy(ad: FakeAd) { destroyed.add(ad) }
-    override fun responseInfo(ad: FakeAd) = null
+    override fun responseInfo(ad: FakeAd) = responseInfoFor(ad)
     override fun mediaInfo(ad: FakeAd) = null
 }

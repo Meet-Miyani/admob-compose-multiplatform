@@ -80,8 +80,12 @@ public data class AdapterInitializationStatus(
 )
 
 /**
- * Lifecycle events emitted by ad controllers and pools. Subscribe via
- * [AdManager.events] or individual controller/pool [events] flows.
+ * Lifecycle events emitted by ad controllers and by native ad sessions. Subscribe via
+ * [AdManager.events] or an individual controller's [events] flow.
+ *
+ * Native ads report [Loaded] once per ad that enters the SDK's inventory and [LoadFailed] once per
+ * slot whose load failed, on [AdManager.events] only. The events of a native ad that is on screen
+ * ([Impression], [Clicked], [Paid] and the iOS video events) carry its `adInstanceId`.
  */
 public sealed interface AdEvent {
     /** The placement that produced this event, or null for global events. */
