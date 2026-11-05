@@ -163,6 +163,9 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
      * type differs per platform. */
     protected abstract fun onNativeConsentRevoked()
 
+    /** Forwards to the platform's own `NativeAdManagerImpl.onRequestsAllowed()`; see [onNativeConsentRevoked]. */
+    protected abstract fun onNativeRequestsAllowed()
+
     /** `config.androidAppId` or `config.iosAppId` — the one field difference in identity resolution. */
     protected abstract fun appId(config: AdConfig): String
 
@@ -297,6 +300,10 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
                 if (previous == AdRequestAdmission.Allowed && next == AdRequestAdmission.Revoked) {
                     AdLogger.w("$platformTag consent revoked. Closing ad request gate and purging cached inventory.")
                     purgeOnRevocation()
+                } else if (!previous.permitsRequests && next.permitsRequests) {
+                    // Native slots that waited while requests were refused load now. Nothing else
+                    // would ask again: an unchanged viewport sends no new window update.
+                    onNativeRequestsAllowed()
                 }
             }
         }

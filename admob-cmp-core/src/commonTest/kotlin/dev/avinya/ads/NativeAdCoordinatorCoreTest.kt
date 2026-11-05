@@ -1467,7 +1467,7 @@ class NativeAdCoordinatorCoreTest {
         assertEquals(0, coord.managerState().reservedLoads)
     }
 
-    @Test fun `a late ad from before a clear is destroyed`() = runTest(dispatcher) {
+    @Test fun `a clear stops a load running on for a spare and keeps nothing from before it`() = runTest(dispatcher) {
         val gate = CompletableDeferred<Unit>()
         val platform = firstLoadGated(gate)
         val coord = coordinator(platform = platform)
@@ -1482,8 +1482,10 @@ class NativeAdCoordinatorCoreTest {
         gate.complete(Unit)
         advanceUntilIdle()
 
-        assertEquals(listOf(0), platform.destroyed.map { it.id })
+        assertEquals(1, platform.loadCalls.size, "the cancelled load is not retried")
+        assertEquals(0, coord.managerState().loadedAds, "nothing loaded before the clear may be kept")
         assertEquals(0, coord.managerState().reservedLoads)
+        assertEquals(0, coord.schedulerCount())
     }
 
     @Test fun `a late ad whose event binding fails is destroyed and leaves no permit behind`() = runTest(dispatcher) {

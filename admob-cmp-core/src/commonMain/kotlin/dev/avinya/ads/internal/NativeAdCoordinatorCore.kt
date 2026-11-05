@@ -4,6 +4,7 @@ package dev.avinya.ads.internal
 
 import dev.avinya.ads.AdAttemptResult
 import dev.avinya.ads.AdError
+import dev.avinya.ads.AdErrorCode
 import dev.avinya.ads.AdEvent
 import dev.avinya.ads.AdLogger
 import dev.avinya.ads.AdPlacement
@@ -48,6 +49,8 @@ internal fun sessionRegistryFullMessage(maxSessionRecords: Int, key: String): St
 /** A session's core and the generation that addresses it in [NativeAdCoordinatorCore]. */
 internal data class NativeAdSessionBinding(val core: NativeAdSessionCore, val generation: Long)
 
+/** Most spares kept per placement. Google's own NativeAdPreloader buffers two by default. */
+internal const val MAX_SPARES_PER_PLACEMENT: Int = 2
 
 /**
  * Process-wide coordinator that drives native-ad loads across every active
@@ -59,12 +62,17 @@ internal data class NativeAdSessionBinding(val core: NativeAdSessionCore, val ge
  * admitted platform ad**. The [NativeAdGovernor] only tracks record ids
  * and reservation counts; the platform-side object lives in the
  * coordinator's [records] map and is destroyed exactly once via
- * [destroyRecord] on any of the invalidation paths:
- *  - [closeSession] / [closeAll] / [clear] / [onConsentRevoked]
+ * [removeRecordLocked] on any of the invalidation paths:
+ *  - [closeSession] / [clear] / [onConsentRevoked]
  *  - per-record 1-hour native TTL (the [tickLocked] pass)
  *  - spares past ¾ of their native TTL (the same [tickLocked] pass, via [sweepAgedSparesLocked])
  *  - inactive-session reap at [NativeAdMemoryPolicy.inactiveSessionTtl]
  *  - inactive-session LRU eviction at [NativeAdMemoryPolicy.maxInactiveSessions]
+ *
+ * **Session lifecycle.** Only the app ends a session, through [closeSession]; a handle's calls on
+ * an ended session change nothing. [onConsentRevoked] destroys every ad and stops every load but
+ * keeps each session and the slots its window wants. Those slots wait, unrequested, while
+ * [canRequestAds] is false, and [onRequestsAllowed] re-offers them.
  *
  * **Generation model.** Each placement has a generation counter. [clear]
  * and [onConsentRevoked] bump every placement's generation. A late
@@ -100,9 +108,6 @@ internal data class NativeAdSessionBinding(val core: NativeAdSessionCore, val ge
  * [scope] so platform calls and `platform.destroy` happen outside the
  * lock.
  */
-/** Most spares kept per placement. Google's own NativeAdPreloader buffers two by default. */
-internal const val MAX_SPARES_PER_PLACEMENT: Int = 2
-
 internal class NativeAdCoordinatorCore<A : Any>(
     private val memoryPolicy: NativeAdMemoryPolicy,
     private val platform: NativeAdPlatform<A>,
@@ -271,6 +276,7 @@ internal class NativeAdCoordinatorCore<A : Any>(
                     policy,
                     memoryPolicy.inactiveSessionLimit,
                     flows ?: NativeAdSessionFlows(),
+                    canRequestAds,
                 ),
                 generation = nextSessionGeneration++,
                 lastActive = nowLocked(),
@@ -325,36 +331,57 @@ internal class NativeAdCoordinatorCore<A : Any>(
         effects.run()
     }
 
-    fun clear() {
+    /**
+     * Destroys every ad and stops every load. Sessions stay open but forget their slots, so
+     * nothing loads until a session's next window update.
+     */
+    fun clear() = purgeInventory { it.clear() }
+
+    /**
+     * Destroys every ad and stops every load, after consent was withdrawn or the request
+     * configuration changed what may be served. Sessions stay open and keep the slots their windows
+     * want: those load again at once when requests are still allowed (a configuration change),
+     * and otherwise wait for [onRequestsAllowed].
+     *
+     * Ending the sessions here instead, as this once did, ended them under every handle the app
+     * still held, and the next window update from a composed feed then crashed the app. Privacy
+     * needs the ads gone; a session's slot keys and policy hold no user data.
+     */
+    fun onConsentRevoked() = purgeInventory { it.purgeRecords() }
+
+    /**
+     * Re-offers the slots that waited while requests were not allowed. Called when consent allows
+     * ad requests again, so a slot on screen loads without waiting for its next window update,
+     * which an unchanged viewport never sends.
+     */
+    fun onRequestsAllowed() {
         val effects = lock.withLock {
-        val effects = Effects()
-        tickLocked(effects)
-        placementGenBumpAll()
-        // Destroy inventory but retain live session definitions. A following
-        // window update is fresh demand on the same generation.
-        destroyAllRecordsLocked(effects)
-        for (holder in sessions.values) {
-            holder.core.clear()
-        }
-        schedulers.values.toList().forEach { it.clearQueuedLocked() }
-        cleanupSchedulersLocked()
-        effects
+            val effects = Effects()
+            tickLocked(effects)
+            // Those slots are deferred demand, so the pass that re-offers freed capacity serves them.
+            effects.capacityFreed = true
+            reconsiderDeferredLocked(effects)
+            effects
         }
         effects.run()
     }
 
-    fun onConsentRevoked() {
+    /**
+     * Shared by [clear] and [onConsentRevoked]. [resetSession] runs after every record and
+     * reservation is already gone, so the mutation it returns has nothing left to apply.
+     */
+    private fun purgeInventory(resetSession: (NativeAdSessionCore) -> Unit) {
         val effects = lock.withLock {
-        val effects = Effects()
-        tickLocked(effects)
-        placementGenBumpAll()
-        destroyAllRecordsLocked(effects)
-        for (holder in sessions.values) holder.core.close()
-        sessions.clear()
-        inactiveOrder.clear()
-        schedulers.values.toList().forEach { it.clearQueuedLocked() }
-        cleanupSchedulersLocked()
-        effects
+            val effects = Effects()
+            tickLocked(effects)
+            // Bumped first, so whatever a running or cancelled load still returns is destroyed on arrival.
+            placementGenBumpAll()
+            schedulers.values.toList().forEach { it.purgeLocked(effects) }
+            destroyAllRecordsLocked(effects)
+            sessions.values.forEach { resetSession(it.core) }
+            cleanupSchedulersLocked()
+            reconsiderDeferredLocked(effects)
+            effects
         }
         effects.run()
     }
@@ -831,9 +858,15 @@ internal class NativeAdCoordinatorCore<A : Any>(
             if (currentJob == null) startNextLocked(effects)
         }
 
-        fun clearQueuedLocked() {
+        /**
+         * Drops the queue, releases every reservation, and cancels the running load, so the next
+         * demand starts at once instead of queuing behind a load whose ad is destroyed on arrival.
+         * The caller has already bumped [generation].
+         */
+        fun purgeLocked(effects: Effects) {
             queue.clear()
-            releaseReservationsLocked()
+            releaseReservationsLocked(effects)
+            currentJob?.let(effects.cancel::add)
         }
 
         fun cancelForSessionLocked(sessionKey: String, effects: Effects) {
@@ -1337,13 +1370,25 @@ internal class NativeAdCoordinatorCore<A : Any>(
             }
         }
 
+        /**
+         * Settles every slot still waiting for this load as failed. A load refused because
+         * requests stopped being allowed while it waited is not a failure of the slot: those slots
+         * are deferred instead, report nothing, and are re-offered by [onRequestsAllowed], exactly
+         * as if the session had never demanded them.
+         */
         private fun handleFailure(
             launchedPairs: List<ReservationSlotPair>,
             error: AdError,
             effects: Effects,
         ) {
+            val refused = error.code == AdErrorCode.CONSENT_REQUIRED
             livePairs(launchedPairs).forEach { pair ->
-                reservationOwners[pair.reservation.id]?.let { failSlotLocked(it, pair.entry.generation, error, effects) }
+                val owner = reservationOwners[pair.reservation.id] ?: return@forEach
+                if (refused) {
+                    sessions[owner.sessionKey]?.core?.recordDeferred(owner.slotKey, pair.entry.generation)
+                } else {
+                    failSlotLocked(owner, pair.entry.generation, error, effects)
+                }
             }
             releaseReservationsLocked(effects)
         }

@@ -178,6 +178,7 @@ internal class NativeAdManagerImpl<A : Any>(
 
     override fun clear() { coordinatorOrNull()?.clear(); publish() }
     internal fun onConsentRevoked() { coordinatorOrNull()?.onConsentRevoked(); publish() }
+    internal fun onRequestsAllowed() { coordinatorOrNull()?.onRequestsAllowed(); publish() }
     private fun publish() { _state.value = coordinatorOrNull()?.managerState() ?: _state.value }
 
     override fun acquireRender(slotKey: String, placement: AdPlacement, rendererId: String, session: NativeAdSession): NativeAdRenderRecord<A>? =

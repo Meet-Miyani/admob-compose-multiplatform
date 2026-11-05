@@ -182,20 +182,28 @@ class NativeAdLoadEventsTest {
         assertTrue(session.state.value.slots["a"] is NativeAdSlotState.Failed)
     }
 
-    @Test fun `a consent refusal reports LoadFailed`() = runTest(dispatcher) {
+    @Test fun `a slot waiting for consent reports nothing and loads once requests are allowed`() = runTest(dispatcher) {
         val platform = FakePlatform { _, count, _ ->
             AdAttemptResult.Success(NativeAdPlatformBatch((0 until count).map(::FakeAd), null))
         }
         val emitted = mutableListOf<AdEvent>()
-        val coord = coordinator(platform = platform, canRequestAds = { false }, eventSink = emitted::add)
-        coord.session("s1")
+        var allowed = false
+        val coord = coordinator(platform = platform, canRequestAds = { allowed }, eventSink = emitted::add)
+        val session = coord.session("s1")
         coord.updateWindow("s1", windowWith("a"))
         advanceUntilIdle()
 
         assertTrue(platform.loadCalls.isEmpty(), "no load may start without consent")
-        val failed = emitted.loadFailed()
-        assertEquals(1, failed.size, "one LoadFailed for the refused slot")
-        assertEquals(AdError.consentRequired().code, failed.single().error.code)
+        assertTrue(emitted.isEmpty(), "a slot waiting for consent has not failed")
+        assertEquals(NativeAdSlotState.Empty, session.state.value.slots["a"])
+
+        allowed = true
+        coord.onRequestsAllowed()
+        advanceUntilIdle()
+
+        assertEquals(1, platform.loadCalls.size)
+        assertEquals(1, emitted.filterIsInstance<AdEvent.Loaded>().size)
+        assertTrue(session.state.value.slots["a"] is NativeAdSlotState.Ready)
     }
 
     @Test fun `unfilled slots of a partial batch each report LoadFailed`() = runTest(dispatcher) {
