@@ -89,8 +89,8 @@ internal class NativeAdManagerImpl<A : Any>(
         key: String,
         dormant: DormantSession,
     ) {
-        val core = try {
-            coordinator.session(key, dormant.handle?.policy ?: NativeAdSessionPolicy(), dormant.flows)
+        val (core, generation) = try {
+            coordinator.openSession(key, dormant.handle?.policy ?: NativeAdSessionPolicy(), dormant.flows)
         } catch (e: IllegalStateException) {
             AdLogger.w("Failed to materialise dormant native ad session '$key'", e)
             null
@@ -99,7 +99,6 @@ internal class NativeAdManagerImpl<A : Any>(
             AdLogger.w("Dormant native ad session '$key' published flows mismatch")
             return
         }
-        val generation = checkNotNull(coordinator.sessionGeneration(key))
         val (initialWindow, shouldClose, shouldDeactivate) = managerLock.withLock {
             dormant.handle?.bind(generation)
             Triple(dormant.window, dormant.closed, dormant.deactivated)
@@ -136,9 +135,7 @@ internal class NativeAdManagerImpl<A : Any>(
             if (coordinator == null) dormantHandleLocked(key, policy) else null
         }
         if (dormant != null) return dormant
-        val coordinator = coordinator()
-        val core = coordinator.session(key, policy)
-        val generation = checkNotNull(coordinator.sessionGeneration(key))
+        val (core, generation) = coordinator().openSession(key, policy)
         publish()
         return Handle(key, policy, core.state, core.adInfo, generation, dormant = null)
     }
@@ -217,23 +214,24 @@ internal class NativeAdManagerImpl<A : Any>(
         override var generation: Long? = generation
             private set
 
+        // Guarded by managerLock. Set once this handle has logged an ignored window update.
+        private var reportedIgnoredUpdate = false
+
         fun bind(value: Long) {
             generation = value
         }
 
-        private fun current(): Boolean {
-            val gen = managerLock.withLock { generation } ?: return false
-            return coordinatorOrNull()?.sessionGeneration(key) == gen
-        }
-
+        // The generation-scoped coordinator calls below check and mutate in one locked section,
+        // so a handle never pre-checks: once its session is closed or replaced, each call simply
+        // changes nothing. updateWindow is called on every viewport change, and must not throw
+        // for a session that closed under it.
         override fun updateWindow(window: NativeAdWindow) {
             if (dormant != null && managerLock.withLock { generation == null }) {
                 managerLock.withLock { dormant.window = window }
                 return
             }
-            check(current()) { "Native ad session '$key' is no longer active." }
             val gen = managerLock.withLock { generation } ?: return
-            coordinator().updateWindow(key, gen, window)
+            if (!coordinator().updateWindow(key, gen, window)) reportIgnoredUpdateOnce()
             publish()
         }
 
@@ -242,11 +240,9 @@ internal class NativeAdManagerImpl<A : Any>(
                 managerLock.withLock { dormant.deactivated = true }
                 return
             }
-            val gen = managerLock.withLock { generation }
-            if (gen != null && current()) {
-                coordinator().deactivateSession(key, gen)
-                publish()
-            }
+            val gen = managerLock.withLock { generation } ?: return
+            coordinator().deactivateSession(key, gen)
+            publish()
         }
 
         override fun close() {
@@ -257,10 +253,18 @@ internal class NativeAdManagerImpl<A : Any>(
                 }
                 return
             }
-            val gen = managerLock.withLock { generation }
-            if (gen != null && current()) {
-                coordinator().closeSession(key, gen)
-                publish()
+            val gen = managerLock.withLock { generation } ?: return
+            coordinator().closeSession(key, gen)
+            publish()
+        }
+
+        private fun reportIgnoredUpdateOnce() {
+            val first = managerLock.withLock { !reportedIgnoredUpdate.also { reportedIgnoredUpdate = true } }
+            if (first) {
+                AdLogger.w(
+                    "Native ad session '$key' is closed, so its window updates are ignored. " +
+                        "Call NativeAdManager.session(\"$key\") for a new session.",
+                )
             }
         }
     }

@@ -178,17 +178,21 @@ class NativeAdManagerImplTest {
     }
 
     @Test
-    fun `closed wrapper cannot mutate replacement generation`() = runTest {
+    fun `closed wrapper ignores updates and cannot mutate replacement generation`() = runTest {
         val manager = NativeAdManagerImpl(NativeAdMemoryPolicy(), EmptyNativePlatform)
         val stale = manager.session("feed")
         stale.close()
         val replacement = manager.session("feed")
 
-        assertFailsWith<IllegalStateException> {
-            stale.updateWindow(NativeAdWindow(listOf(NativeAdSlot("slot", testNativePlacement()))))
-        }
-        replacement.deactivate()
+        stale.updateWindow(NativeAdWindow(listOf(NativeAdSlot("slot", testNativePlacement()))))
+        stale.deactivate()
+        stale.close()
+
+        assertFalse(stale.state.value.active)
         assertFalse(replacement.state.value.active)
+        assertTrue(replacement.state.value.slots.isEmpty())
+        replacement.updateWindow(NativeAdWindow(listOf(NativeAdSlot("slot", testNativePlacement()))))
+        assertTrue(replacement.state.value.active)
     }
 
     @Test

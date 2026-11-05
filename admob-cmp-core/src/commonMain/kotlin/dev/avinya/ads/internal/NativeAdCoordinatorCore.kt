@@ -45,6 +45,9 @@ internal fun sessionRegistryFullMessage(maxSessionRecords: Int, key: String): St
     "Native ad session registry full: maxSessionRecords ($maxSessionRecords) reached; cannot create " +
         "session '$key'."
 
+/** A session's core and the generation that addresses it in [NativeAdCoordinatorCore]. */
+internal data class NativeAdSessionBinding(val core: NativeAdSessionCore, val generation: Long)
+
 
 /**
  * Process-wide coordinator that drives native-ad loads across every active
@@ -159,7 +162,9 @@ internal class NativeAdCoordinatorCore<A : Any>(
         val generation: Long,
         var lastActive: Instant,
         var active: Boolean = true,
-    )
+    ) {
+        fun binding(): NativeAdSessionBinding = NativeAdSessionBinding(core, generation)
+    }
 
     private inner class ReservationOwner(
         val placementId: String,
@@ -228,8 +233,19 @@ internal class NativeAdCoordinatorCore<A : Any>(
         key: String,
         policy: NativeAdSessionPolicy = NativeAdSessionPolicy(),
         flows: NativeAdSessionFlows? = null,
-    ): NativeAdSessionCore {
-        val (core, effects) = lock.withLock {
+    ): NativeAdSessionCore = openSession(key, policy, flows).core
+
+    /**
+     * Returns the session for [key], creating it if needed, together with its generation. Read in
+     * the same locked section as the session, so a close on another thread cannot leave a caller
+     * holding a core without the generation that addresses it.
+     */
+    fun openSession(
+        key: String,
+        policy: NativeAdSessionPolicy = NativeAdSessionPolicy(),
+        flows: NativeAdSessionFlows? = null,
+    ): NativeAdSessionBinding {
+        val (binding, effects) = lock.withLock {
             val effects = Effects()
             require(key.isNotBlank()) { "session key must not be blank" }
             tickLocked(effects)
@@ -244,25 +260,26 @@ internal class NativeAdCoordinatorCore<A : Any>(
                     holder.active = true
                     inactiveOrder.remove(key)
                 }
-                return@withLock holder.core to effects
+                return@withLock holder.binding() to effects
             }
             if (sessions.size >= memoryPolicy.maxSessionRecords) {
                 throw IllegalStateException(sessionRegistryFullMessage(memoryPolicy.maxSessionRecords, key))
             }
             val holder = SessionHolder(
-                core = if (flows != null) {
-                    NativeAdSessionCore(key, policy, memoryPolicy.inactiveSessionLimit, flows)
-                } else {
-                    NativeAdSessionCore(key, policy, memoryPolicy.inactiveSessionLimit)
-                },
+                core = NativeAdSessionCore(
+                    key,
+                    policy,
+                    memoryPolicy.inactiveSessionLimit,
+                    flows ?: NativeAdSessionFlows(),
+                ),
                 generation = nextSessionGeneration++,
                 lastActive = nowLocked(),
             )
             sessions[key] = holder
-            holder.core to effects
+            holder.binding() to effects
         }
         effects.run()
-        return core
+        return binding
     }
 
     /** Coordinator-issued identity for session-scoped operations. */
@@ -358,20 +375,25 @@ internal class NativeAdCoordinatorCore<A : Any>(
         effects.run()
     }
 
-    fun updateWindow(sessionKey: String, sessionGeneration: Long, window: NativeAdWindow) {
-        val effects = lock.withLock {
+    /**
+     * Applies [window] to the session with this generation. Returns false, changing nothing, when
+     * that session no longer exists: it was closed, or replaced under the same key.
+     */
+    fun updateWindow(sessionKey: String, sessionGeneration: Long, window: NativeAdWindow): Boolean {
+        val (applied, effects) = lock.withLock {
             val effects = Effects()
             tickLocked(effects)
-            val holder = currentHolderLocked(sessionKey, sessionGeneration) ?: return@withLock effects
+            val holder = currentHolderLocked(sessionKey, sessionGeneration) ?: return@withLock false to effects
             holder.lastActive = nowLocked()
             if (!holder.active) {
                 holder.active = true
                 inactiveOrder.remove(sessionKey)
             }
             applySessionMutationLocked(holder, holder.core.updateWindow(window), effects, poolable = true)
-            effects
+            true to effects
         }
         effects.run()
+        return applied
     }
 
     fun setMounted(sessionKey: String, slotKey: String, mounted: Boolean) {
