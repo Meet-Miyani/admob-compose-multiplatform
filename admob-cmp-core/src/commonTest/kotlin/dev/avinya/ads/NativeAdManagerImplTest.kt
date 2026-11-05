@@ -332,6 +332,20 @@ class NativeAdManagerImplTest {
         assertTrue(custom.adInfo.value.isEmpty())
         assertSame(custom.adInfo, custom.adInfo)
     }
+
+    @Test
+    fun `updateWindow after consent revocation neither throws nor ends the session`() {
+        val manager = NativeAdManagerImpl(NativeAdMemoryPolicy(), EmptyNativePlatform)
+        val session = manager.session("feed")
+        val window = NativeAdWindow(listOf(NativeAdSlot("a", testNativePlacement())))
+        session.updateWindow(window)
+
+        manager.onConsentRevoked()
+        session.updateWindow(window)
+
+        assertTrue(session.state.value.active, "the session must stay active after revocation")
+        assertEquals(1, manager.state.value.activeSessions, "the session must still be counted")
+    }
 }
 
 private class InfoNativePlatform : NativeAdPlatform<String> {
