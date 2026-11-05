@@ -106,10 +106,12 @@ public sealed interface AdEvent {
     /**
      * An ad impression was recorded.
      *
-     * @property adInstanceId For native ads, this identifies the specific ad instance 
-     *   that triggered the event. This allows views in a scrolling list to ignore events 
-     *   belonging to other items in the same placement. For single-ad formats (like banners), 
-     *   this is typically `null`.
+     * @property adInstanceId For native ads, this identifies the specific ad instance
+     *   that triggered the event. This allows views in a scrolling list to ignore events
+     *   belonging to other items in the same placement. It equals
+     *   [dev.avinya.ads.nativead.NativeAdInfo.adInstanceId] for that ad, so
+     *   [dev.avinya.ads.nativead.NativeAdSession.adInfo] tells which slot showed it and who
+     *   served it. For single-ad formats (like banners), this is typically `null`.
      */
     public data class Impression(
         override val placementId: String,

@@ -1341,6 +1341,16 @@ public final class dev/avinya/ads/nativead/NativeAdBatching : java/lang/Enum {
 	public static fun values ()[Ldev/avinya/ads/nativead/NativeAdBatching;
 }
 
+public final class dev/avinya/ads/nativead/NativeAdInfo {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ldev/avinya/ads/AdResponseInfo;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdInstanceId ()Ljava/lang/String;
+	public final fun getPlacementId ()Ljava/lang/String;
+	public final fun getResponseInfo ()Ldev/avinya/ads/AdResponseInfo;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public abstract interface class dev/avinya/ads/nativead/NativeAdManager {
 	public abstract fun clear ()V
 	public abstract fun closeSession (Ljava/lang/String;)V
@@ -1434,10 +1444,15 @@ public final class dev/avinya/ads/nativead/NativeAdOptions {
 public abstract interface class dev/avinya/ads/nativead/NativeAdSession {
 	public abstract fun close ()V
 	public abstract fun deactivate ()V
+	public fun getAdInfo ()Lkotlinx/coroutines/flow/StateFlow;
 	public abstract fun getKey ()Ljava/lang/String;
 	public abstract fun getPolicy ()Ldev/avinya/ads/nativead/NativeAdSessionPolicy;
 	public abstract fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public abstract fun updateWindow (Ldev/avinya/ads/nativead/NativeAdWindow;)V
+}
+
+public final class dev/avinya/ads/nativead/NativeAdSession$DefaultImpls {
+	public static fun getAdInfo (Ldev/avinya/ads/nativead/NativeAdSession;)Lkotlinx/coroutines/flow/StateFlow;
 }
 
 public final class dev/avinya/ads/nativead/NativeAdSessionPolicy {

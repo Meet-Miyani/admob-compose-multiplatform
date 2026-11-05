@@ -4,7 +4,10 @@ import dev.avinya.ads.internal.NativeAdBand
 import dev.avinya.ads.internal.NativeAdPriority
 import dev.avinya.ads.internal.NativeAdRecordId
 import dev.avinya.ads.internal.NativeAdSessionCore
+import dev.avinya.ads.internal.NativeAdSessionFlows
+import dev.avinya.ads.nativead.NativeAdInfo
 import dev.avinya.ads.nativead.NativeAdSessionPolicy
+import dev.avinya.ads.nativead.NativeAdSessionState
 import dev.avinya.ads.nativead.NativeAdSlot
 import dev.avinya.ads.nativead.NativeAdSlotState
 import dev.avinya.ads.nativead.NativeAdWindow
@@ -15,6 +18,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertSame
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 import kotlin.test.assertTrue
 
 class NativeAdSessionCoreTest {
@@ -28,10 +35,11 @@ class NativeAdSessionCoreTest {
         key = "feed", policy = NativeAdSessionPolicy(maxRetainedAds = max, retainBehind = 0, prefetchAhead = 0), inactiveRetentionLimit = inactive,
     )
     private fun slot(key: String) = NativeAdSlot(key, placement)
+    private fun info(id: Long) = NativeAdInfo(id.toString(), placement.id, null)
     private fun window(vararg keys: String) = NativeAdWindow(visible = keys.map(::slot))
     private fun admit(core: NativeAdSessionCore, key: String, mutation: dev.avinya.ads.internal.NativeAdSessionMutation, id: Long) {
         val demand = mutation.demands.first { it.key == key }
-        assertTrue(core.recordAdmitted(key, NativeAdRecordId(id), null, demand.generation))
+        assertTrue(core.recordAdmitted(key, NativeAdRecordId(id), null, info(id), demand.generation))
     }
 
     @Test fun `new session is inactive until its first window`() {
@@ -127,14 +135,14 @@ class NativeAdSessionCoreTest {
     @Test fun `stale admit is rejected without taking ownership`() {
         val core = session()
         val first = core.updateWindow(window("a")); core.updateWindow(window("b"))
-        assertFalse(core.recordAdmitted("a", NativeAdRecordId(1), null, first.demands.single().generation))
+        assertFalse(core.recordAdmitted("a", NativeAdRecordId(1), null, info(1), first.demands.single().generation))
         assertNull(core.recordIdFor("a"))
     }
 
     @Test fun `accepted admit publishes the supplied media info`() {
         val core = session(); val load = core.updateWindow(window("a"))
         val media = NativeMediaInfo(1.5f, true, 10.0)
-        assertTrue(core.recordAdmitted("a", NativeAdRecordId(1), media, load.demands.single().generation))
+        assertTrue(core.recordAdmitted("a", NativeAdRecordId(1), media, info(1), load.demands.single().generation))
         assertEquals(NativeAdSlotState.Ready(media), core.state.value.slots["a"])
     }
 
@@ -152,7 +160,7 @@ class NativeAdSessionCoreTest {
 
     @Test fun `deactivate keeps the last visible anchor in current viewport order`() {
         val core = session()
-        val loads = core.updateWindow(window("a", "b", "c")); loads.demands.forEachIndexed { i, d -> assertTrue(core.recordAdmitted(d.key, NativeAdRecordId((i + 1).toLong()), null, d.generation)) }
+        val loads = core.updateWindow(window("a", "b", "c")); loads.demands.forEachIndexed { i, d -> assertTrue(core.recordAdmitted(d.key, NativeAdRecordId((i + 1).toLong()), null, info((i + 1).toLong()), d.generation)) }
         val mutation = core.deactivate()
         assertEquals(setOf(NativeAdRecordId(1), NativeAdRecordId(2)), mutation.retireRecordIds.toSet())
         assertEquals(NativeAdRecordId(3), core.recordIdFor("c"))
@@ -228,7 +236,7 @@ class NativeAdSessionCoreTest {
         val core = session()
         val loads = core.updateWindow(window("a", "b")); admit(core, "b", loads, 2); val a = loads.demands.first { it.key == "a" }
         core.deactivate()
-        assertFalse(core.recordAdmitted("a", NativeAdRecordId(1), null, a.generation))
+        assertFalse(core.recordAdmitted("a", NativeAdRecordId(1), null, info(1), a.generation))
     }
 
     @Test fun `reactivation preserves the retained anchor record`() {
@@ -251,7 +259,7 @@ class NativeAdSessionCoreTest {
         assertEquals(listOf(NativeAdRecordId(1)), core.close().retireRecordIds)
         assertTrue(core.close().retireRecordIds.isEmpty())
         assertTrue(core.updateWindow(window("b")).demands.isEmpty())
-        assertFalse(core.recordAdmitted("b", NativeAdRecordId(2), null, 1))
+        assertFalse(core.recordAdmitted("b", NativeAdRecordId(2), null, info(2), 1))
     }
 
     @Test fun `clear drops inventory without changing active lifecycle state`() {
@@ -316,21 +324,103 @@ class NativeAdSessionCoreTest {
 
 
     @Test fun `session core publishes into a supplied flow`() {
-        val externalFlow = kotlinx.coroutines.flow.MutableStateFlow(
-            dev.avinya.ads.nativead.NativeAdSessionState(active = true, slots = mapOf("stale" to NativeAdSlotState.Loading)),
-        )
+        val flows = NativeAdSessionFlows()
+        flows.state.value = NativeAdSessionState(active = true, slots = mapOf("stale" to NativeAdSlotState.Loading))
         val core = NativeAdSessionCore(
             key = "feed",
             policy = NativeAdSessionPolicy(maxRetainedAds = 3, retainBehind = 0, prefetchAhead = 0),
             inactiveRetentionLimit = 1,
-            published = externalFlow,
+            flows = flows,
         )
-        assertTrue(core.publishesInto(externalFlow))
-        assertFalse(externalFlow.value.active)
-        assertTrue(externalFlow.value.slots.isEmpty())
+        assertTrue(core.publishesInto(flows))
+        assertFalse(flows.state.value.active)
+        assertTrue(flows.state.value.slots.isEmpty())
+        assertTrue(flows.adInfo.value.isEmpty())
 
         core.updateWindow(window("a"))
-        assertTrue(externalFlow.value.active)
-        assertEquals(NativeAdSlotState.Loading, externalFlow.value.slots["a"])
+        assertTrue(flows.state.value.active)
+        assertEquals(NativeAdSlotState.Loading, flows.state.value.slots["a"])
+    }
+
+    @Test fun `an admitted slot publishes its info while loading and failed slots publish none`() {
+        val core = session()
+        val load = core.updateWindow(window("a", "b", "c"))
+        val generationA = load.demands.first { it.key == "a" }.generation
+        val generationC = load.demands.first { it.key == "c" }.generation
+        val infoA = info(1)
+        assertTrue(core.recordAdmitted("a", NativeAdRecordId(1), null, infoA, generationA))
+        core.recordFailed("c", AdError(code = "NO_FILL", message = "none"), generationC)
+
+        assertEquals(NativeAdSlotState.Loading, core.state.value.slots["b"])
+        assertSame(infoA, core.adInfo.value["a"])
+        assertEquals(setOf("a"), core.adInfo.value.keys)
+    }
+
+    @Test fun `info is published before state`() = runTest(UnconfinedTestDispatcher()) {
+        val core = session()
+        var observed: NativeAdInfo? = null
+        backgroundScope.launch {
+            core.state.collect { state ->
+                if (state.slots["a"] is NativeAdSlotState.Ready) observed = core.adInfo.value["a"]
+            }
+        }
+        val load = core.updateWindow(window("a"))
+        val expected = info(1)
+        assertTrue(core.recordAdmitted("a", NativeAdRecordId(1), null, expected, load.demands.single().generation))
+        assertEquals(expected, observed)
+    }
+
+    @Test fun `an unchanged window keeps the same ad map instance`() {
+        val core = session()
+        val load = core.updateWindow(window("a"))
+        assertTrue(core.recordAdmitted("a", NativeAdRecordId(1), null, info(1), load.demands.single().generation))
+        val captured = core.adInfo.value
+        repeat(3) { core.updateWindow(window("a")) }
+        assertSame(captured, core.adInfo.value)
+    }
+
+    @Test fun `evicting a record removes its info`() {
+        val core = session()
+        admit(core, "a", core.updateWindow(window("a")), 1)
+        assertTrue(core.recordEvicted("a", NativeAdRecordId(1)))
+        assertFalse("a" in core.adInfo.value)
+    }
+
+    @Test fun `expiring a slot removes its info`() {
+        val core = session()
+        admit(core, "a", core.updateWindow(window("a")), 1)
+        core.expireSlot("a")
+        assertTrue(core.adInfo.value.isEmpty())
+    }
+
+    @Test fun `deactivate keeps the anchors info and drops the rest`() {
+        val core = session(max = 3, inactive = 1)
+        val load = core.updateWindow(window("a", "b"))
+        admit(core, "a", load, 1)
+        admit(core, "b", load, 2)
+        core.deactivate()
+        val published = core.adInfo.value
+        assertEquals(1, published.size)
+        assertIs<NativeAdSlotState.Retained>(core.state.value.slots[published.keys.single()])
+    }
+
+    @Test fun `close and clear empty the ad map`() {
+        val closed = session()
+        admit(closed, "a", closed.updateWindow(window("a")), 1)
+        closed.close()
+        assertTrue(closed.adInfo.value.isEmpty())
+
+        val cleared = session()
+        admit(cleared, "a", cleared.updateWindow(window("a")), 2)
+        cleared.clear()
+        assertTrue(cleared.adInfo.value.isEmpty())
+    }
+
+    @Test fun `mounting keeps the same info instance`() {
+        val core = session()
+        admit(core, "a", core.updateWindow(window("a")), 1)
+        val captured = core.adInfo.value.getValue("a")
+        core.setMounted("a", NativeAdRecordId(1), true)
+        assertSame(captured, core.adInfo.value["a"])
     }
 }

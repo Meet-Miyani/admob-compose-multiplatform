@@ -4,7 +4,9 @@ package dev.avinya.ads.internal
 
 import dev.avinya.ads.AdError
 import dev.avinya.ads.AdPlacement
+import dev.avinya.ads.nativead.NativeAdInfo
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
+import dev.avinya.ads.nativead.NativeAdSession
 import dev.avinya.ads.nativead.NativeAdSessionPolicy
 import dev.avinya.ads.nativead.NativeAdSessionState
 import dev.avinya.ads.nativead.NativeAdSlot
@@ -43,6 +45,15 @@ internal data class NativeAdSessionMutation(
 }
 
 /**
+ * The flows one native ad session publishes. The public handle and the session core share one
+ * instance, so a handle created before initialization keeps its flows once its core exists.
+ */
+internal class NativeAdSessionFlows {
+    val state = MutableStateFlow(NativeAdSessionState(active = false, slots = emptyMap()))
+    val adInfo = MutableStateFlow<Map<String, NativeAdInfo>>(emptyMap())
+}
+
+/**
  * Pure per-session state machine. The coordinator serializes calls and owns
  * governor/platform side effects; this class only records ownership and emits
  * the work needed to reconcile it.
@@ -51,20 +62,36 @@ internal class NativeAdSessionCore(
     val key: String,
     val policy: NativeAdSessionPolicy,
     private val inactiveRetentionLimit: Int,
-    private val published: MutableStateFlow<NativeAdSessionState> =
-        MutableStateFlow(NativeAdSessionState(active = false, slots = emptyMap())),
+    private val flows: NativeAdSessionFlows = NativeAdSessionFlows(),
 ) {
     private class SlotEntry(val placement: AdPlacement) {
         var band = NativeAdBand.Out
         var viewportRank = -1
         var generation = 0L
         var inFlight: Long? = null
+        // recordId, mediaInfo and info are set together by recordAdmitted and cleared together
+        // by dropRecord, so a slot holds a record exactly when it holds that record's info.
         var recordId: NativeAdRecordId? = null
         var mediaInfo: NativeMediaInfo? = null
+        var info: NativeAdInfo? = null
         var mounted = false
         var lastAccess = 0L
         var lastError: AdError? = null
         var desired = false
+
+        /**
+         * The ad this slot shows, published in [NativeAdSession.adInfo]: present exactly when
+         * [stateFor] reports Ready, Mounted or Retained.
+         */
+        val shownInfo: NativeAdInfo? get() = info.takeIf { lastError == null && inFlight == null }
+
+        fun dropRecord() {
+            recordId = null
+            mediaInfo = null
+            info = null
+            mounted = false
+            lastError = null
+        }
     }
 
     private val slots = mutableMapOf<String, SlotEntry>()
@@ -72,13 +99,14 @@ internal class NativeAdSessionCore(
     private var closed = false
     private var nextGeneration = 1L
     private var nextAccess = 1L
-    val state: StateFlow<NativeAdSessionState> = published.asStateFlow()
+    val state: StateFlow<NativeAdSessionState> = flows.state.asStateFlow()
+    val adInfo: StateFlow<Map<String, NativeAdInfo>> = flows.adInfo.asStateFlow()
 
     init {
         publish()
     }
 
-    internal fun publishesInto(flow: MutableStateFlow<NativeAdSessionState>): Boolean = published === flow
+    internal fun publishesInto(flows: NativeAdSessionFlows): Boolean = this.flows === flows
 
     fun updateWindow(window: NativeAdWindow): NativeAdSessionMutation {
         if (closed) return NativeAdSessionMutation()
@@ -110,16 +138,20 @@ internal class NativeAdSessionCore(
         return NativeAdSessionMutation(demands, retire, invalidate, reclassified)
     }
 
-    fun recordAdmitted(slotKey: String, recordId: NativeAdRecordId, mediaInfo: NativeMediaInfo?, generation: Long): Boolean {
+    fun recordAdmitted(
+        slotKey: String,
+        recordId: NativeAdRecordId,
+        mediaInfo: NativeMediaInfo?,
+        info: NativeAdInfo,
+        generation: Long,
+    ): Boolean {
         if (closed) return false
         val entry = slots[slotKey] ?: return false
         if (entry.inFlight != generation || !entry.desired || !active) return false
-        entry.recordId = recordId; entry.inFlight = null; entry.mediaInfo = mediaInfo; entry.lastError = null; touch(entry)
+        entry.recordId = recordId; entry.inFlight = null; entry.mediaInfo = mediaInfo; entry.info = info
+        entry.lastError = null; touch(entry)
         publish(); return true
     }
-
-    fun recordAdmitted(slotKey: String, recordId: NativeAdRecordId, generation: Long): Boolean =
-        recordAdmitted(slotKey, recordId, null, generation)
 
     /**
      * Repairs session ownership after the coordinator retires a record for a
@@ -131,10 +163,7 @@ internal class NativeAdSessionCore(
         if (closed) return false
         val entry = slots[slotKey] ?: return false
         if (entry.recordId != recordId) return false
-        entry.recordId = null
-        entry.mediaInfo = null
-        entry.mounted = false
-        entry.lastError = null
+        entry.dropRecord()
         if (!active || !entry.desired) slots.remove(slotKey)
         publish()
         return true
@@ -221,7 +250,7 @@ internal class NativeAdSessionCore(
         if (closed) return NativeAdSessionMutation()
         val entry = slots[slotKey] ?: return NativeAdSessionMutation()
         val retire = entry.recordId?.let(::listOf).orEmpty()
-        entry.recordId = null; entry.mediaInfo = null; entry.mounted = false; entry.lastError = null
+        entry.dropRecord()
         val demand = if (active && entry.desired) reconcileDemands() else emptyList()
         if (!active || !entry.desired) slots.remove(slotKey)
         publish(); return NativeAdSessionMutation(demands = demand, retireRecordIds = retire)
@@ -315,7 +344,33 @@ internal class NativeAdSessionCore(
     private fun touch(entry: SlotEntry) { entry.lastAccess = nextAccess++ }
     private fun demandFor(band: NativeAdBand) = if (band == NativeAdBand.Visible) NativeAdDemandClass.Visible else NativeAdDemandClass.Speculative
     private fun priorityFor(band: NativeAdBand) = when (band) { NativeAdBand.Visible -> NativeAdPriority.ActiveReadyAhead; NativeAdBand.PrefetchAhead -> NativeAdPriority.Speculative; NativeAdBand.RetainBehind -> NativeAdPriority.ActiveRetainedBehind; NativeAdBand.Out -> NativeAdPriority.InactiveAnchor }
-    private fun publish() { published.value = NativeAdSessionState(active, slots.mapValues { (_, entry) -> stateFor(entry) }) }
+    /**
+     * Publishes [NativeAdSession.adInfo] first, then [state]. That order is what
+     * [NativeAdSession.adInfo] promises: a reader that saw a slot's new state finds its ad already
+     * in the map.
+     */
+    private fun publish() {
+        publishAdInfo()
+        flows.state.value = NativeAdSessionState(active, slots.mapValues { (_, entry) -> stateFor(entry) })
+    }
+
+    /**
+     * Replaces the published ad map only when a slot gained, lost or changed its ad. [publish] runs
+     * on every window update, once per scroll frame, so the unchanged case compares instances by
+     * identity: it builds no new map and never runs a deep [AdResponseInfo][dev.avinya.ads.AdResponseInfo]
+     * comparison.
+     */
+    private fun publishAdInfo() {
+        val published = flows.adInfo.value
+        var shown = 0
+        val unchanged = slots.all { (slotKey, entry) ->
+            val info = entry.shownInfo ?: return@all true
+            shown++
+            published[slotKey] === info
+        }
+        if (unchanged && shown == published.size) return
+        flows.adInfo.value = buildMap { slots.forEach { (slotKey, entry) -> entry.shownInfo?.let { put(slotKey, it) } } }
+    }
     private fun stateFor(entry: SlotEntry): NativeAdSlotState = when {
         entry.lastError != null -> NativeAdSlotState.Failed(entry.lastError!!)
         entry.inFlight != null -> NativeAdSlotState.Loading

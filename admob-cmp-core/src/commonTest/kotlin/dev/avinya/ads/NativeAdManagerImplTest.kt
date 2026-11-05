@@ -9,6 +9,7 @@ import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdManagerState
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
 import dev.avinya.ads.nativead.NativeAdSession
+import dev.avinya.ads.nativead.NativeAdSessionState
 import dev.avinya.ads.nativead.NativeAdSessionPolicy
 import dev.avinya.ads.nativead.NativeAdSlot
 import dev.avinya.ads.nativead.NativeAdSlotState
@@ -22,6 +23,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -278,7 +280,70 @@ class NativeAdManagerImplTest {
 
         assertFalse(custom.reuseUnshownAds)
     }
+
+    @Test
+    fun `a dormant handle keeps its adInfo flow and fills after configure`() = runTest {
+        val manager = NativeAdManagerImpl<String>(policy = null, platform = InfoNativePlatform(), scope = backgroundScope)
+        val session = manager.session("feed")
+        val flow = session.adInfo
+        session.updateWindow(NativeAdWindow(listOf(NativeAdSlot("slot", testNativePlacement()))))
+
+        manager.configure(NativeAdMemoryPolicy())
+        runCurrent()
+
+        assertSame(flow, session.adInfo)
+        assertEquals("ad-0", session.adInfo.value["slot"]?.responseInfo?.responseId)
+    }
+
+    @Test
+    fun `a recreated session key gets new flows and the closed one stays empty`() = runTest {
+        val manager = NativeAdManagerImpl(NativeAdMemoryPolicy(), InfoNativePlatform(), scope = backgroundScope)
+        val first = manager.session("feed")
+        first.updateWindow(NativeAdWindow(listOf(NativeAdSlot("slot", testNativePlacement()))))
+        runCurrent()
+        val firstInfo = first.adInfo
+        assertTrue("slot" in firstInfo.value)
+
+        manager.closeSession("feed")
+        runCurrent()
+        val second = manager.session("feed")
+
+        assertNotSame(firstInfo, second.adInfo)
+        assertTrue(first.adInfo.value.isEmpty())
+        assertTrue(second.adInfo.value.isEmpty())
+    }
+
+    @Test
+    fun `a custom session reports an empty constant adInfo`() {
+        val custom = object : NativeAdSession {
+            override val key: String = "custom"
+            override val policy: NativeAdSessionPolicy = NativeAdSessionPolicy()
+            override val state: StateFlow<NativeAdSessionState> =
+                MutableStateFlow(NativeAdSessionState(active = false, slots = emptyMap()))
+            override fun updateWindow(window: NativeAdWindow) = Unit
+            override fun deactivate() = Unit
+            override fun close() = Unit
+        }
+
+        assertTrue(custom.adInfo.value.isEmpty())
+        assertSame(custom.adInfo, custom.adInfo)
+    }
 }
+
+private class InfoNativePlatform : NativeAdPlatform<String> {
+    private var loads = 0
+
+    override suspend fun load(placement: AdPlacement, count: Int, generation: Long): AdAttemptResult<NativeAdPlatformBatch<String>> {
+        val first = loads
+        loads += 1
+        return AdAttemptResult.Success(NativeAdPlatformBatch(ads = (0 until count).map { "ad-${first + it}" }, unfilledError = null))
+    }
+    override suspend fun bindEvents(ad: String, adInstanceId: String, emit: (AdEvent) -> Unit) = Unit
+    override fun destroy(ad: String) = Unit
+    override fun responseInfo(ad: String): AdResponseInfo? = AdResponseInfo(responseId = ad)
+    override fun mediaInfo(ad: String) = null
+}
+
 
 private class GateNativePlatform : NativeAdPlatform<String> {
     private val result = CompletableDeferred<AdAttemptResult<NativeAdPlatformBatch<String>>>()

@@ -1662,6 +1662,7 @@ internal class FakePlatform(
     private val loadFn: suspend (AdPlacement, Int, Long) -> AdAttemptResult<NativeAdPlatformBatch<FakeAd>>,
 ) : NativeAdPlatform<FakeAd> {
     val destroyed = mutableListOf<FakeAd>()
+    val boundIds = mutableMapOf<FakeAd, String>()
     val loadCalls = mutableListOf<Triple<AdPlacement, Int, Long>>()
     var bindFailure: Throwable? = null
     var bindGate: CompletableDeferred<Unit>? = null
@@ -1673,6 +1674,7 @@ internal class FakePlatform(
         return loadFn(placement, count, generation)
     }
     override suspend fun bindEvents(ad: FakeAd, adInstanceId: String, emit: (AdEvent) -> Unit) {
+        boundIds[ad] = adInstanceId
         bindFailure?.let { throw it }
         callbacks[ad] = emit
         bindGate?.let { gate ->
