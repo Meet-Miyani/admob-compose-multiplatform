@@ -13,9 +13,13 @@ import kotlinx.coroutines.flow.asSharedFlow
  * rewarded interstitial and app open).
  *
  * [AdEvent] reports what happened to an ad. This reports what the SDK asked the ad network for:
- * every native ad request with how long it took and how it ended, and every cached ad that
- * expired without being shown. Ad networks count an expired ad as filled, so expiries lower the
- * show rate without any other trace.
+ * every request it sent to the Google Mobile Ads SDK for these formats, with how long it took and
+ * how it ended, and every cached ad that expired without being shown. Ad networks count an expired
+ * ad as filled, so expiries lower the show rate without any other trace.
+ *
+ * Native ads are not reported here. Each native load is reported as [AdEvent.Loaded] or
+ * [AdEvent.LoadFailed] on [AdManager.events], and the ad each slot holds, with its response info,
+ * is in [dev.avinya.ads.nativead.NativeAdSession.adInfo].
  *
  * A hot stream, like [AdManager.events]: an entry nobody is collecting is dropped.
  *

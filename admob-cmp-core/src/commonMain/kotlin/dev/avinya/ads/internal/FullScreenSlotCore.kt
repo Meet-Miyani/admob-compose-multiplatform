@@ -988,7 +988,7 @@ internal abstract class FullScreenSlotCore<AdT : Any>(
     }
 
     /**
-     * One native ad request, reporting how it ended unless an ad arrived: that outcome — kept or
+     * One request to the platform SDK, reporting how it ended unless an ad arrived: that outcome — kept or
      * discarded — is only known once the caller has tried to admit it.
      */
     private suspend fun requestAd(requestOptions: AdRequestOptions, request: LoadRequestTracker): AdAttemptResult<AdT> {
