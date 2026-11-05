@@ -289,7 +289,7 @@ class StartFromStoredConsentTest {
         consent.onRequested = modelStoredConsent(consent, manager, storedAnswer = true)
         val hook = object : AdInitializationHook {
             override suspend fun onPhase(phase: AdInitializationPhase, config: AdConfig) {
-                if (phase == AdInitializationPhase.BeforeMobileAdsInitialize) throw IllegalStateException("hook failed")
+                if (phase == AdInitializationPhase.BeforeMobileAdsInitialize) error("hook failed")
             }
         }
         var result: AdManagerStatus? = null

@@ -409,7 +409,7 @@ class FullScreenLoadTelemetryTest {
     }
 
     @Test
-    fun `a load that throws reports the request as Failed, not Discarded`() = runSlotTest {
+    fun `a load that throws reports the request as Failed rather than Discarded`() = runSlotTest {
         val (slot, events) = newTelemetrySlot(
             loadHandler = { _ -> throw IllegalStateException("mapper exploded") },
         )
