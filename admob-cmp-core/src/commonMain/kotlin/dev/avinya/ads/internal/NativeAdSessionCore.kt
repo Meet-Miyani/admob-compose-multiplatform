@@ -348,28 +348,14 @@ internal class NativeAdSessionCore(
      * Publishes [NativeAdSession.adInfo] first, then [state]. That order is what
      * [NativeAdSession.adInfo] promises: a reader that saw a slot's new state finds its ad already
      * in the map.
+     *
+     * This runs on every window update, once per scroll frame. An unchanged map holds the same
+     * [NativeAdInfo] instances, whose `equals` returns on identity, so the `StateFlow` drops it
+     * cheaply and keeps the instance it already has.
      */
     private fun publish() {
-        publishAdInfo()
-        flows.state.value = NativeAdSessionState(active, slots.mapValues { (_, entry) -> stateFor(entry) })
-    }
-
-    /**
-     * Replaces the published ad map only when a slot gained, lost or changed its ad. [publish] runs
-     * on every window update, once per scroll frame, so the unchanged case compares instances by
-     * identity: it builds no new map and never runs a deep [AdResponseInfo][dev.avinya.ads.AdResponseInfo]
-     * comparison.
-     */
-    private fun publishAdInfo() {
-        val published = flows.adInfo.value
-        var shown = 0
-        val unchanged = slots.all { (slotKey, entry) ->
-            val info = entry.shownInfo ?: return@all true
-            shown++
-            published[slotKey] === info
-        }
-        if (unchanged && shown == published.size) return
         flows.adInfo.value = buildMap { slots.forEach { (slotKey, entry) -> entry.shownInfo?.let { put(slotKey, it) } } }
+        flows.state.value = NativeAdSessionState(active, slots.mapValues { (_, entry) -> stateFor(entry) })
     }
     private fun stateFor(entry: SlotEntry): NativeAdSlotState = when {
         entry.lastError != null -> NativeAdSlotState.Failed(entry.lastError!!)
