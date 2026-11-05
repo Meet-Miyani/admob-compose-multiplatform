@@ -41,7 +41,9 @@ import dev.avinya.ads.nativead.layout.AdTemplates
  * stable row/cell footprint here rather than repeating it inside [loading] or [failure].
  * @param loading Placeholder content shown while the ad is loading or unallocated.
  * @param failure Fallback content shown if the ad fails to load.
- * @param onEvent Optional callback to listen to lifecycle events.
+ * @param onEvent Receives the events of the ad this view shows: impressions, clicks, paid events
+ * and, on iOS, video events. Native load events ([AdEvent.Loaded], [AdEvent.LoadFailed]) are not
+ * tied to a view and arrive on [dev.avinya.ads.AdManager.events] only.
  */
 @Composable
 public expect fun NativeAdView(

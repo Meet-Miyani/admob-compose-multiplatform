@@ -34,10 +34,11 @@ import dev.avinya.ads.nativead.NativeMediaInfo
  *   clear, consent revocation). The platform implementation must
  *   release all native-side resources for [ad] and never let it be
  *   re-used.
- * - [responseInfo] and [mediaInfo] are read-only accessors; the
- *   coordinator captures them at admit time and stores them on the
- *   session's slot state so Compose can render without re-querying
- *   the platform.
+ * - [responseInfo] and [mediaInfo] must return what the platform captured
+ *   when the ad loaded, and must not call into the platform SDK. The
+ *   coordinator reads them once per record, under its lock and off the
+ *   main thread, when the ad is admitted to a slot or kept as a spare,
+ *   and never asks the platform again for that ad.
  */
 internal data class NativeAdPlatformBatch<A : Any>(
     val ads: List<A>,

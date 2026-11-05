@@ -1,6 +1,8 @@
 package dev.avinya.ads.ui
 
+import dev.avinya.ads.AdError
 import dev.avinya.ads.AdEvent
+import dev.avinya.ads.AdResponseInfo
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -31,5 +33,23 @@ class AndroidNativeRenderBindingTest {
         assertTrue(isNativeEventForLease(placementId = "native", adInstanceId = "current", event = AdEvent.Impression("native", "current")))
         assertFalse(isNativeEventForLease(placementId = "native", adInstanceId = "current", event = AdEvent.Impression("native", "replaced")))
         assertFalse(isNativeEventForLease(placementId = "native", adInstanceId = "current", event = AdEvent.Impression("native")))
+    }
+
+    @Test
+    fun `native load events never reach a row`() {
+        assertFalse(
+            isNativeEventForLease(
+                placementId = "native",
+                adInstanceId = "current",
+                event = AdEvent.Loaded("native", AdResponseInfo(responseId = "r")),
+            ),
+        )
+        assertFalse(
+            isNativeEventForLease(
+                placementId = "native",
+                adInstanceId = "current",
+                event = AdEvent.LoadFailed("native", AdError.message("none")),
+            ),
+        )
     }
 }

@@ -4,6 +4,7 @@ package dev.avinya.ads.internal
 
 import dev.avinya.ads.AdLogger
 import dev.avinya.ads.AdPlacement
+import dev.avinya.ads.nativead.NativeAdInfo
 import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdManagerState
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
@@ -89,13 +90,13 @@ internal class NativeAdManagerImpl<A : Any>(
         dormant: DormantSession,
     ) {
         val core = try {
-            coordinator.session(key, dormant.handle?.policy ?: NativeAdSessionPolicy(), dormant.published)
+            coordinator.session(key, dormant.handle?.policy ?: NativeAdSessionPolicy(), dormant.flows)
         } catch (e: IllegalStateException) {
             AdLogger.w("Failed to materialise dormant native ad session '$key'", e)
             null
         } ?: return
-        if (!core.publishesInto(dormant.published)) {
-            AdLogger.w("Dormant native ad session '$key' state flow mismatch")
+        if (!core.publishesInto(dormant.flows)) {
+            AdLogger.w("Dormant native ad session '$key' published flows mismatch")
             return
         }
         val generation = checkNotNull(coordinator.sessionGeneration(key))
@@ -139,7 +140,7 @@ internal class NativeAdManagerImpl<A : Any>(
         val core = coordinator.session(key, policy)
         val generation = checkNotNull(coordinator.sessionGeneration(key))
         publish()
-        return Handle(key, policy, core.state, generation, dormant = null)
+        return Handle(key, policy, core.state, core.adInfo, generation, dormant = null)
     }
 
     private fun dormantHandleLocked(key: String, policy: NativeAdSessionPolicy): NativeAdSession {
@@ -157,9 +158,16 @@ internal class NativeAdManagerImpl<A : Any>(
                 sessionRegistryFullMessage(NativeAdMemoryPolicy.DEFAULT_MAX_SESSION_RECORDS, key)
             )
         }
-        val published = MutableStateFlow(NativeAdSessionState(active = false, slots = emptyMap()))
-        val dormant = DormantSession(published)
-        val handle = Handle(key, policy, published.asStateFlow(), generation = null, dormant = dormant)
+        val flows = NativeAdSessionFlows()
+        val dormant = DormantSession(flows)
+        val handle = Handle(
+            key,
+            policy,
+            flows.state.asStateFlow(),
+            flows.adInfo.asStateFlow(),
+            generation = null,
+            dormant = dormant,
+        )
         dormant.handle = handle
         dormantSessions[key] = dormant
         return handle
@@ -189,7 +197,7 @@ internal class NativeAdManagerImpl<A : Any>(
         }
     }
 
-    private inner class DormantSession(val published: MutableStateFlow<NativeAdSessionState>) {
+    private inner class DormantSession(val flows: NativeAdSessionFlows) {
         var handle: Handle? = null
         var window: NativeAdWindow? = null
         var deactivated: Boolean = false
@@ -200,6 +208,7 @@ internal class NativeAdManagerImpl<A : Any>(
         override val key: String,
         override val policy: NativeAdSessionPolicy,
         override val state: StateFlow<NativeAdSessionState>,
+        override val adInfo: StateFlow<Map<String, NativeAdInfo>>,
         generation: Long?,
         private val dormant: DormantSession?,
     ) : NativeAdSession, NativeAdSessionRenderOwner<A> {

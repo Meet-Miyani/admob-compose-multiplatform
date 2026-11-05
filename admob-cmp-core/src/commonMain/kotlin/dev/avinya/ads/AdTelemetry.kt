@@ -80,8 +80,12 @@ public data class AdapterInitializationStatus(
 )
 
 /**
- * Lifecycle events emitted by ad controllers and pools. Subscribe via
- * [AdManager.events] or individual controller/pool [events] flows.
+ * Lifecycle events emitted by ad controllers and by native ad sessions. Subscribe via
+ * [AdManager.events] or an individual controller's [events] flow.
+ *
+ * Native ads report [Loaded] once per ad that enters the SDK's inventory and [LoadFailed] once per
+ * slot whose load failed, on [AdManager.events] only. The events of a native ad that is on screen
+ * ([Impression], [Clicked], [Paid] and the iOS video events) carry its `adInstanceId`.
  */
 public sealed interface AdEvent {
     /** The placement that produced this event, or null for global events. */
@@ -102,10 +106,12 @@ public sealed interface AdEvent {
     /**
      * An ad impression was recorded.
      *
-     * @property adInstanceId For native ads, this identifies the specific ad instance 
-     *   that triggered the event. This allows views in a scrolling list to ignore events 
-     *   belonging to other items in the same placement. For single-ad formats (like banners), 
-     *   this is typically `null`.
+     * @property adInstanceId For native ads, this identifies the specific ad instance
+     *   that triggered the event. This allows views in a scrolling list to ignore events
+     *   belonging to other items in the same placement. It equals
+     *   [dev.avinya.ads.nativead.NativeAdInfo.adInstanceId] for that ad, so
+     *   [dev.avinya.ads.nativead.NativeAdSession.adInfo] tells which slot showed it and who
+     *   served it. For single-ad formats (like banners), this is typically `null`.
      */
     public data class Impression(
         override val placementId: String,
