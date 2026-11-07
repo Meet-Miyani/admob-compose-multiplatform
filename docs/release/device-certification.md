@@ -41,7 +41,7 @@ Run every row on both platforms.
 | 10 | Reward is emitted exactly once per rewarded presentation | | |
 | 11 | AdMob native ad validator reports no implementation issues | | |
 | 12 | iOS only: ordering is UMP → ATT → first ad request | n/a | |
-| 13 | Double-tap the privacy options entry point during the launch-time consent refresh → one form, and the second tap declines without a spurious failure | | |
+| 13 | Privacy options during and after the launch-time consent check. While `gatherConsent` runs it holds the consent slot, so every tap is declined: `showPrivacyOptions()` returns `false`, no form opens, and there is no error or crash. After the check, a double-tap opens exactly one form, and the second call declines without a spurious failure | | |
 | 14 | Slow mediation adapter (throttled network, real mediation configured) → `Ready` is reached, not a spurious initialization failure, on both platforms | | |
 | 15 | Airplane mode during the launch-time consent refresh, then restore and retry `initialize()` immediately → the retry contacts UMP rather than declining, and `ConsentStatus` never contradicts `canRequestAds` | | |
 | 16 | Android only: with a hardware keyboard or D-pad (`adb shell input keyevent KEYCODE_TAB`), traversal skips every banner and native ad; then switch dark mode (`adb shell cmd uimode night yes`) and rotate with a native ad on screen in a lazy list → no crash | | n/a |
@@ -406,6 +406,12 @@ Findings from the run:
   held. So every privacy-options tap in the first 1–3 s is declined, and none opens a form. The
   row expects "one form", which fits only a plain `requestConsentInfoUpdate`. Either reword
   the row, or let privacy options wait for a `gatherConsent` that ends without a form.
+  **Resolved:** the owner chose to reword row 13 to the documented behaviour, and it now reads
+  that way. This behaviour has shipped since 2.2.0/2.3.0, and #66 did not change it. Against the
+  new wording, the Android result above passes: both taps during the check were declined with
+  no error, then one form opened after it. The iOS result stays partial, because automation
+  cannot reach the window. Making privacy options wait out the check and then open the form
+  would be an SDK behaviour change, left for a later release.
 - **Google-side, debug only:** the validator popup stayed on screen after leaving the Native lab
   (Android).
 - **Showcase only:** rotating the tablet resets the feed's scroll position. The `RewardEarned`
