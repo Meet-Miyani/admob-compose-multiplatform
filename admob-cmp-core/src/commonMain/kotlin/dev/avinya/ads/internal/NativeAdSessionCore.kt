@@ -63,6 +63,8 @@ internal class NativeAdSessionCore(
     val policy: NativeAdSessionPolicy,
     private val inactiveRetentionLimit: Int,
     private val flows: NativeAdSessionFlows = NativeAdSessionFlows(),
+    // The coordinator's request gate. While it is closed no demand is issued; see reconcileDemands.
+    private val canRequestAds: () -> Boolean = { true },
 ) {
     private class SlotEntry(val placement: AdPlacement) {
         var band = NativeAdBand.Out
@@ -172,7 +174,8 @@ internal class NativeAdSessionCore(
     /**
      * Re-offers demand for slots that are still wanted but hold neither a record nor a load.
      *
-     * Called by the coordinator when capacity is freed elsewhere in the process. A slot
+     * Called by the coordinator when capacity is freed elsewhere in the process, and when ad
+     * requests are allowed again after consent was withdrawn. A slot
      * deferred because the governor had no permit settles with a null error precisely so it
      * stays eligible here; a slot that genuinely FAILED keeps its error and is still skipped,
      * so this cannot become a retry loop against a placement that is not filling.
@@ -264,6 +267,23 @@ internal class NativeAdSessionCore(
         slots.clear(); publish(); return NativeAdSessionMutation(retireRecordIds = retire, invalidateLoads = invalidate)
     }
 
+    /**
+     * Drops every record and in-flight load but keeps the slots the window wants, with no error,
+     * so they are requested again by the next reconciliation. An inactive session keeps no slots.
+     *
+     * Used where the ads must go but the session must not: a consent or request-configuration
+     * purge, and an inactive session being parked.
+     */
+    fun purgeRecords(): NativeAdSessionMutation {
+        if (closed) return NativeAdSessionMutation()
+        val retire = slots.values.mapNotNull { it.recordId }
+        val invalidate = slots.mapNotNull { (key, entry) -> entry.inFlight?.let { SlotGeneration(key, it) } }
+        slots.values.removeAll { !active || !it.desired }
+        slots.values.forEach { it.dropRecord(); it.inFlight = null }
+        publish()
+        return NativeAdSessionMutation(retireRecordIds = retire, invalidateLoads = invalidate)
+    }
+
     /** Drops current inventory without retiring this logical session. */
     fun clear(): NativeAdSessionMutation {
         if (closed) return NativeAdSessionMutation()
@@ -301,9 +321,14 @@ internal class NativeAdSessionCore(
      * Transient failures are already handled a layer down: the coordinator retries retryable load
      * errors under the placement's own [dev.avinya.ads.AdRetryPolicy] before ever reporting one
      * here, so by the time an error reaches this entry those attempts are spent.
+     *
+     * While ad requests are not allowed (consent withdrawn), nothing is demanded at all. A wanted
+     * slot waits as Empty, with no error, and the coordinator re-offers it through
+     * [reconsiderDeferred] once requests are allowed. Checking here, before any slot is marked in
+     * flight, is what keeps those slots from flickering through Loading on every window update.
      */
     private fun reconcileDemands(): List<SlotDemandEntry> {
-        if (!active) return emptyList()
+        if (!active || !canRequestAds()) return emptyList()
         var occupied = slots.values.count { it.recordId != null || it.inFlight != null }
         val demands = mutableListOf<SlotDemandEntry>()
         for ((slotKey, entry) in slots.entries.sortedBy { it.value.viewportRank }) {

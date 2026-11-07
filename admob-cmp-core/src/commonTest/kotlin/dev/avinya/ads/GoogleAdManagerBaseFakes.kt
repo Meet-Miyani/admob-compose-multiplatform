@@ -122,6 +122,14 @@ internal class FakeGoogleAdManager(
     override fun configuredNativePolicyOrNull(): NativeAdMemoryPolicy? =
         realNativeManager?.configuredPolicyOrNull()
     override fun onNativeConsentRevoked() = Unit
+
+    /** How many times the admission collector reported that ad requests are allowed again. */
+    var nativeRequestsAllowedCount = 0
+        private set
+
+    override fun onNativeRequestsAllowed() {
+        nativeRequestsAllowedCount++
+    }
     override fun captureDiagnosticsSnapshotOnMain() = Unit
 
     override suspend fun initializeMobileAdsNative(

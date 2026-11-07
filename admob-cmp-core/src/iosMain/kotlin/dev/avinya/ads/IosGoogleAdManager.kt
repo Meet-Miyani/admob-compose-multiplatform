@@ -102,6 +102,10 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
         nativeManager.onConsentRevoked()
     }
 
+    override fun onNativeRequestsAllowed() {
+        nativeManager.onRequestsAllowed()
+    }
+
     override fun appId(config: AdConfig): String = config.iosAppId
 
     internal override val declaredAppIdSource: String = "Info.plist key \"GADApplicationIdentifier\""

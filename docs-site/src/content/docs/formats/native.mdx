@@ -138,6 +138,17 @@ session or native platform object in saved state, a serializable ViewModel field
 arguments. ViewTube-style feeds should retain their stable feed and ad-slot models; the SDK
 session owns the non-serializable platform objects.
 
+A session ends only when its owner closes it. After `close()` its calls do nothing (`updateWindow`
+logs a warning once), and `nativeAds.session(key)` returns a new session for the key. The SDK never
+closes a session for you:
+
+- When consent is withdrawn, or a request configuration change affects which ads are served, every
+  native ad is destroyed but each session keeps its slots. While consent refuses requests those
+  slots stay `Empty`, nothing is requested, and no `LoadFailed` is reported. Once consent allows
+  requests again, the slots on screen load without waiting for a scroll.
+- An inactive session that expires is reaped: its anchor ad is destroyed, but the session and every
+  reference to it stay valid, and its next window update loads it again.
+
 ## Capacity, retention, and requests
 
 The default active session retains three records: one behind, the current visible slot, and one
@@ -192,8 +203,8 @@ and as state for the ad a slot is showing now.
 **Loads, on `AdManager.events`.** Every native ad that enters the SDK's inventory reports
 `AdEvent.Loaded` with the `AdResponseInfo` the Google Mobile Ads SDK returned for it. Every slot
 whose load fails reports `AdEvent.LoadFailed` once, after the placement's retries. A slot that takes
-a kept ad (see above) reports nothing, because nothing was requested. Use these to count fill by ad
-source:
+a kept ad (see above), or waits for consent, reports nothing, because nothing was requested. Use
+these to count fill by ad source:
 
 ```kotlin
 adManager.events.collect { event ->

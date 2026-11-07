@@ -28,10 +28,11 @@ import kotlin.time.Duration.Companion.minutes
  * [inactiveSessionLimit] caps how many ads any single inactive session may
  * retain as anchors while the user is on another tab. The session further caps
  * this at its own [NativeAdSessionPolicy.maxRetainedAds]. [maxInactiveSessions]
- * and [maxSessionRecords] bound the size of the session registry; an inactive
- * session whose metadata is older than [inactiveSessionTtl] is reaped first,
- * and the least-recently-used inactive session is evicted when the registry
- * is full.
+ * and [maxSessionRecords] bound the size of the session registry. An inactive
+ * session is reaped once it has been inactive for [inactiveSessionTtl], or
+ * sooner, least recently used first, when more than [maxInactiveSessions] are
+ * inactive. Reaping destroys the session's ads and takes it out of the
+ * registry, but does not end it: its next window update resumes it.
  *
  * Default values match the SDK's documented behavior. Overriding them is
  * opt-in and must be deliberate: a higher [hardLimit] raises the worst-case

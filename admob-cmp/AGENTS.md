@@ -174,8 +174,13 @@ remains the per-placement TTL (one hour by default), while `AdCachePolicy.maxSiz
 `reloadAfterShow` are independent full-screen cache controls and do not size native sessions.
 
 Leaving a tab calls `deactivate()` and keeps the bounded inactive anchor. Call `close()` only
-when the logical destination is permanently discarded. Session metadata is reaped after 30
-minutes inactive. `NativeAdSession.state` supplies `Empty`, `Loading`, `Ready`, `Mounted`,
+when the logical destination is permanently discarded. Only the app ends a session: after
+`close()` its calls do nothing (none throws) and `session(key)` returns a new one. A session 30
+minutes inactive is reaped: its anchor is destroyed, but every handle stays valid and the next
+`updateWindow` resumes it. Withdrawn consent, and an `updateGlobalRequestConfiguration` that
+affects serving, destroy every native ad but keep sessions and their wanted slots; those wait as
+`Empty`, with no request and no `LoadFailed`, and load without a window update once requests are
+allowed. `NativeAdSession.state` supplies `Empty`, `Loading`, `Ready`, `Mounted`,
 `Retained`, and `Failed` slot states; preserve row geometry for loading and failure rather than
 removing an ad row.
 
@@ -192,7 +197,8 @@ prefetched ads.
 **Who served a native ad.** Two layers, like banner and full-screen ads. On `AdManager.events`,
 each native ad that enters inventory (admitted to a slot, or kept as a spare) reports
 `AdEvent.Loaded(placementId, responseInfo)`, and each slot whose load fails reports
-`AdEvent.LoadFailed` once, after retries; adopting a spare reports nothing. On the session,
+`AdEvent.LoadFailed` once, after retries; adopting a spare, or waiting for consent, reports
+nothing. On the session,
 `NativeAdSession.adInfo: StateFlow<Map<String, NativeAdInfo>>` holds the ad in each `Ready`,
 `Mounted` or `Retained` slot: its `adInstanceId` (the id on its `Impression`/`Clicked`/`Paid`
 events), `placementId` and `responseInfo`. Follow `adInfo` to notice a new ad in a slot; slot

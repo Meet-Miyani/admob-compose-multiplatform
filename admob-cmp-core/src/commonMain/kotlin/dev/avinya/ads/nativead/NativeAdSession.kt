@@ -88,8 +88,9 @@ public data class NativeAdWindow(
  *
  * The transition graph is governed by the session core, not by callers:
  *
- * - [Empty] — the session is unaware of the slot, or the slot has been
- *   fully retired. Compose should render nothing.
+ * - [Empty] — the session is unaware of the slot, the slot has been
+ *   fully retired, or it is waiting because consent does not allow ad
+ *   requests; it loads once consent does. Compose should render nothing.
  * - [Loading] — a load is in flight. Compose should render a placeholder.
  * - [Ready] — a loaded ad is available but not currently attached to a
  *   renderer. Compose may render the ad; the session will mark the slot
@@ -172,9 +173,14 @@ public data class NativeAdManagerState(
  * Sessions are obtained from [NativeAdManager.session]. Re-using a [key]
  * returns the existing session, but the [policy] argument is verified on
  * every call: a session that already exists for [key] with a different
- * policy causes [NativeAdManager.session] to throw. Closing a session via
- * [close] retires every record it owns; subsequent calls to [close] are
- * no-ops.
+ * policy causes [NativeAdManager.session] to throw.
+ *
+ * Only the app ends a session, with [close] or [NativeAdManager.closeSession].
+ * After that, every call on it does nothing, and none of them throws;
+ * [NativeAdManager.session] with the same key returns a new session. The SDK
+ * never ends a session itself: withdrawn consent destroys its ads but keeps it
+ * (see [NativeAdManager]), and a session reaped while inactive resumes on its
+ * next [updateWindow] (see [deactivate]).
  *
  * Declared stable in `admob-cmp-compose/compose_compiler_config.conf` (this type is compiled
  * without the Compose plugin and would otherwise carry no stability metadata at all). An
@@ -230,6 +236,9 @@ public interface NativeAdSession {
      * [policy.maxRetainedAds], and starts loading. Calling with the same
      * window repeatedly is a no-op apart from slot-state publication.
      *
+     * Reactivates a deactivated session, and resumes one that was reaped while
+     * inactive. On a closed session it does nothing and logs a warning once.
+     *
      * @throws IllegalArgumentException if the window contains a slot key
      *   that was previously admitted with a different [AdPlacement].
      */
@@ -245,13 +254,22 @@ public interface NativeAdSession {
      * default policy retains a single anchor; consumers that want a wider
      * inactive ring should raise [NativeAdMemoryPolicy.inactiveSessionLimit]
      * deliberately.
+     *
+     * An inactive session is reaped after
+     * [NativeAdMemoryPolicy.inactiveSessionTtl], or sooner when more than
+     * [NativeAdMemoryPolicy.maxInactiveSessions] are inactive. Reaping destroys
+     * its anchors but keeps the session and every reference to it valid: the
+     * next [updateWindow] resumes it with the same [state] and [adInfo], and
+     * loads its slots again.
      */
     public fun deactivate()
 
     /**
      * Retires every record the session owns and removes it from the
      * manager's registry. Idempotent — calling [close] on an already-closed
-     * session is a no-op. After [close] the session must not be reused.
+     * session is a no-op. After [close], [updateWindow], [deactivate] and
+     * [close] do nothing; call [NativeAdManager.session] with the same key for
+     * a new session.
      */
     public fun close()
 }
@@ -265,12 +283,21 @@ public interface NativeAdSession {
  * [AdRetryPolicy], enforces the 1-hour native-ad TTL, evicts under memory
  * pressure in the documented order (speculative prefetch → inactive anchor →
  * active retained-behind → active ready-ahead), and reaps inactive sessions
- * after [NativeAdMemoryPolicy.inactiveSessionTtl]. Mounted ads are never
- * eviction candidates under any policy.
+ * after [NativeAdMemoryPolicy.inactiveSessionTtl] (see
+ * [NativeAdSession.deactivate]). Mounted ads are never eviction candidates
+ * under any policy.
  *
- * Sessions are obtained via [session] and may be closed via [closeSession]
- * or collectively via [clear]. [clear] also destroys every ad the manager
- * owns; the consumer is responsible for re-priming their feeds.
+ * Sessions are obtained via [session] and closed via [NativeAdSession.close]
+ * or [closeSession]; nothing else closes them. [clear] destroys every ad the
+ * manager owns but keeps every session.
+ *
+ * When consent stops allowing ad requests, or
+ * [dev.avinya.ads.updateGlobalRequestConfiguration] changes which ads may be
+ * served, the manager destroys every native ad and stops every load, but keeps
+ * every session and the slots its window wants. While requests are not
+ * allowed those slots stay [NativeAdSlotState.Empty]: nothing is requested and
+ * no [dev.avinya.ads.AdEvent.LoadFailed] is reported. Once requests are allowed,
+ * the slots in an active session's window load without a new window update.
  */
 public interface NativeAdManager {
     /**
@@ -294,7 +321,9 @@ public interface NativeAdManager {
      * supplied [policy] differs from the one in force, this method throws
      * rather than silently letting the consumer's later call change the
      * session's retention contract under it. Use [closeSession] to free the
-     * key before creating a new session with a different policy.
+     * key before creating a new session with a different policy. A session
+     * reaped while inactive is resumed, or, with a different [policy],
+     * replaced.
      *
      * @throws IllegalArgumentException if [key] is blank.
      * @throws IllegalStateException if the session registry already holds
@@ -308,14 +337,17 @@ public interface NativeAdManager {
 
     /**
      * Retires every record the session owns and removes it from the
-     * registry. No-op if no session is registered under [key].
+     * registry, as [NativeAdSession.close] does. No-op if no session is
+     * registered under [key].
      */
     public fun closeSession(key: String)
 
     /**
-     * Closes every session, destroys every loaded ad, and releases every
-     * reservation. Safe to call repeatedly. Compose typically calls this
-     * from a process-lifecycle effect or a debug reset.
+     * Destroys every loaded ad and releases every reservation. Sessions stay
+     * open but forget their slots: each loads again on its next window
+     * update, so a slot whose window does not change stays empty until then.
+     * Safe to call repeatedly. Compose typically calls this from a
+     * process-lifecycle effect or a debug reset.
      */
     public fun clear()
 
