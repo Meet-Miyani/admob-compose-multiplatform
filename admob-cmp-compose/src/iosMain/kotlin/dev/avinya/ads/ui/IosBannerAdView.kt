@@ -2,9 +2,11 @@
 package dev.avinya.ads.ui
 
 import dev.avinya.ads.InternalAdMobCmpApi
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -15,7 +17,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitView
 import androidx.compose.runtime.key
@@ -167,16 +171,30 @@ public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, width
 
         val currentBanner = bannerView
         if (currentBanner != null) key(currentBanner) {
-            val bannerHeightDp = remember(currentBanner) {
-                currentBanner.adSize.useContents { size.height }.toFloat()
+            val (bannerWidthPt, bannerHeightPt) = remember(currentBanner) {
+                currentBanner.adSize.useContents { size.width to size.height }
             }
-            UIKitView(
-                factory = { currentBanner },
+            // The host row is full width, as on Android, and the GADBannerView inside it
+            // takes the loaded ad size's own width, centred. Stretching the view to the row
+            // (the old `fillMaxWidth()` on the UIKitView) made a `Fixed` 320×50 banner as
+            // wide as its container — 832 pt in landscape on an iPhone 17 Pro — and GMA laid
+            // its creative out across that frame. Android has always given the AdView the
+            // exact ad-size width with `Gravity.CENTER`. Adaptive sizes are already
+            // container-wide, so they are unchanged.
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(bannerHeightDp.dp)
-                    .onBannerViewabilityChanged { viewable -> isVisible = viewable }
-            )
+                    .height(bannerHeightPt.toFloat().dp)
+                    .onBannerViewabilityChanged { viewable -> isVisible = viewable },
+                contentAlignment = Alignment.Center,
+            ) {
+                UIKitView(
+                    factory = { currentBanner },
+                    modifier = Modifier
+                        .bannerFrameWidth(bannerWidthPt)
+                        .height(bannerHeightPt.toFloat().dp)
+                )
+            }
         }
 
         // The controller is manager-owned and cached by placement id, so it may be shared
@@ -194,3 +212,15 @@ public actual fun BannerAdView(placement: AdPlacement, modifier: Modifier, width
         }
     }
 }
+
+/**
+ * The width a loaded banner's view takes inside its full-width host row: the ad size's own
+ * width, or `null` when that size has none (`GADAdSizeFluid` reports 0), in which case the view
+ * fills the row as before. Mirrors Android, which gives the AdView the ad size's width in pixels
+ * and falls back to `WRAP_CONTENT` only for a size without one.
+ */
+internal fun bannerFrameWidthDp(adSizeWidthPt: Double): Dp? =
+    adSizeWidthPt.takeIf { it.isFinite() && it > 0.0 }?.toFloat()?.dp
+
+private fun Modifier.bannerFrameWidth(adSizeWidthPt: Double): Modifier =
+    bannerFrameWidthDp(adSizeWidthPt)?.let { width(it) } ?: fillMaxWidth()
