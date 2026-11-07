@@ -416,3 +416,25 @@ Findings from the run:
   (Android).
 - **Showcase only:** rotating the tablet resets the feed's scroll position. The `RewardEarned`
   detail shows micros (`10000000`) while the wallet credits 10.
+
+**Sign-off for 2.7.0:**
+
+    Release version: 2.7.0
+    Certified by: Meet Miyani
+    Date: 2026-11-07
+    Devices used: Android emulator Pixel_Tablet, Android 17 / API 37 (= compileSdk), Play Store image;
+      iOS simulator iPhone 17 Pro, iOS 26.5. Certified build: master 11eab7f1. #71 (the iOS banner
+      frame, the only code change since) was re-checked on the same simulator; #72 and #73 are docs only.
+    Deviations or known issues:
+      - No physical Android device (emulator only) and no minSdk (API 26) pass.
+      - No physical iPhone. The simulator was accepted for this release.
+      - No iPad or split-view pass, although #71 changes iOS banner framing.
+      - Not run: rows 8 and 15 on iOS (the simulator can't go offline without the Mac), and row 14
+        on both platforms (no real mediation adapters, so the M4 slow-adapter timing is still owed).
+      - Partial: row 13 on iOS (automation can't reach the launch window); row 17 on Android
+        (TalkBack isn't on the emulator image, and layout wasn't compared with a 2.6.0 build).
+      - Known, showcase only: the "Fixed 320×50" slot uses Google's adaptive test unit, so the test
+        creative clips its text. Also, the feed's scroll resets on tablet rotation, and the
+        RewardEarned detail shows micros.
+      - Known, Google-side, debug only: the native validator popup can stay on screen after
+        leaving the Native lab.

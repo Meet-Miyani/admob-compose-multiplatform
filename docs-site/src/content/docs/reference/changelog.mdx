@@ -12,11 +12,12 @@ import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 All published artifacts live under `dev.avinya.ads` on Maven Central:
 `admob-cmp`, `admob-cmp-core`, `admob-cmp-compose`, and the
 `dev.avinya.ads.admob-cmp.gradle.plugin` marker. The current
-release is **2.6.0**.
+release is **2.7.0**.
 
 | Version | Status | Highlights |
 |---|---|---|
-| 2.6.0 | Current | Android full-screen ads shown on a return to the foreground are no longer refused as background shows; opt-in reuse of unshown native ads and opt-in app-open skip after an ad click; two native feed fixes that stop wasted ad requests |
+| 2.7.0 | Current | Faster ad startup: `Ready` waits at most five seconds for mediation adapters, one UMP request per launch, opt-in start from stored consent; app-open return and full-screen load telemetry; native `Loaded`/`LoadFailed` events and `NativeAdSession.adInfo`; a native feed no longer crashes after consent is withdrawn; an iOS `Fixed` banner keeps its own width |
+| 2.6.0 | Superseded | Android full-screen ads shown on a return to the foreground are no longer refused as background shows; opt-in reuse of unshown native ads and opt-in app-open skip after an ad click; two native feed fixes that stop wasted ad requests |
 | 2.5.1 | Superseded | Removing an Android ad that holds input focus no longer crashes the app; ad views are kept out of input focus |
 | 2.5.0 | Superseded | 27 verified defects from an external review plus 3 it missed: Android banner callbacks confined to Main, a `Fixed` banner requesting its configured width, native sessions that load when created before initialization finishes, iOS Dynamic Type, and a new `updateGlobalRequestConfiguration()` |
 | 2.4.0 | Superseded | Kotlin 2.4.20, Compose Multiplatform 1.12.0, GMA Next-Gen 1.4.0 (Android), GMA iOS 13.9.0 — a toolchain and bound-SDK refresh, no public API change |
@@ -34,14 +35,15 @@ release is **2.6.0**.
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
 
-## Unreleased
+## 2.7.0
 
 Faster ad startup, app-open telemetry, native ads that report who served them, and native
-sessions that end only when the app closes them, which fixes a crash. Every addition is
-additive: against 2.6.0 the core ABI dumps add declarations and remove none, and
+sessions that end only when the app closes them, which fixes a crash. Every API change is
+an addition: against 2.6.0 the core ABI dumps add declarations and remove none, and
 `admob-cmp-compose.klib.api` is unchanged. Six defaults change behaviour; each is listed
 under **Behaviour changes**, with what to set to keep the old behaviour where a setting
-exists.
+exists. The toolchain and the bound Google SDKs are the same as 2.6.0's. Certified on an
+Android emulator (Android 17) and the iOS simulator.
 
 ### Behaviour changes
 

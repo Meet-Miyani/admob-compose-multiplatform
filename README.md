@@ -25,7 +25,7 @@ Coming from a hand-rolled `expect class AdManager`? See the [migration guide](ht
 
 ```kotlin
 // commonMain
-implementation("dev.avinya.ads:admob-cmp:2.6.0")
+implementation("dev.avinya.ads:admob-cmp:2.7.0")
 ```
 
 > [!IMPORTANT]
@@ -33,7 +33,7 @@ implementation("dev.avinya.ads:admob-cmp:2.6.0")
 >
 > ```kotlin
 > plugins {
->     id("dev.avinya.ads.admob-cmp") version "2.6.0"
+>     id("dev.avinya.ads.admob-cmp") version "2.7.0"
 > }
 > ```
 
@@ -159,6 +159,7 @@ NativeAdView(session = session, slotKey = "after-article-3", placement = nativeP
 
 | admob-cmp | Kotlin | Compose Multiplatform | Android `minSdk` | iOS deployment target |
 |---|---|---|---|---|
+| 2.7.0 | 2.4.20 | 1.12.0 | 26 | 15.0 |
 | 2.6.0 | 2.4.20 | 1.12.0 | 26 | 15.0 |
 | 2.5.1 | 2.4.20 | 1.12.0 | 26 | 15.0 |
 | 2.5.0 | 2.4.20 | 1.12.0 | 26 | 15.0 |
@@ -173,7 +174,7 @@ NativeAdView(session = session, slotKey = "after-article-3", placement = nativeP
 | 1.0.2 | 2.3.20 | 1.11.1 | 26 | 15.0 |
 | 1.0.0 | 2.3.20 | 1.11.1 | 26 | 15.0 |
 
-Underlying Google SDKs bound by 2.6.0:
+Underlying Google SDKs bound by 2.7.0:
 
 | SDK | Version |
 |---|---|
