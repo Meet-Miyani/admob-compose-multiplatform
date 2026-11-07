@@ -25,9 +25,9 @@ Run every row on both platforms.
 | # | Scenario | Android | iOS |
 |---|---|---|---|
 | 1 | Fresh install, EEA debug geography, consent accepted → ads serve | | |
-| 2 | Fresh install, consent denied → no ad requests are made | | |
-| 3 | Privacy options revoke after ads were allowed → `load()`/`show()` blocked | | |
-| 4 | Privacy options grant after prior denial → initialization resumes once | | |
+| 2 | Fresh install, EEA debug geography → no ad request while the consent form is open. After **Do not consent** the SDK follows UMP's `canRequestAds`, which UMP sets to true after any answer, so limited ads may serve | | |
+| 3 | Consent withdrawn after ads were allowed, with `resetConsentForDebug` (the Inspector's **Reset consent (debug)**); answering the privacy options form does not withdraw it → `load()` fails with `consent_required`, nothing cached can be shown, and a native feed on screen scrolls without a crash or a request | | |
+| 4 | Launch with no consent yet (fresh install, or after row 3's reset) → nothing starts while the form is open; after **Consent**, initialization runs exactly once | | |
 | 5 | Background/foreground while a load is in flight → no crash, no stuck state | | |
 | 6 | Background/foreground while a full-screen ad is showing → ad is not force-closed | | |
 | 7 | Rotation / window resize around banner and native views → geometry survives | | |
