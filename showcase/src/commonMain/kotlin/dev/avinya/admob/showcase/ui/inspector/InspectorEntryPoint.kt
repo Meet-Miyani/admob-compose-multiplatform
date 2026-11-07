@@ -37,7 +37,9 @@ import dev.avinya.ads.LocalAdManager
  * The status dot is the one piece of chrome worth keeping: it pulses while the
  * SDK is working, sits steady green when ads may load, and turns to the danger
  * colour when initialisation has failed — so the Inspector is discoverable
- * exactly when there is something to inspect.
+ * exactly when there is something to inspect. "Ads may load" needs consent too:
+ * the status stays `Ready` after consent is withdrawn, and the dot then holds
+ * the accent colour without pulsing, because nothing is in progress.
  */
 @Composable
 fun InspectorEntryPoint(
@@ -50,9 +52,10 @@ fun InspectorEntryPoint(
     val palette = showcaseColors
     val adManager = LocalAdManager.current
     val status by adManager.status.collectAsState()
+    val canRequestAds by adManager.consent.canRequestAds.collectAsState()
 
     val (dotColor, pulsing) = when (status) {
-        is AdManagerStatus.Ready -> palette.success to false
+        is AdManagerStatus.Ready -> (if (canRequestAds) palette.success else palette.accent) to false
         is AdManagerStatus.Initializing -> palette.accent to true
         is AdManagerStatus.ConsentRequired -> palette.accent to true
         is AdManagerStatus.Failed -> palette.danger to false
