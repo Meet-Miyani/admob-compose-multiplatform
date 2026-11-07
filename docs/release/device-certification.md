@@ -18,6 +18,11 @@ completed table into the release PR or release notes.
 Google's test ad units are configured in the showcase. Do not certify against
 production ad units.
 
+The EEA rows use the SDK Lab's debug geography, which UMP honours only on a test
+device. iOS simulators qualify automatically. An Android emulator does not:
+register it first with the lab's **Detect from SDK log**, or the EEA override
+does nothing.
+
 ## Scenarios
 
 Run every row on both platforms.
@@ -332,3 +337,70 @@ Not covered on a device:
 
 F2, F3 and F4 are still open. F3 was seen again: after the reset, the SDK Lab header
 read "Ready — ads may load".
+
+## Run record — 2026-11-07, master `11eab7f1`, 2.7.0 candidate (Android emulator + iOS simulator)
+
+`11eab7f1` is master with #66–#70 merged, and `VERSION_NAME` is still 2.6.0. It had a full
+`READINESS: PASS` (all nine sections). Both apps were built at that commit and freshly
+installed, with Google test ad units and showcase defaults (stored-consent start on,
+adapter wait 5 s).
+
+- **Android:** `Pixel_Tablet` emulator, Android 17 / API 37 (= `compileSdk`), Play Store
+  image. The emulator was registered as a UMP test device before the EEA rows.
+- **iOS:** iPhone 17 Pro simulator, iOS 26.5.
+- **Evidence:** the SDK's `AdMobCMP` log lines (logcat, unified log); the showcase's
+  `ad_events`, `policy_decisions` and `reward_grants` tables, copied from the app; `dumpsys`
+  for focus; screenshots.
+- **Stability:** no crash report, ANR or fatal exception on either platform.
+
+**Deviations:**
+- An emulator instead of an Android device, and no `minSdk` (API 26) pass.
+- No physical iPhone. The owner accepted the simulator for this release.
+- TalkBack is not installed on the emulator image.
+
+| # | Scenario | Android emu | iOS sim | Evidence |
+|---|---|---|---|---|
+| 1 | EEA, consent accepted → ads serve | PASS | PASS | Form open: no `initialize` and no ad request (Android 42 s, iOS). After **Consent**: `initialize` reused the launch's UMP update ("no second request"); `feed_native` and `app_open` `Loaded` 1.7–5 s later; feed native `Impression` + `Paid` |
+| 2 | No request while the form is open; **Do not consent** follows UMP | PASS | PASS | While open, only gate refusals (`app_open` `consent_required`), no request. After **Do not consent**: `canRequestAds=true`, one `initialize`, limited ads `Loaded` |
+| 3 | **Reset consent (debug)** after ads were allowed | PASS | PASS | "consent revoked … purging", purge `fullScreen=1 nativeSessions=1`; slot `Ready` → `Empty`; feed scrolled with no request and the same PID; interstitial `load()` → `consent_required`, Show opened nothing |
+| 4 | No consent yet → nothing starts while the form is open; then one initialization | PASS | PASS | One UMP update, one `initialize requested`, one "accepts ad requests", one "initialization succeeded" per launch |
+| 5 | Background/foreground during a load | PASS | PASS | Rewarded (Android) and interstitial (iOS) `Loaded` while backgrounded; "ready · cached 1" on return; Show opened it |
+| 6 | Background/foreground during a full-screen ad | PASS | PASS | App-open ad still on screen after Home and return; `ClosedFullScreen` only when dismissed; the next app-open preloaded meanwhile |
+| 7 | Rotation around banner and native | PASS | PASS, see F4 | Banners reloaded at each width (`Loaded` + `Impression` + `Paid`); native card re-bound the same ad with no new load; `AdLayoutValidator` "No findings" |
+| 8 | Offline → typed error, retry works | PASS | NOT RUN | Android airplane mode: `LoadFailed NETWORK_ERROR` in about 2 s; retry loaded. The simulator shares the Mac's network |
+| 9 | All six formats render | PASS | PASS | Banner adaptive, fixed and collapsible; interstitial; rewarded; rewarded interstitial; app-open on a warm return; native in the feed and the lab. Each `Loaded` or `OpenedFullScreen` + `Impression` + `Paid` |
+| 10 | Reward exactly once per presentation | PASS | PASS | One `RewardEarned` per presentation (Android 3 of 3, iOS 2 of 2); one `reward_grants` key each; wallet credited 10 per reward |
+| 11 | Native ad validator clean | PASS | PASS | "No implementation issues found" in the feed and the Native lab; `AdLayoutValidator` "No findings" in all five layouts |
+| 12 | UMP → ATT → first ad request | n/a | PASS | Fresh install: UMP update finished 17:38:50.9 → ATT authorized 17:39:29.5 → `initialize` 17:39:30.1 → first `Loaded` 17:39:32.1; nothing before ATT |
+| 13 | Double-tap privacy options during the launch refresh | PARTIAL | PARTIAL | Android hit the window: **both** taps declined, 0 forms, "Privacy options aren't available right now" (see F6). After the refresh, one form and the second call declined. iOS: automation can't reach the 0.6–1.4 s window; two rapid taps later gave one form, no error |
+| 14 | Slow mediation adapter → `Ready` | NOT RUN | NOT RUN | No real adapters in the test app. The bounded wait itself worked: "Waiting up to 5s…"; one Android launch published `Ready` at the 5 s bound, then initialization succeeded |
+| 15 | Airplane mode during the launch refresh, then retry | PASS | NOT RUN | Android: the retry sent a fresh UMP update request, then form → **Consent** → one `initialize`; `ConsentStatus` and `canRequestAds` agreed throughout. iOS: as row 8 |
+| 16 | TAB skips ads; dark mode + rotation with native on screen | PASS | n/a | 25 × TAB with the feed native as the last card: focus stayed on `AndroidComposeView`, `AdHostFrame` not focusable. `uimode night yes` + rotation: no crash, same PID |
+| 17 | Touch, hide, refresh; clicks; layout | PARTIAL | n/a | Touch `Clicked` on `feed_native` (media view), `article_banner`, `lab_banner`; hiding and re-showing the slots reloaded them with no crash. TalkBack double-tap not run; layout not compared with a 2.6.0 build |
+
+Checks of earlier findings:
+- **F1:** fixed. Native lab **Close** → **Recreate** loads a new ad on both platforms, with no crash.
+- **F2:** fixed. Rows 2–4 passed as written.
+- **F3:** fixed. After a reset the SDK Lab reads "Ready — consent blocks ads".
+- **F5:** fixed. Today's Inspector dot is green after the form flow and accent after a reset.
+- **#66 stored-consent start (iOS):** requests were accepted 16 ms after the UMP update request,
+  before UMP answered (613 ms).
+- **#67:** the Native lab shows "served by: Reservation campaign · ad N".
+
+Findings from the run:
+
+- **F4 — confirmed, iOS only, SDK, pre-existing.** The "Fixed 320×50" banner's view takes the
+  container width: 360 pt in portrait and about 832 pt in landscape, against exactly 320 dp on
+  Android. In landscape, GMA's responsive test creative stretched across that width.
+  `IosBannerAdView` sizes the `UIKitView` with `.fillMaxWidth().height(adSize.height)`, so a
+  `Fixed` size's width never reaches the frame. Banner code is unchanged since 2.6.0, so this
+  is not a regression. It was measured from screenshots; the view frame was not read directly.
+- **F6 — row 13 vs the SDK's design.** The showcase's launch refresh is `gatherConsent`. That
+  call claims the consent slot, and `showPrivacyOptions()` documents declining while it is
+  held. So every privacy-options tap in the first 1–3 s is declined, and none opens a form. The
+  row expects "one form", which fits only a plain `requestConsentInfoUpdate`. Either reword
+  the row, or let privacy options wait for a `gatherConsent` that ends without a form.
+- **Google-side, debug only:** the validator popup stayed on screen after leaving the Native lab
+  (Android).
+- **Showcase only:** rotating the tablet resets the feed's scroll position. The `RewardEarned`
+  detail shows micros (`10000000`) while the wallet credits 10.
