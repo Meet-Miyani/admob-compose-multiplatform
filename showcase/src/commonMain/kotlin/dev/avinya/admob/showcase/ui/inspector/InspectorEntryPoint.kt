@@ -14,12 +14,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Analytics
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import dev.avinya.admob.showcase.ui.kit.IconAction
 import dev.avinya.admob.showcase.ui.theme.showcaseColors
@@ -63,16 +64,8 @@ fun InspectorEntryPoint(
         is AdManagerStatus.Idle -> palette.inkFaint to false
     }
 
-    val transition = rememberInfiniteTransition(label = "inspectorPulse")
-    val pulse by transition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 900, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "inspectorPulseAlpha",
-    )
+    // Only a pulsing dot runs an animation; a steady one requests no frames.
+    val pulse = if (pulsing) rememberPulseAlpha() else null
 
     Box(modifier = modifier) {
         IconAction(
@@ -84,11 +77,44 @@ fun InspectorEntryPoint(
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .offset(x = (-10).dp, y = 10.dp)
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(dotColor)
-                .alpha(if (pulsing) pulse else 1f),
+                .inspectorStatusDot(color = dotColor, pulse = pulse),
         )
     }
 }
+
+/**
+ * The status dot: an 8 dp circle in [color], faded by [pulse] when there is one.
+ *
+ * The chain has the same elements in every status — only their values change.
+ * `Modifier.alpha(1f)` adds no layer, so the previous trailing
+ * `.alpha(if (pulsing) pulse else 1f)` removed a layer from the end of the
+ * chain when the SDK became ready. Compose then drew the background into a
+ * reused layer that it never re-recorded, and on iOS and Android the dot
+ * vanished for the life of that screen on every launch that composed the
+ * header before initialisation ended. Here one layer is always present,
+ * carries both the clip and the pulse, and sits *before* the background so the
+ * pulse actually fades the dot. [pulse] is read inside the layer block, so a
+ * pulsing dot updates a layer property each frame instead of recomposing.
+ */
+internal fun Modifier.inspectorStatusDot(color: Color, pulse: State<Float>?): Modifier =
+    this
+        .offset(x = (-10).dp, y = 10.dp)
+        .size(8.dp)
+        .graphicsLayer {
+            alpha = pulse?.value ?: 1f
+            shape = CircleShape
+            clip = true
+        }
+        .background(color)
+
+@Composable
+private fun rememberPulseAlpha(): State<Float> =
+    rememberInfiniteTransition(label = "inspectorPulse").animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "inspectorPulseAlpha",
+    )
