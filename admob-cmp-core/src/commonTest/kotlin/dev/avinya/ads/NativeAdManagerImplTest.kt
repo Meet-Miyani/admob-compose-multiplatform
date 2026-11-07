@@ -178,17 +178,21 @@ class NativeAdManagerImplTest {
     }
 
     @Test
-    fun `closed wrapper cannot mutate replacement generation`() = runTest {
+    fun `closed wrapper ignores updates and cannot mutate replacement generation`() = runTest {
         val manager = NativeAdManagerImpl(NativeAdMemoryPolicy(), EmptyNativePlatform)
         val stale = manager.session("feed")
         stale.close()
         val replacement = manager.session("feed")
 
-        assertFailsWith<IllegalStateException> {
-            stale.updateWindow(NativeAdWindow(listOf(NativeAdSlot("slot", testNativePlacement()))))
-        }
-        replacement.deactivate()
+        stale.updateWindow(NativeAdWindow(listOf(NativeAdSlot("slot", testNativePlacement()))))
+        stale.deactivate()
+        stale.close()
+
+        assertFalse(stale.state.value.active)
         assertFalse(replacement.state.value.active)
+        assertTrue(replacement.state.value.slots.isEmpty())
+        replacement.updateWindow(NativeAdWindow(listOf(NativeAdSlot("slot", testNativePlacement()))))
+        assertTrue(replacement.state.value.active)
     }
 
     @Test
@@ -327,6 +331,20 @@ class NativeAdManagerImplTest {
 
         assertTrue(custom.adInfo.value.isEmpty())
         assertSame(custom.adInfo, custom.adInfo)
+    }
+
+    @Test
+    fun `updateWindow after consent revocation neither throws nor ends the session`() {
+        val manager = NativeAdManagerImpl(NativeAdMemoryPolicy(), EmptyNativePlatform)
+        val session = manager.session("feed")
+        val window = NativeAdWindow(listOf(NativeAdSlot("a", testNativePlacement())))
+        session.updateWindow(window)
+
+        manager.onConsentRevoked()
+        session.updateWindow(window)
+
+        assertTrue(session.state.value.active, "the session must stay active after revocation")
+        assertEquals(1, manager.state.value.activeSessions, "the session must still be counted")
     }
 }
 

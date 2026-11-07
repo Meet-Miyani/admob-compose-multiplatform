@@ -98,6 +98,10 @@ internal class AndroidGoogleAdManager(
         nativeManager.onConsentRevoked()
     }
 
+    override fun onNativeRequestsAllowed() {
+        nativeManager.onRequestsAllowed()
+    }
+
     override fun appId(config: AdConfig): String = config.androidAppId
 
     internal override val declaredAppIdSource: String =

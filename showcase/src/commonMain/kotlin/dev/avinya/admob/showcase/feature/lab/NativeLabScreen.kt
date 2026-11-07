@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -33,7 +35,6 @@ import dev.avinya.ads.nativead.NativeAdInfo
 import dev.avinya.ads.nativead.NativeAdSession
 import dev.avinya.ads.nativead.NativeAdSlot
 import dev.avinya.ads.nativead.NativeAdSlotState
-import dev.avinya.ads.nativead.NativeAdWindow
 import dev.avinya.ads.nativead.layout.AdLayout
 import dev.avinya.ads.nativead.layout.AdLayoutValidator
 import dev.avinya.ads.nativead.layout.AdTemplateColors
@@ -70,7 +71,10 @@ fun NativeLabScreen(
     BlockAppOpenOnAdScreen()
     val slotKey = remember { "lab:native:demo-1" }
     val slot = remember { NativeAdSlot(slotKey, ShowcasePlacements.labNative) }
-    val session = rememberNativeAdSlotSession(sessionKey = "lab:native", slot = slot)
+    // Recreate bumps this. The new key group asks the manager for "lab:native" again: after
+    // Close that is a new session, after Deactivate the same one, back with its retained ad.
+    var sessionEpoch by remember { mutableIntStateOf(0) }
+    val session = key(sessionEpoch) { rememberNativeAdSlotSession(sessionKey = "lab:native", slot = slot) }
     val scope = rememberCoroutineScope()
 
     var selected by remember { mutableStateOf(LabLayout.AppFeed) }
@@ -161,15 +165,7 @@ fun NativeLabScreen(
                     )
                     GhostButton(
                         label = "Recreate",
-                        onClick = {
-                            session.updateWindow(
-                                NativeAdWindow(
-                                    visible = listOf(
-                                        NativeAdSlot(slotKey, ShowcasePlacements.labNative),
-                                    ),
-                                ),
-                            )
-                        },
+                        onClick = { sessionEpoch++ },
                     )
                 }
             }
