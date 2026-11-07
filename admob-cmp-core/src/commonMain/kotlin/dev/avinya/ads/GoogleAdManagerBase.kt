@@ -6,11 +6,18 @@ import dev.avinya.ads.internal.AdRequestAdmission
 import dev.avinya.ads.internal.AppliedConfigurationDecision
 import dev.avinya.ads.internal.ConsentSessionState
 import dev.avinya.ads.internal.FullScreenPresentationArbiter
+import dev.avinya.ads.internal.AdapterStartupTracker
+import dev.avinya.ads.internal.ControllerRegistry
+import dev.avinya.ads.internal.FullScreenPresenceCounter
+import dev.avinya.ads.internal.LoadTelemetryHub
 import dev.avinya.ads.internal.FullScreenStateLock
+import dev.avinya.ads.internal.InitializationTimeouts
+import dev.avinya.ads.internal.LaunchConsentUpdater
 import dev.avinya.ads.internal.AppIdVerdict
 import dev.avinya.ads.internal.DeclaredAppId
 import dev.avinya.ads.internal.NativeHandoffDecision
 import dev.avinya.ads.internal.RequestConfigurationUpdater
+import dev.avinya.ads.internal.StoredConsentStart
 import dev.avinya.ads.internal.affectsServedAds
 import dev.avinya.ads.internal.appIdPreflightError
 import dev.avinya.ads.internal.appIdVerdict
@@ -21,6 +28,8 @@ import dev.avinya.ads.internal.ownedSnapshot
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Duration
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -42,6 +51,14 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
+/**
+ * What a platform's native initialization returns once the SDK accepts ad requests.
+ *
+ * [adapters] completes when the SDK's adapter-initialization callback fires, which can be before
+ * the accept point, later, or never. It is never completed exceptionally.
+ */
+internal class NativeInitializationHandle(val adapters: Deferred<Unit>)
+
 /** Registry key for a full-screen slot: one controller per (placement id, format) pair. */
 internal data class AdSlotKey(val placementId: String, val format: AdFormat)
 
@@ -61,9 +78,56 @@ internal data class AdSlotKey(val placementId: String, val format: AdFormat)
  * `IosGoogleAdManager.kt`, that means shared policy has leaked into a platform subclass, not
  * that this class needs a platform-specific branch.
  */
-internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware, RequestConfigurationUpdater {
+internal abstract class GoogleAdManagerBase :
+    AdManager, FullScreenPresenceAware, RequestConfigurationUpdater, AdapterStartupSource, LoadTelemetrySource,
+    StartupSettings {
     /** "Android" or "iOS" — the only textual difference in this class's log messages. */
     protected abstract val platformTag: String
+
+    private val loadTelemetryHub = LoadTelemetryHub()
+    override val loadTelemetryFlow: SharedFlow<AdLoadTelemetry> get() = loadTelemetryHub.signals
+
+    // Lazy: platformTag is a subclass property, not yet initialized while this class constructs.
+    private val adapterStartupTracker by lazy {
+        AdapterStartupTracker(
+            platformTag = platformTag,
+            captureSnapshot = ::captureDiagnosticsSnapshotOnMain,
+            adapterStatuses = { diagnostics.adapterStatuses() },
+        )
+    }
+    override val adapterStartupState: StateFlow<AdapterStartup> get() = adapterStartupTracker.state
+
+    // Validated by the public adapterStartupWait setter. Read when the SDK accepts requests.
+    @Volatile
+    override var adapterStartupWaitSetting: Duration = AdManager.DEFAULT_ADAPTER_STARTUP_WAIT
+
+    @Volatile
+    override var startFromStoredConsentSetting: Boolean = false
+
+    /**
+     * Clock for the adapter wait and [AdapterStartup] durations. A getter, not a stored
+     * property, so a subclass override is never read before it is initialized. Tests substitute
+     * the coroutine test scheduler's clock.
+     */
+    protected open val initializationTimeSource: TimeSource get() = TimeSource.Monotonic
+
+    /**
+     * Handed to the platform consent controllers so every info update they make can start
+     * initialization from the stored answer. See [onStoredConsentAllows].
+     */
+    protected val storedConsentStart: StoredConsentStart =
+        StoredConsentStart(enabled = { startFromStoredConsentSetting }, onAllowed = ::onStoredConsentAllows)
+
+    // Runs the stored-consent start off the consent operation that triggered it, which must never
+    // suspend for it. Main.immediate like admissionScope, and process-wide for the same reason.
+    private val storedConsentStartScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    /**
+     * Why this platform may not start from stored consent right now, or null if it may.
+     * Android always may. iOS may once App Tracking Transparency has been answered (or can never
+     * be asked), so requests made from the stored answer never precede the ATT prompt.
+     */
+    protected open fun storedConsentStartRefusal(): String? = null
 
     private val _status = MutableStateFlow<AdManagerStatus>(AdManagerStatus.Idle)
     /** Mutable event sink. Not `_events`: detekt's underscore-prefix convention is reserved for
@@ -72,19 +136,11 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
     override val status: StateFlow<AdManagerStatus> = _status
     override val events: SharedFlow<AdEvent> = mutableEvents
 
-    // Guards the controller registries + collision map, and (separately) the process-wide
-    // presentation counter. FullScreenStateLock is synchronized(Any()) on Android and an
-    // NSRecursiveLock on iOS.
-    private val registryLock = FullScreenStateLock()
-    private val presenceLock = FullScreenStateLock()
-
-    // Count of full-screen ads currently presenting across all slots. Observational only —
-    // admission is decided by fullScreenArbiter below, not by this counter. Updated from
-    // FullScreenSlotCore via onPresentationChanged. Guarded by presenceLock since shows can
-    // settle on different threads.
-    private var presenceCount = 0
-    private val _isFullScreenPresenting = MutableStateFlow(false)
-    override val isFullScreenPresenting: StateFlow<Boolean> = _isFullScreenPresenting
+    // Controller caches and the presentation count live in their own collaborators, each with its
+    // own lock; this class keeps only the entry points the platform subclasses call.
+    private val controllers = ControllerRegistry(onFullScreenSlotCreated = { slot -> loadTelemetryHub.attachTo(slot) })
+    private val presence = FullScreenPresenceCounter()
+    override val isFullScreenPresenting: StateFlow<Boolean> get() = presence.presenting
 
     // The process-wide admission gate. AdMob.manager() / IosAdMob.manager are per-process
     // singletons, so this instance is the whole process's arbiter. Every full-screen slot this
@@ -92,29 +148,10 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
     // FullScreenPresenceAware.
     override val fullScreenArbiter: FullScreenPresentationArbiter = FullScreenPresentationArbiter()
 
-    protected fun onPresentationChanged(delta: Int) {
-        presenceLock.withLock {
-            presenceCount = (presenceCount + delta).coerceAtLeast(0)
-            _isFullScreenPresenting.value = presenceCount > 0
-        }
-    }
+    /** Called by the slots as a full-screen presentation starts (+1) and ends (-1). */
+    protected fun onPresentationChanged(delta: Int): Unit = presence.onPresentationChanged(delta)
 
     private val consentSession = ConsentSessionState()
-
-    // Detects placement-id collisions: the same id used with a different ad unit /
-    // format / config silently reusing the first controller is a programming error.
-    private val registeredPlacements = mutableMapOf<String, AdPlacement>()
-
-    private fun checkPlacementCollision(placement: AdPlacement) {
-        val existing = registeredPlacements.getOrPut(placement.id) { placement }
-        check(existing == placement) {
-            "AdPlacement id '${placement.id}' is already registered with different configuration " +
-                "(existing=$existing, requested=$placement). Placement ids must be unique."
-        }
-    }
-
-    private val banners = mutableMapOf<String, BannerAdController>()
-    private val slots = mutableMapOf<AdSlotKey, FullScreenAdController>()
 
     /**
      * Shared body of every `banner()` override: validates format, checks for a collision, and
@@ -124,30 +161,17 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
     protected fun registerBanner(
         placement: AdPlacement,
         create: (AdPlacement) -> BannerAdController,
-    ): BannerAdController = registryLock.withLock {
-        val ownedPlacement = placement.ownedSnapshot()
-        require(ownedPlacement.format == AdFormat.Banner) {
-            "AdPlacement '${ownedPlacement.id}' has format ${ownedPlacement.format} but was passed to a Banner factory. " +
-                "The factory function and placement.format must agree."
-        }
-        checkPlacementCollision(ownedPlacement)
-        banners.getOrPut(ownedPlacement.id) { create(ownedPlacement) }
-    }
+    ): BannerAdController = controllers.banner(placement, create)
 
-    /** Shared body of every full-screen `interstitial()`/`rewarded()`/... override. See [registerBanner]. */
+    /**
+     * Shared body of every full-screen `interstitial()`/`rewarded()`/... override. See [registerBanner].
+     * Each new slot is attached to this manager's load telemetry before it is returned.
+     */
     protected fun registerFullScreenSlot(
         placement: AdPlacement,
         format: AdFormat,
         create: (AdPlacement) -> FullScreenAdController,
-    ): FullScreenAdController = registryLock.withLock {
-        val ownedPlacement = placement.ownedSnapshot()
-        require(ownedPlacement.format == format) {
-            "AdPlacement '${ownedPlacement.id}' has format ${ownedPlacement.format} but was passed to a $format factory. " +
-                "The factory function and placement.format must agree."
-        }
-        checkPlacementCollision(ownedPlacement)
-        slots.getOrPut(AdSlotKey(ownedPlacement.id, ownedPlacement.format)) { create(ownedPlacement) }
-    }
+    ): FullScreenAdController = controllers.fullScreenSlot(placement, format, create)
 
     /**
      * Binds the deferred native facade only after this config has initialized GMA.
@@ -204,19 +228,28 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
 
     /**
      * Reads GMA's/GAD's version and adapter statuses onto the platform's diagnostics object.
-     * MUST run on Main, immediately after [initializeMobileAdsNative] returns and before
-     * [dev.avinya.ads.internal.dispatchAfterInitializeHooks] runs, so a publisher hook can read
-     * populated adapter statuses.
+     * MUST run on Main. Called once the SDK accepts requests, before
+     * [dev.avinya.ads.internal.dispatchAfterInitializeHooks] runs, and again when the adapters
+     * report back. A hook that runs before the adapters have finished therefore sees partial
+     * adapter statuses; [AdapterStartup.Finished] carries the complete ones.
      */
     protected abstract fun captureDiagnosticsSnapshotOnMain()
 
     /**
      * Applies [requestedIdentity]'s global request configuration to the native SDK, starts it,
      * and applies `publisherFirstPartyIdEnabled`/`appMuted`/`appVolume` from [config] — the one
-     * point where this class actually touches GMA (Android) or GAD (iOS). Must suspend until the
-     * SDK reports completion or [dev.avinya.ads.internal.InitializationTimeouts.nativeInitialize]
-     * elapses; a timeout must surface as a thrown failure, not a `CancellationException` (see
-     * `awaitNativeCallback`), so a retry after a timeout is possible.
+     * point where this class actually touches GMA (Android) or GAD (iOS).
+     *
+     * Returns once the SDK **accepts ad requests**: on Android when `MobileAds.initialize` has
+     * returned, on iOS once `start` has been called. Those three settings are applied before
+     * returning, so they are in force at Ready. The returned handle's
+     * [NativeInitializationHandle.adapters] completes when the SDK's adapter-initialization
+     * callback fires; Ready waits for it only up to [adapterStartupWait].
+     *
+     * Reaching the accept point must stay bounded by
+     * [dev.avinya.ads.internal.InitializationTimeouts.nativeInitialize]; a timeout must surface as
+     * a thrown failure, not a `CancellationException` (see `awaitNativeCallback`), so a retry
+     * after a timeout is possible.
      *
      * [markHandoff] MUST be invoked exactly once, immediately before the FIRST irreversible touch of
      * the process-global native SDK, and MUST NOT be invoked on any path that fails before that point.
@@ -229,7 +262,7 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
         config: AdConfig,
         requestedIdentity: AdInitializationConfigIdentity,
         markHandoff: suspend () -> Unit,
-    )
+    ): NativeInitializationHandle
 
     private data class InitializationAttempt(
         val identity: AdInitializationConfigIdentity,
@@ -250,6 +283,8 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
     // narrower SDK mutex protects the native-applied identity and terminal state.
     private val initializationStateMutex = Mutex()
     private val mobileAdsInitializationMutex = Mutex()
+    // Taken before mobileAdsInitializationMutex, never inside it: see startOrJoinNativeInitialization.
+    private val nativeStartMutex = Mutex()
 
     /**
      * Dispatcher [nativeInitializationScope] runs on. Android uses `Dispatchers.Main.immediate`;
@@ -432,16 +467,7 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
         // initialization later. The check is now enforcement, not just context -- fatal
         // misconfigurations are rejected before consent or native SDK calls. Checked on every
         // initialize() attempt, not cached, matching testModeWarningOrNull's own cadence just above.
-        when (
-            val verdict = appIdVerdict(
-                configuredAppId = appId(config),
-                declared = declaredAppId(),
-                declaredAppIdSource = declaredAppIdSource,
-                declaredAppIdConsumerDescription = declaredAppIdConsumerDescription,
-                requiredByPlatformSdk = declaredAppIdRequiredByPlatformSdk,
-                policy = AdAppIdVerification.policy,
-            )
-        ) {
+        when (val verdict = appIdVerdictFor(config)) {
             AppIdVerdict.Ok -> Unit
             is AppIdVerdict.Warn -> AdLogger.w(verdict.message)
             is AppIdVerdict.Fail -> {
@@ -478,15 +504,15 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
                 }
                 null -> Unit
             }
-            // UMP guidance: request a consent info update on every app launch; do not
-            // rely on the previous session's cached state. Once this manager reaches
-            // Ready, equivalent calls are handled above and must not regress status or
-            // rerun consent, hooks, or the process-wide GMA singleton.
-            when (consentMode) {
-                ConsentMode.GatherBeforeInitialize -> consent.gatherConsent(config)
-                ConsentMode.InitializeOnlyIfAlreadyAllowed -> consent.requestConsentInfoUpdate(config)
-                ConsentMode.SkipConsent -> Unit
-            }
+            // UMP guidance: request a consent info update on every app launch — once. Each one
+            // is a network round trip, so InitializeOnlyIfAlreadyAllowed reuses an update that
+            // gatherConsent or requestConsentInfoUpdate already completed in this process
+            // rather than making a second one in a row before GMA can start. (The guidance does
+            // not forbid reading the previous session's answer: UMP's own canRequestAds returns
+            // it once an update has been called.) Once this manager reaches Ready, equivalent
+            // calls are handled above and must not regress status or rerun consent, hooks, or
+            // the process-wide GMA singleton.
+            runConsentStep(consentMode, config)
             val effectiveCanRequest = withContext(Dispatchers.Main.immediate) {
                 consentSession.recordCompletedGate(consentMode)
                 val current = if (consentMode == ConsentMode.SkipConsent) true else consent.canRequestAds.value
@@ -497,6 +523,10 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
 
             AdLogger.i("$platformTag consent gate complete. canRequestAds=$effectiveCanRequest mode=$consentMode")
             if (!effectiveCanRequest) {
+                statusIfStartedBeforeWithdrawal()?.let { result ->
+                    completeAttempt(attempt, result)
+                    return result
+                }
                 AdLogger.w("$platformTag initialize deferred because consent does not allow ad requests yet.")
                 val result = AdManagerStatus.ConsentRequired.also {
                     _status.value = it
@@ -512,6 +542,156 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
         } catch (failure: Throwable) {
             initializationFailed(failure).also { completeAttempt(attempt, it) }
         }
+    }
+
+    /**
+     * Starts native initialization from consent stored in an earlier session. Called by the
+     * consent controllers, through [storedConsentStart], right after a UMP update has been
+     * requested and while it is still in flight. Never suspends that consent operation.
+     */
+    internal fun onStoredConsentAllows(config: AdConfig) {
+        storedConsentStartScope.launch {
+            try {
+                startFromStoredConsentNow(config)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Throwable) {
+                // A throwing BeforeMobileAdsInitialize hook, typically. Nothing was started, so
+                // initialize() runs the ordinary path and reports the failure itself.
+                AdLogger.e("$platformTag could not start from stored consent; initialize() will retry.", failure)
+            }
+        }
+    }
+
+    private suspend fun startFromStoredConsentNow(config: AdConfig) {
+        val owned = config.ownedSnapshot()
+        val identity = owned.initializationIdentity(appId(owned))
+        // Anything already handed to the native SDK — in flight, applied, or failed — belongs to
+        // the ordinary initialize() path and its conflict rules.
+        val nativeTouched = mobileAdsInitializationMutex.withLock {
+            nativeInitialization != null || appliedConfigIdentity != null || handedOffConfigIdentity != null
+        }
+        if (nativeTouched) return
+        storedConsentStartRefusal()?.let { reason ->
+            AdLogger.i("$platformTag not starting from stored consent: $reason.")
+            return
+        }
+        if (appIdVerdictFor(owned) is AppIdVerdict.Fail) {
+            AdLogger.i("$platformTag not starting from stored consent: the app ID check failed; initialize() reports it.")
+            return
+        }
+        // Admission is derived from the CURRENT canRequestAds, never set to Allowed outright: the
+        // update's own callback can land between the trigger and this point, and a hard-coded
+        // Allowed would reopen a gate it has just closed. Checked and recorded in one Main step.
+        val admitted = withContext(Dispatchers.Main.immediate) {
+            if (!consent.canRequestAds.value) return@withContext false
+            consentSession.recordCompletedGate(ConsentMode.InitializeOnlyIfAlreadyAllowed)
+            val next = consentSession.admission(true)
+            _admission.value = next
+            next == AdRequestAdmission.Allowed
+        }
+        if (!admitted) {
+            AdLogger.i("$platformTag not starting from stored consent: the UMP update has already withdrawn it.")
+            return
+        }
+        AdLogger.i(
+            "$platformTag starting MobileAds from consent stored in an earlier session; the UMP " +
+                "consent info update is still in flight."
+        )
+        // Re-checked after the hooks and again as the operation is created: they can suspend for
+        // as long as they like, and the update can withdraw consent meanwhile. Withdrawn by then,
+        // nothing starts, and initialize() reports ConsentRequired like any other withdrawal.
+        val started = startOrJoinNativeInitializationIf(owned, identity) {
+            _admission.value.permitsRequests && consent.canRequestAds.value
+        }
+        if (started == null) {
+            AdLogger.i("$platformTag not starting from stored consent: the UMP update withdrew it before MobileAds started.")
+            return
+        }
+        mobileAdsInitializationMutex.withLock {
+            // Only while the operation is still running: it publishes its own terminal status.
+            if (appliedTerminalStatus == null && nativeInitialization != null) {
+                _status.value = AdManagerStatus.Initializing
+            }
+        }
+    }
+
+    /**
+     * Runs the BeforeMobileAdsInitialize hooks and starts native initialization, or joins the
+     * one already started. Serialized, so two paths that both find nothing started — the
+     * stored-consent start and initialize()'s own — dispatch the hooks exactly once.
+     */
+    private suspend fun startOrJoinNativeInitialization(
+        config: AdConfig,
+        requestedIdentity: AdInitializationConfigIdentity,
+    ): NativeInitialization = checkNotNull(startOrJoinNativeInitializationIf(config, requestedIdentity) { true })
+
+    /**
+     * [startOrJoinNativeInitialization], but a new operation starts only while [mayStart] holds.
+     * It is checked before the hooks and again under the init mutex as the operation is created,
+     * so nothing that changes it can land between the last check and the start. Returns null if
+     * it did not hold; joining an operation already in flight, or one already applied, needs no
+     * check.
+     */
+    private suspend fun startOrJoinNativeInitializationIf(
+        config: AdConfig,
+        requestedIdentity: AdInitializationConfigIdentity,
+        mayStart: () -> Boolean,
+    ): NativeInitialization? = nativeStartMutex.withLock {
+        val (inFlight, applied) = mobileAdsInitializationMutex.withLock {
+            nativeInitialization to (appliedConfigIdentity != null)
+        }
+        if (inFlight != null) return@withLock inFlight
+        if (!applied) {
+            if (!mayStart()) return@withLock null
+            withContext(Dispatchers.Main.immediate) {
+                config.dispatchInitializationHooks(AdInitializationPhase.BeforeMobileAdsInitialize)
+            }
+        }
+        startNativeInitialization(config, requestedIdentity, mayStart)
+    }
+
+    private fun appIdVerdictFor(config: AdConfig): AppIdVerdict = appIdVerdict(
+        configuredAppId = appId(config),
+        declared = declaredAppId(),
+        declaredAppIdSource = declaredAppIdSource,
+        declaredAppIdConsumerDescription = declaredAppIdConsumerDescription,
+        requiredByPlatformSdk = declaredAppIdRequiredByPlatformSdk,
+        policy = AdAppIdVerification.policy,
+    )
+
+    /** The consent step [consentMode] calls for, before the gate is read. */
+    private suspend fun runConsentStep(consentMode: ConsentMode, config: AdConfig) {
+        when (consentMode) {
+            ConsentMode.GatherBeforeInitialize -> consent.gatherConsent(config)
+            ConsentMode.InitializeOnlyIfAlreadyAllowed ->
+                (consent as? LaunchConsentUpdater)?.ensureUpdatedThisLaunch(config)
+                    ?: consent.requestConsentInfoUpdate(config)
+            ConsentMode.SkipConsent -> Unit
+        }
+    }
+
+    /**
+     * Consent does not allow ad requests, but the Mobile Ads SDK was started during this
+     * attempt's consent step anyway: from consent stored in an earlier session, before the update
+     * withdrew it. Only that start can apply a configuration between the attempt's entry, which
+     * returns early for an applied one, and its consent gate.
+     *
+     * The SDK cannot be un-initialized; admission (now Revoked) is what blocks requests. Returns
+     * the initialization's own outcome, or null if nothing was applied — never started, or failed
+     * — so the caller reports ConsentRequired as for any other withdrawal. Derived from what the
+     * native SDK actually holds, not from the fact that a start was attempted.
+     */
+    private suspend fun statusIfStartedBeforeWithdrawal(): AdManagerStatus? {
+        awaitAbandonedNativeInitialization()
+        val result = mobileAdsInitializationMutex.withLock {
+            appliedTerminalStatus?.takeIf { appliedConfigIdentity != null }
+        } ?: return null
+        AdLogger.w(
+            "$platformTag consent no longer allows ad requests, but MobileAds was already started " +
+                "from stored consent. Status stays $result; ad requests stay blocked."
+        )
+        return result
     }
 
     private suspend fun completeAttempt(
@@ -594,13 +774,7 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
         // that loops after a leader's attempt settled and re-enters with its own identity.
         refusedByNativeHandoff(requestedIdentity)?.let { return it }
 
-        var operation = mobileAdsInitializationMutex.withLock { nativeInitialization }
-        if (operation == null) {
-            withContext(Dispatchers.Main.immediate) {
-                config.dispatchInitializationHooks(AdInitializationPhase.BeforeMobileAdsInitialize)
-            }
-            operation = startNativeInitialization(config, requestedIdentity)
-        }
+        val operation = startOrJoinNativeInitialization(config, requestedIdentity)
 
         // Never regress a terminal status that has already been published. The detached native
         // operation now publishes Ready as soon as GMA accepts, so a caller arriving after that
@@ -629,12 +803,14 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
 
     private suspend fun startNativeInitialization(
         config: AdConfig,
-        requestedIdentity: AdInitializationConfigIdentity
-    ): NativeInitialization = mobileAdsInitializationMutex.withLock {
+        requestedIdentity: AdInitializationConfigIdentity,
+        mayStart: () -> Boolean,
+    ): NativeInitialization? = mobileAdsInitializationMutex.withLock {
         nativeInitialization?.let { return@withLock it }
         appliedConfigIdentity?.let {
             return@withLock completedNativeInitialization(it)
         }
+        if (!mayStart()) return@withLock null
 
         val generation = ++nativeInitializationGeneration
         // MUST run on nativeInitializationScope (a detached SupervisorJob scope), not on any
@@ -660,12 +836,24 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
                 // iOS mutates GADMobileAds.sharedInstance.requestConfiguration before start(), while
                 // Android builds its InitializationConfig first and only marks immediately before
                 // MobileAds.initialize. From that mark on, this identity is what the process owns.
-                initializeMobileAdsNative(config, requestedIdentity) {
+                val handle = initializeMobileAdsNative(config, requestedIdentity) {
                     mobileAdsInitializationMutex.withLock { handedOffConfigIdentity = requestedIdentity }
                 }
-                // Captured after the native call returns so adapter statuses are populated, and
-                // before the After hook so a publisher hook can read them.
+                // The SDK accepts requests from here. Adapters may still be starting: Google's
+                // guidance is to wait for them, but never without a limit, so Ready waits only up
+                // to adapterWait. The adapters keep their own signal (adapterStartup) after that.
+                val acceptedAt = initializationTimeSource.markNow()
+                // Read once, here: a later change cannot move a Ready already being waited for.
+                // Not at the start, which can be inside the first consent call when starting
+                // from stored consent, before an app that sets this just before initialize() has.
+                val adapterWait = adapterStartupWaitSetting
                 captureDiagnosticsSnapshotOnMain()
+                adapterStartupTracker.onAccepted(adapterWait)
+                val adaptersReported = adapterStartupTracker.awaitWithin(handle, adapterWait, acceptedAt)
+                // The identity commit stays here, with Ready, rather than moving to the accept
+                // point above. handedOffConfigIdentity, pinned at markHandoff, already refuses a
+                // different configuration during the wait, and committing earlier would leave the
+                // applied-configuration decision seeing an applied identity with no terminal status.
                 mobileAdsInitializationMutex.withLock {
                     // Native GMA is initialized at this point and can never be reconfigured, so
                     // the identity commit must be unconditional.
@@ -703,6 +891,11 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
                 // AFTER the commit, and isolated: a publisher hook is host code, so its failure is
                 // reported but must never make the native singleton look unapplied.
                 dispatchAfterInitializeHooks(config)
+                if (!adaptersReported) {
+                    // Detached on the same caller-independent scope as this operation: no caller
+                    // can cancel it, and it never touches status, so Ready cannot regress.
+                    nativeInitializationScope.launch { adapterStartupTracker.awaitRest(handle, acceptedAt) }
+                }
                 NativeInitializationResult.Applied
             } catch (failure: Throwable) {
                 NativeInitializationResult.Failed(failure)
@@ -810,9 +1003,7 @@ internal abstract class GoogleAdManagerBase : AdManager, FullScreenPresenceAware
      * and is not addressed here.
      */
     private fun purgeOnRevocation() {
-        val (bannersSnapshot, slotsSnapshot) = registryLock.withLock {
-            Pair(banners.values.toList(), slots.values.toList())
-        }
+        val (bannersSnapshot, slotsSnapshot) = controllers.snapshot()
         bannersSnapshot.forEach { it.clear() }
         slotsSnapshot.forEach { it.clear() }
         onNativeConsentRevoked()

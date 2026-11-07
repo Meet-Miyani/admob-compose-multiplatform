@@ -18,8 +18,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import dev.avinya.ads.AdManager
 import dev.avinya.ads.AdManagerStatus
+import dev.avinya.ads.AdapterStartup
 import dev.avinya.ads.ConsentStatus
 import dev.avinya.ads.NoOpAdManager
+import dev.avinya.ads.adapterStartup
 import dev.avinya.ads.debug.ui.DebugButton
 import dev.avinya.ads.debug.ui.DebugCard
 import dev.avinya.ads.debug.ui.DebugLabel
@@ -67,6 +69,7 @@ private fun ConsentStatus.label(): String = when {
 internal fun DiagnosticsTab(manager: AdManager, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val managerStatus by manager.status.collectAsState()
+    val adapterStartup by manager.adapterStartup.collectAsState()
     val consentStatus by manager.consent.status.collectAsState()
     val canRequestAds by manager.consent.canRequestAds.collectAsState()
     val privacyOptions by manager.consent.privacyOptionsRequirementStatus.collectAsState()
@@ -103,7 +106,12 @@ internal fun DiagnosticsTab(manager: AdManager, modifier: Modifier = Modifier) {
 
         DebugCard {
             DebugText("Adapters", style = DebugType.Title)
-            val adapters = remember(managerStatus) { manager.diagnostics.adapterStatuses() }
+            // Keyed on adapterStartup too: Ready no longer waits for the adapters, so a list taken
+            // at Ready can be partial, and the status does not change again when they finish.
+            val adapters = remember(managerStatus, adapterStartup) { manager.diagnostics.adapterStatuses() }
+            if (adapterStartup == AdapterStartup.InProgress) {
+                DebugLabel("adapters still initializing — the list fills in when they report")
+            }
             if (adapters.isEmpty()) {
                 DebugLabel("no adapters reported — SDK may not be initialized yet")
             } else {

@@ -1,7 +1,10 @@
 package dev.avinya.ads.internal
 
+import dev.avinya.ads.AdLogger
 import dev.avinya.ads.ConsentStatus
 import dev.avinya.ads.PrivacyOptionsRequirementStatus
+import kotlin.time.Duration
+import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * window is the deliberate trade: an unbounded pin would refuse them for the life of the process,
  * and no pin at all would let a reset run `UMPConsentInformation.reset()` under a live form.
  */
-internal class ConsentStateHolder(timeSource: TimeSource = TimeSource.Monotonic) {
+internal class ConsentStateHolder(private val timeSource: TimeSource = TimeSource.Monotonic) {
 
     private val _status = MutableStateFlow<ConsentStatus>(ConsentStatus.Unknown)
     private val _privacyOptionsRequirementStatus =
@@ -39,6 +42,11 @@ internal class ConsentStateHolder(timeSource: TimeSource = TimeSource.Monotonic)
     private val _canRequestAds = MutableStateFlow(false)
 
     private val coordinator = ConsentOperationCoordinator(timeSource)
+
+    // When an info update last reported success in this process. Main-confined like the rest of
+    // this class. Only a success counts: after an error or a wrapper timeout, UMP has not
+    // re-confirmed anything, so the next caller that needs this launch's update must ask again.
+    private var lastSuccessfulInfoUpdate: TimeMark? = null
 
     val status: StateFlow<ConsentStatus> = _status.asStateFlow()
     val privacyOptionsRequirementStatus: StateFlow<PrivacyOptionsRequirementStatus> =
@@ -74,6 +82,61 @@ internal class ConsentStateHolder(timeSource: TimeSource = TimeSource.Monotonic)
 
     /** See [ConsentOperationCoordinator.releaseInfoUpdate]. */
     fun releaseInfoUpdate(generation: Long): Unit = coordinator.releaseInfoUpdate(generation)
+
+    /** See [ConsentOperationCoordinator.isInfoUpdateOutstanding]. */
+    fun isInfoUpdateOutstanding(generation: Long): Boolean = coordinator.isInfoUpdateOutstanding(generation)
+
+    /** Records that a native info update reported success just now. Call from its success callback. */
+    fun recordSuccessfulInfoUpdate() {
+        lastSuccessfulInfoUpdate = timeSource.markNow()
+    }
+
+    /**
+     * How long ago an info update last succeeded in this process, or null if none has.
+     *
+     * UMP asks for one update per app launch. `initialize(…, InitializeOnlyIfAlreadyAllowed)`
+     * uses this to reuse the update `gatherConsent` or `requestConsentInfoUpdate` already made,
+     * instead of a second network round trip in a row.
+     */
+    fun successfulInfoUpdateAge(): Duration? = lastSuccessfulInfoUpdate?.elapsedNow()
+
+    /**
+     * Both controllers' info-update entry point: [update] runs serialized against every other
+     * native consent operation, or, with [reuseThisLaunch], an update that already succeeded in
+     * this process is reused and no native call is made. [onReused] runs then, in place of the
+     * config bookkeeping [update] would have done.
+     *
+     * Reuse is decided under the lock, after any in-flight `gatherConsent` has finished, since
+     * that is the update this call would otherwise repeat; and again when a pin left by an
+     * abandoned operation declines the call, since a pin stops a native call and reusing makes
+     * none. [onBusy] answers only when there is nothing to reuse.
+     */
+    suspend fun serializedInfoUpdate(
+        reuseThisLaunch: Boolean,
+        onReused: () -> Unit,
+        onBusy: () -> ConsentStatus,
+        update: suspend () -> ConsentStatus,
+    ): ConsentStatus {
+        val reused = { if (reuseThisLaunch) reusedInfoUpdateOrNull(onReused) else null }
+        return serializedExclusiveOfNativeConsentOperations(onBusy = { reused() ?: onBusy() }) {
+            reused() ?: update()
+        }
+    }
+
+    private fun reusedInfoUpdateOrNull(onReused: () -> Unit): ConsentStatus? {
+        val age = successfulInfoUpdateAge() ?: return null
+        AdLogger.i("Reusing the UMP consent info update that finished $age ago; no second request.")
+        onReused()
+        return _status.value
+    }
+
+    /** One line per native info update that reports back, on both platforms. */
+    fun logInfoUpdateFinished(platformTag: String, elapsed: Duration, status: ConsentStatus) {
+        AdLogger.i(
+            "$platformTag UMP consent info update finished in ${elapsed.inWholeMilliseconds} ms. " +
+                "status=$status canRequestAds=${_canRequestAds.value}"
+        )
+    }
 
     /**
      * Reconciles authoritative privacy truth UNCONDITIONALLY, then publishes [status] only if
@@ -121,10 +184,12 @@ internal class ConsentStateHolder(timeSource: TimeSource = TimeSource.Monotonic)
     }
 
     /**
-     * Invalidates all outstanding operations by claiming a new generation, and clears all three flows.
+     * Invalidates all outstanding operations by claiming a new generation, clears all three
+     * flows, and forgets the last successful info update.
      */
     fun reset() {
         coordinator.beginOperation()
+        lastSuccessfulInfoUpdate = null
         _status.value = ConsentStatus.Unknown
         _privacyOptionsRequirementStatus.value = PrivacyOptionsRequirementStatus.Unknown
         _canRequestAds.value = false

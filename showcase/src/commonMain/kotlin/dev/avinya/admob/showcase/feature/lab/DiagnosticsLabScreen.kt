@@ -60,6 +60,8 @@ fun DiagnosticsLabScreen(
     val recentEvents by remember(graph.telemetry) { graph.telemetry.adEvents }
         .collectAsState(initial = emptyList())
     val inspectorEnabled by graph.settings.inspectorEnabled.collectAsState(initial = true)
+    val startFromStoredConsent by graph.settings.startFromStoredConsent.collectAsState(initial = true)
+    val waitForAdapters by graph.settings.waitForAdapters.collectAsState(initial = true)
     val sdkVersion = remember(adManager) { adManager.diagnostics.sdkVersion() }
     // Guards retryAwaiting/openAdInspector against a double-tap firing the
     // SDK call twice concurrently — the deleted SettingsViewModel.run()
@@ -180,6 +182,24 @@ fun DiagnosticsLabScreen(
                             checked = inspectorEnabled,
                             onCheckedChange = {
                                 scope.launch { graph.settings.setInspectorEnabled(it) }
+                            },
+                        )
+                        ToggleRow(
+                            label = "Start ads from stored consent",
+                            detail = "Starts the Mobile Ads SDK from the previous session's consent " +
+                                "while UMP updates. Applies on the next launch",
+                            checked = startFromStoredConsent,
+                            onCheckedChange = {
+                                scope.launch { graph.settings.setStartFromStoredConsent(it) }
+                            },
+                        )
+                        ToggleRow(
+                            label = "Wait for mediation adapters",
+                            detail = "On: Ready waits up to 5 s for adapters. Off: Ready as soon as " +
+                                "the SDK accepts requests. Applies on the next launch",
+                            checked = waitForAdapters,
+                            onCheckedChange = {
+                                scope.launch { graph.settings.setWaitForAdapters(it) }
                             },
                         )
                         GhostButton(

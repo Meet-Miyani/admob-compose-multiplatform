@@ -13,9 +13,11 @@ import platform.UIKit.UIApplicationWillEnterForegroundNotification
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 
-// WillEnterForeground (not DidBecomeActive) so the signal fires only on true
-// background-to-foreground returns — DidBecomeActive also fires after permission
-// alerts and consent-form dismissals, which must not trigger app-open ads.
+// WillEnterForeground (not DidBecomeActive): DidBecomeActive also fires after permission
+// alerts and consent-form dismissals, which must not trigger app-open ads. WillEnterForeground is
+// not only a return, though: Apple posts it around launch too when the app launches straight into
+// the foreground. AppOpenAdCoordinator treats a foreground with no background before it as the
+// start-up foreground, not a return, so that launch-time post neither shows nor loads.
 internal actual fun appForegroundState(): Flow<Boolean> = callbackFlow {
     // Observers must be (un)registered on the main thread regardless of which
     // dispatcher collects this flow — mirrors the Android actual. queue = null keeps

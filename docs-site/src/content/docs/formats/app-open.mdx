@@ -71,9 +71,30 @@ observer.
 |---|---|
 | `minBackgroundDuration` | Ignore quick app switches. A return sooner than this does not trigger a show. |
 | `cooldownBetweenShows` | Minimum gap between two app-open impressions. `Duration.ZERO` disables the cooldown. |
-| `preloadOnStart` | Load an ad as soon as the coordinator starts, so the first eligible return has inventory. |
+| `preloadOnStart` | Load an ad as soon as the coordinator starts, so the first eligible return has inventory. It is the only load the coordinator makes before the first return, on both platforms. |
 | `showOnColdStart` | Whether a cold start may show an ad. Read the KDoc before enabling — a cold-start ad competes with your own splash. |
-| `coldStartTimeout` | How long a cold start may wait for an ad before giving up and continuing into the app. |
+| `coldStartTimeout` | How long a cold start may wait for an ad before giving up and continuing into the app. An ad that arrives later is kept for the next qualifying return, never shown late. |
+
+A foreground with no background before it — the one the platform
+reports as the app starts — is not a return. It neither shows nor
+loads: Android replays the process's current `ON_START` to a new
+observer, and iOS posts its foreground notification as an app
+launches into the foreground, so treating it as a return would
+behave differently per platform and per timing.
+
+Google's guidance is not to show an app-open ad once the user has
+reached your content, and the 4-hour expiry is the only limit it
+puts on keeping one. When the cold start gives up at
+`coldStartTimeout`, the coordinator therefore stops waiting but lets
+the load finish into the cache, the way Google's own sample apps do.
+If you drive the cold start yourself, do the same: await `load()`
+with a timeout instead of cancelling it.
+
+```kotlin
+val load = scope.async { controller.load() }
+val inTime = withTimeoutOrNull(splashBudget) { load.await() } != null
+if (inTime) controller.showIfAvailable() // otherwise the ad stays cached for a later return
+```
 
 A short `minBackgroundDuration` maximises impressions and annoys
 users who switch apps to copy a code; four seconds is a reasonable
@@ -191,6 +212,57 @@ A short triage:
 
 The full symptom table is on
 [Troubleshooting](/reference/troubleshooting/).
+
+## Why did a return show no ad?
+
+`coordinator.returns` reports every return to the foreground the
+coordinator evaluated, with how long the app was away and what it
+decided:
+
+```kotlin
+coordinator.returns.collect { entry ->
+    when (val outcome = entry.outcome) {
+        is AppOpenReturnOutcome.ShowAttempted -> log("shown? ${outcome.result}, away ${entry.awayFor}")
+        AppOpenReturnOutcome.NoAdLoaded -> log("no ad held")
+        else -> log("skipped: $outcome")
+    }
+}
+```
+
+The outcomes follow the checklist above: `AwayTooShort`,
+`ReturnedFromAdClick`, `Blocked`, `SdkNotReady`, `CoolingDown`,
+`NoAdLoaded`, `AnotherAdShowing`, or `ShowAttempted` with the
+`AdShowResult`. There is exactly one entry per return. There is none
+for the start-up foreground, which is not a return. For a shown ad
+the entry comes after dismissal, once the outcome is final; its
+impression has already arrived as `AdEvent.Impression`. Your own
+reasons for setting `isBlocked` are yours to record alongside it.
+New outcomes may be added in minor releases, so keep an `else`
+branch.
+
+## Measuring ad requests and expiries
+
+`adManager.loadTelemetry` reports every full-screen ad request —
+start, end, duration, outcome and what started it — and every cached
+ad that expired without being shown. An expired ad was filled, so it
+lowers your show rate without any other trace.
+
+```kotlin
+withContext(AdLoadTag("cold_start")) { controller.load() } // labels your own loads
+
+adManager.loadTelemetry.collect { signal ->
+    when (signal) {
+        is AdLoadTelemetry.RequestFinished -> log("${signal.origin} ${signal.outcome} in ${signal.duration}")
+        is AdLoadTelemetry.CachedAdExpired -> log("expired unseen: ${signal.placementId}")
+        else -> Unit
+    }
+}
+```
+
+Each retry attempt is its own request. A `load()` answered from the
+cache, or refused by the consent gate, sends nothing and reports
+nothing. The coordinator's own loads report `AppOpenStart` or
+`AppOpenAfterReturn` as their origin.
 
 ## Manual controller management
 

@@ -7,6 +7,8 @@ import dev.avinya.ads.internal.ANDROID_UMP_ERROR_DOMAIN
 import dev.avinya.ads.internal.ConsentInfoUpdateOutcome
 import dev.avinya.ads.internal.ConsentStateHolder
 import dev.avinya.ads.internal.InitializationTimeouts
+import dev.avinya.ads.internal.LaunchConsentUpdater
+import dev.avinya.ads.internal.StoredConsentStart
 import dev.avinya.ads.internal.NativeCallbackTimeoutException
 import dev.avinya.ads.internal.awaitHost
 import dev.avinya.ads.internal.awaitNativeCallback
@@ -25,12 +27,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.TimeSource
 
 internal class AndroidConsentController(
     private val activityProvider: () -> Activity?,
     private val appContext: Context,
-    private val onCanRequestAds: suspend (AdConfig) -> Unit
-) : ConsentController {
+    private val onCanRequestAds: suspend (AdConfig) -> Unit,
+    private val storedConsentStart: StoredConsentStart = StoredConsentStart.Disabled,
+) : ConsentController, LaunchConsentUpdater {
     // Kotlin initializes properties in declaration order, so the holder must exist before the
     // exposed flows delegate to it.
     private val state = ConsentStateHolder()
@@ -49,31 +53,44 @@ internal class AndroidConsentController(
     // Same shape as GoogleAdManagerBase.admissionScope: process-wide, never cancelled.
     private val consentScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    override suspend fun requestConsentInfoUpdate(config: AdConfig): ConsentStatus {
-        return withContext(Dispatchers.Main.immediate) {
-            state.serializedExclusiveOfNativeConsentOperations(
-                onBusy = {
-                    ConsentStatus.Failed(
-                        AdError(
-                            code = AdErrorCode.CONSENT_OPERATION_IN_PROGRESS,
-                            message = "requestConsentInfoUpdate() ignored: another native consent operation is already in progress.",
-                        )
-                    )
-                }
-            ) {
-                val ownedConfig = prepareConsentConfig(config)
-                val generation = state.beginOperation()
-                val activity = awaitHost(InitializationTimeouts.consentHost) { activityProvider() }
-                    ?: return@serializedExclusiveOfNativeConsentOperations failNoActivity(generation)
+    override suspend fun requestConsentInfoUpdate(config: AdConfig): ConsentStatus =
+        serializedInfoUpdate(config, via = "requestConsentInfoUpdate", reuseThisLaunch = false)
 
-                val outcome = updateWithActivity(
-                    activity,
-                    ownedConfig,
-                    UserMessagingPlatform.getConsentInformation(appContext),
-                    generation,
+    override suspend fun ensureUpdatedThisLaunch(config: AdConfig): ConsentStatus =
+        serializedInfoUpdate(config, via = "initialize", reuseThisLaunch = true)
+
+    private suspend fun serializedInfoUpdate(
+        config: AdConfig,
+        via: String,
+        reuseThisLaunch: Boolean,
+    ): ConsentStatus = withContext(Dispatchers.Main.immediate) {
+        state.serializedInfoUpdate(
+            reuseThisLaunch = reuseThisLaunch,
+            // No request, so no BeforeConsentRequest hooks; but a privacy-options resume must
+            // still use the config initialize() was given, as when it made its own update.
+            onReused = { lastConfig = config.ownedSnapshot() },
+            onBusy = {
+                ConsentStatus.Failed(
+                    AdError(
+                        code = AdErrorCode.CONSENT_OPERATION_IN_PROGRESS,
+                        message = "requestConsentInfoUpdate() ignored: another native consent operation is already in progress.",
+                    )
                 )
-                outcome.status
             }
+        ) {
+            val ownedConfig = prepareConsentConfig(config)
+            val generation = state.beginOperation()
+            val activity = awaitHost(InitializationTimeouts.consentHost) { activityProvider() }
+                ?: return@serializedInfoUpdate failNoActivity(generation)
+
+            val outcome = updateWithActivity(
+                activity,
+                ownedConfig,
+                UserMessagingPlatform.getConsentInformation(appContext),
+                generation,
+                via,
+            )
+            outcome.status
         }
     }
 
@@ -110,59 +127,76 @@ internal class AndroidConsentController(
         config: AdConfig,
         consentInformation: ConsentInformation,
         generation: Long,
+        via: String,
     ): ConsentInfoUpdateOutcome {
         val params = buildConsentParams(activity, config)
 
         state.markInfoUpdateStarted(generation)
+        AdLogger.i("Android UMP consent info update requested (via $via).")
+        val startedAt = TimeSource.Monotonic.markNow()
         try {
             awaitNativeCallback(
                 operation = "UMP requestConsentInfoUpdate",
                 timeout = InitializationTimeouts.consentInfoUpdate
             ) {
                 suspendSingleShot<Unit> { continuation ->
-                    consentInformation.requestConsentInfoUpdate(
-                        activity,
-                        params,
-                        {
-                            // Resume with Unit, never with a status read here: the resumed value
-                            // is evaluated BEFORE reconcileThenResumeIfActive runs its block, so
-                            // anything read at this point is the PRE-reconciliation status. The
-                            // outcome is built from state.status.value after the await returns.
-                            reconcileThenResumeIfActive(continuation, Unit) {
-                                // Released from the callback, not the waiter: a cancelled or
-                                // timed-out caller does not end the native operation.
-                                state.releaseInfoUpdate(generation)
-                                state.reconcileAndPublish(
-                                    generation = generation,
-                                    privacyRequirement = privacyRequirementOf(consentInformation),
-                                    canRequestAds = consentInformation.canRequestAds(),
-                                    status = resolveConsentInfoUpdateStatus(
-                                        error = null,
-                                        nativeStatus = consentInformationStatus(consentInformation),
-                                    ),
+                    // UMP's canRequestAds returns the previous session's answer from the moment
+                    // this call returns until the update completes. See StoredConsentStart.
+                    storedConsentStart.requestThenReadStored(
+                        state = state,
+                        generation = generation,
+                        config = config,
+                        privacyRequirement = { privacyRequirementOf(consentInformation) },
+                        canRequestAds = { consentInformation.canRequestAds() },
+                        status = { consentInformationStatus(consentInformation) },
+                    ) {
+                        consentInformation.requestConsentInfoUpdate(
+                            activity,
+                            params,
+                            {
+                                // Resume with Unit, never with a status read here: the resumed value
+                                // is evaluated BEFORE reconcileThenResumeIfActive runs its block, so
+                                // anything read at this point is the PRE-reconciliation status. The
+                                // outcome is built from state.status.value after the await returns.
+                                reconcileThenResumeIfActive(continuation, Unit) {
+                                    // Released from the callback, not the waiter: a cancelled or
+                                    // timed-out caller does not end the native operation.
+                                    state.releaseInfoUpdate(generation)
+                                    state.recordSuccessfulInfoUpdate()
+                                    val status = state.reconcileAndPublish(
+                                        generation = generation,
+                                        privacyRequirement = privacyRequirementOf(consentInformation),
+                                        canRequestAds = consentInformation.canRequestAds(),
+                                        status = resolveConsentInfoUpdateStatus(
+                                            error = null,
+                                            nativeStatus = consentInformationStatus(consentInformation),
+                                        ),
+                                    )
+                                    state.logInfoUpdateFinished("Android", startedAt.elapsedNow(), status)
+                                }
+                            },
+                            { formError ->
+                                val mapped = AdError(
+                                    code = formError.errorCode.toString(),
+                                    message = formError.message,
+                                    domain = ANDROID_UMP_ERROR_DOMAIN,
                                 )
-                            }
-                        },
-                        { formError ->
-                            val mapped = AdError(
-                                code = formError.errorCode.toString(),
-                                message = formError.message,
-                                domain = ANDROID_UMP_ERROR_DOMAIN,
-                            )
-                            reconcileThenResumeIfActive(continuation, Unit) {
-                                state.releaseInfoUpdate(generation)
-                                state.reconcileAndPublish(
-                                    generation = generation,
-                                    privacyRequirement = privacyRequirementOf(consentInformation),
-                                    canRequestAds = consentInformation.canRequestAds(),
-                                    status = resolveConsentInfoUpdateStatus(
-                                        error = mapped,
-                                        nativeStatus = consentInformationStatus(consentInformation),
-                                    ),
-                                )
-                            }
-                        },
-                    )
+                                reconcileThenResumeIfActive(continuation, Unit) {
+                                    state.releaseInfoUpdate(generation)
+                                    val status = state.reconcileAndPublish(
+                                        generation = generation,
+                                        privacyRequirement = privacyRequirementOf(consentInformation),
+                                        canRequestAds = consentInformation.canRequestAds(),
+                                        status = resolveConsentInfoUpdateStatus(
+                                            error = mapped,
+                                            nativeStatus = consentInformationStatus(consentInformation),
+                                        ),
+                                    )
+                                    state.logInfoUpdateFinished("Android", startedAt.elapsedNow(), status)
+                                }
+                            },
+                        )
+                    }
                 }
             }
         } catch (timeout: NativeCallbackTimeoutException) {
@@ -198,7 +232,7 @@ internal class AndroidConsentController(
                 val consentInformation = UserMessagingPlatform.getConsentInformation(appContext)
                 // The acquired Activity is reused rather than calling the public
                 // requestConsentInfoUpdate, which would wait for a host a second time.
-                val update = updateWithActivity(activity, owned, consentInformation, generation)
+                val update = updateWithActivity(activity, owned, consentInformation, generation, via = "gatherConsent")
                 if (update is ConsentInfoUpdateOutcome.TimedOut) return@exclusiveOfForms update.status
                 // The irreversible boundary, mirroring GoogleAdManagerBase's markHandoff: past this
                 // line UMP owns the form, and cancelling this coroutine no longer means the screen

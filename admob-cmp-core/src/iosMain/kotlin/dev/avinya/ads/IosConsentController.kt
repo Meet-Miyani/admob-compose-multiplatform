@@ -20,6 +20,8 @@ import dev.avinya.ads.internal.suspendSingleShot
 import dev.avinya.ads.internal.ConsentInfoUpdateOutcome
 import dev.avinya.ads.internal.ConsentStateHolder
 import dev.avinya.ads.internal.InitializationTimeouts
+import dev.avinya.ads.internal.LaunchConsentUpdater
+import dev.avinya.ads.internal.StoredConsentStart
 import dev.avinya.ads.internal.NativeCallbackTimeoutException
 import dev.avinya.ads.internal.awaitHost
 import dev.avinya.ads.internal.awaitNativeCallback
@@ -35,10 +37,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.TimeSource
 
 internal class IosConsentController(
-    val onCanRequestAds: suspend (AdConfig) -> Unit
-) : ConsentController {
+    val onCanRequestAds: suspend (AdConfig) -> Unit,
+    private val storedConsentStart: StoredConsentStart = StoredConsentStart.Disabled,
+) : ConsentController, LaunchConsentUpdater {
     // Kotlin initializes properties in declaration order, so the holder must exist before the
     // exposed flows delegate to it.
     private val state = ConsentStateHolder()
@@ -58,26 +62,40 @@ internal class IosConsentController(
     private val consentScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override suspend fun requestConsentInfoUpdate(config: AdConfig): ConsentStatus =
-        withContext(Dispatchers.Main.immediate) {
-            state.serializedExclusiveOfNativeConsentOperations(
-                onBusy = {
-                    ConsentStatus.Failed(
-                        AdError(
-                            code = AdErrorCode.CONSENT_OPERATION_IN_PROGRESS,
-                            message = "requestConsentInfoUpdate() ignored: another native consent operation is already in progress.",
-                        )
+        serializedInfoUpdate(config, via = "requestConsentInfoUpdate", reuseThisLaunch = false)
+
+    override suspend fun ensureUpdatedThisLaunch(config: AdConfig): ConsentStatus =
+        serializedInfoUpdate(config, via = "initialize", reuseThisLaunch = true)
+
+    private suspend fun serializedInfoUpdate(
+        config: AdConfig,
+        via: String,
+        reuseThisLaunch: Boolean,
+    ): ConsentStatus = withContext(Dispatchers.Main.immediate) {
+        state.serializedInfoUpdate(
+            reuseThisLaunch = reuseThisLaunch,
+            // No request, so no BeforeConsentRequest hooks; but a privacy-options resume must
+            // still use the config initialize() was given, as when it made its own update.
+            onReused = { lastConfig = config.ownedSnapshot() },
+            onBusy = {
+                ConsentStatus.Failed(
+                    AdError(
+                        code = AdErrorCode.CONSENT_OPERATION_IN_PROGRESS,
+                        message = "requestConsentInfoUpdate() ignored: another native consent operation is already in progress.",
                     )
-                }
-            ) {
-                val owned = prepareConsentConfig(config)
-                val outcome = performConsentInfoUpdate(
-                    owned,
-                    UMPConsentInformation.sharedInstance,
-                    state.beginOperation(),
                 )
-                outcome.status
             }
+        ) {
+            val owned = prepareConsentConfig(config)
+            val outcome = performConsentInfoUpdate(
+                owned,
+                UMPConsentInformation.sharedInstance,
+                state.beginOperation(),
+                via,
+            )
+            outcome.status
         }
+    }
 
     private suspend fun prepareConsentConfig(config: AdConfig): AdConfig {
         val owned = config.ownedSnapshot()
@@ -98,8 +116,11 @@ internal class IosConsentController(
         config: AdConfig,
         consentInformation: UMPConsentInformation,
         generation: Long,
+        via: String,
     ): ConsentInfoUpdateOutcome {
         state.markInfoUpdateStarted(generation)
+        AdLogger.i("iOS UMP consent info update requested (via $via).")
+        val startedAt = TimeSource.Monotonic.markNow()
         try {
             awaitNativeCallback(
                 operation = "UMP requestConsentInfoUpdate",
@@ -111,28 +132,41 @@ internal class IosConsentController(
                     // here for that shape. Removing it is not a change this fix set needs to make -- if it is provably
                     // unnecessary, prove it and record the reason, do not delete it because the body looks empty.
                     continuation.invokeOnCancellation { }
-                    consentInformation.requestConsentInfoUpdateWithParameters(buildParams(config)) { error ->
-                        val mapped = error?.let {
-                            AdError(
-                                code = (it.code ?: 0).toString(),
-                                message = it.localizedDescription ?: "Consent info update failed.",
-                                // UMPRequestErrorCode occupies the same 1..4 range as Android's
-                                // FormError.ErrorCode with different meanings, so the domain is
-                                // what tells a consumer which enumeration this code belongs to.
-                                domain = it.domain,
-                            )
-                        }
-                        reconcileThenResumeIfActive(continuation, Unit) {
-                            state.releaseInfoUpdate(generation)
-                            state.reconcileAndPublish(
-                                generation = generation,
-                                privacyRequirement = privacyRequirementOf(consentInformation),
-                                canRequestAds = consentInformation.canRequestAds,
-                                status = resolveConsentInfoUpdateStatus(
-                                    error = mapped,
-                                    nativeStatus = consentInformationStatus(consentInformation),
-                                ),
-                            )
+                    // UMP's canRequestAds returns the previous session's answer from the moment
+                    // this call returns until the update completes. See StoredConsentStart.
+                    storedConsentStart.requestThenReadStored(
+                        state = state,
+                        generation = generation,
+                        config = config,
+                        privacyRequirement = { privacyRequirementOf(consentInformation) },
+                        canRequestAds = { consentInformation.canRequestAds },
+                        status = { consentInformationStatus(consentInformation) },
+                    ) {
+                        consentInformation.requestConsentInfoUpdateWithParameters(buildParams(config)) { error ->
+                            val mapped = error?.let {
+                                AdError(
+                                    code = (it.code ?: 0).toString(),
+                                    message = it.localizedDescription ?: "Consent info update failed.",
+                                    // UMPRequestErrorCode occupies the same 1..4 range as Android's
+                                    // FormError.ErrorCode with different meanings, so the domain is
+                                    // what tells a consumer which enumeration this code belongs to.
+                                    domain = it.domain,
+                                )
+                            }
+                            reconcileThenResumeIfActive(continuation, Unit) {
+                                state.releaseInfoUpdate(generation)
+                                if (mapped == null) state.recordSuccessfulInfoUpdate()
+                                val status = state.reconcileAndPublish(
+                                    generation = generation,
+                                    privacyRequirement = privacyRequirementOf(consentInformation),
+                                    canRequestAds = consentInformation.canRequestAds,
+                                    status = resolveConsentInfoUpdateStatus(
+                                        error = mapped,
+                                        nativeStatus = consentInformationStatus(consentInformation),
+                                    ),
+                                )
+                                state.logInfoUpdateFinished("iOS", startedAt.elapsedNow(), status)
+                            }
                         }
                     }
                 }
@@ -171,7 +205,7 @@ internal class IosConsentController(
                 // the consent FORM below needs one, and it is acquired once, there. We call the
                 // private performConsentInfoUpdate step directly rather than routing through the public
                 // requestConsentInfoUpdate to avoid Mutex re-entrancy deadlocks on the operations slot.
-                val update = performConsentInfoUpdate(owned, consentInformation, generation)
+                val update = performConsentInfoUpdate(owned, consentInformation, generation, via = "gatherConsent")
                 if (update is ConsentInfoUpdateOutcome.TimedOut) return@exclusiveOfForms update.status
                 // Waits rather than failing on the first null. topViewController() deliberately
                 // reports null while the top controller is mid-presentation or mid-dismissal, which

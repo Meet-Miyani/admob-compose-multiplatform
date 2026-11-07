@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The primary entry point to the AdMob CMP SDK. 
@@ -92,6 +94,89 @@ public interface AdManager {
     public fun rewardedInterstitial(placement: AdPlacement): RewardedInterstitialAdController
     /** Returns an [AppOpenAdController] for [placement], cached by id. */
     public fun appOpen(placement: AdPlacement): AppOpenAdController
+
+    public companion object {
+        /** Default [dev.avinya.ads.adapterStartupWait]: the value in every example of Google's guidance. */
+        public val DEFAULT_ADAPTER_STARTUP_WAIT: Duration = 5.seconds
+
+        /** Largest [dev.avinya.ads.adapterStartupWait]: the bound the SDK itself documents for adapter initialization. */
+        public val MAX_ADAPTER_STARTUP_WAIT: Duration = 30.seconds
+    }
+}
+
+/**
+ * How long [AdManagerStatus.Ready] waits for mediation adapters once the Google Mobile Ads SDK
+ * accepts ad requests. Ready comes when the adapters report back, or this long after the SDK
+ * started accepting requests, whichever is first. Default [AdManager.DEFAULT_ADAPTER_STARTUP_WAIT].
+ *
+ * A longer wait lets more ad networks take part in the first requests; a shorter one gets the
+ * first ad sooner. Google's guidance is to wait for adapters but never without a limit (its "Set
+ * an initialization timeout" section, five seconds in every example). Zero publishes Ready as
+ * soon as the SDK accepts requests. [AdManager.MAX_ADAPTER_STARTUP_WAIT] matches the SDK's own
+ * bound and restores the behaviour from before this setting existed. Follow [adapterStartup] for
+ * the adapters themselves.
+ *
+ * Read once, when the SDK accepts requests. Set it before calling [AdManager.initialize] — and,
+ * with [startFromStoredConsent] on, before the first consent call, since the SDK can start
+ * there. Must be between zero and [AdManager.MAX_ADAPTER_STARTUP_WAIT].
+ *
+ * Start-up configuration, not state: no `Flow` reflects it, which is why it is an extension over
+ * an internal capability rather than a member of the Compose-stable [AdManager]. A manager without
+ * the capability ([NoOpAdManager], or a custom implementation) reports the default and ignores
+ * the value.
+ */
+public var AdManager.adapterStartupWait: Duration
+    get() = (this as? StartupSettings)?.adapterStartupWaitSetting ?: AdManager.DEFAULT_ADAPTER_STARTUP_WAIT
+    set(value) {
+        requireValidAdapterStartupWait(value)
+        (this as? StartupSettings)?.adapterStartupWaitSetting = value
+    }
+
+/**
+ * Opt-in. When true, the SDK starts the Google Mobile Ads SDK from consent stored in an earlier
+ * session, instead of after the launch's UMP update returns. Off by default.
+ *
+ * Every UMP consent info update this SDK makes — from [ConsentController.gatherConsent],
+ * [ConsentController.requestConsentInfoUpdate] or [AdManager.initialize] — then reads UMP's
+ * stored answer as soon as the update has been requested. If that answer allows ad requests,
+ * initialization starts with the [AdConfig] passed to that call while the update is still in
+ * flight. Google documents this ("Immediately after you have called requestConsentInfoUpdate().
+ * The UMP SDK might have obtained consent in the previous app session.") and every Google sample
+ * app starts the Mobile Ads SDK there.
+ *
+ * - A first run, a declined user, or any stored answer that does not allow ads waits for UMP
+ *   exactly as before.
+ * - If the update then withdraws consent — for instance a stored decision that has expired —
+ *   the request gate closes and cached inventory is purged. Requests already sent in that window
+ *   cannot be recalled. [AdManager.status] stays [AdManagerStatus.Ready]: the SDK is initialized;
+ *   consent is what blocks requests. A withdrawal that lands before the SDK has started, while
+ *   `BeforeMobileAdsInitialize` hooks are still running for instance, starts nothing, and
+ *   [AdManager.initialize] reports [AdManagerStatus.ConsentRequired].
+ * - On iOS it happens only once App Tracking Transparency has been answered, or when the app
+ *   declares no `NSUserTrackingUsageDescription`. Otherwise the order stays consent, ATT,
+ *   initialize, so the first requests can carry the IDFA.
+ * - `BeforeMobileAdsInitialize` hooks still run before the Mobile Ads SDK starts.
+ *
+ * Turn it on only if nothing the app does between consent and [AdManager.initialize] has to come
+ * before the Mobile Ads SDK starts; move anything that does into a `BeforeMobileAdsInitialize`
+ * hook. Pass the same [AdConfig] to the consent call and to [AdManager.initialize]: a different
+ * one is an initialization conflict, as it is today.
+ *
+ * Set it, and [adapterStartupWait], before the first consent call. Start-up configuration, not
+ * state, so an extension rather than a member, like [adapterStartupWait]. A manager without the
+ * capability ([NoOpAdManager], or a custom implementation) reports false and ignores the value.
+ */
+public var AdManager.startFromStoredConsent: Boolean
+    get() = (this as? StartupSettings)?.startFromStoredConsentSetting ?: false
+    set(value) {
+        (this as? StartupSettings)?.startFromStoredConsentSetting = value
+    }
+
+/** Capability behind [adapterStartupWait] and [startFromStoredConsent]. Implemented by the platform managers. */
+internal interface StartupSettings {
+    /** Already validated by the [adapterStartupWait] setter. */
+    var adapterStartupWaitSetting: Duration
+    var startFromStoredConsentSetting: Boolean
 }
 
 /**
@@ -188,11 +273,12 @@ public interface AdDiagnostics {
     /**
      * Returns the initialization status of all ad adapters.
      *
-     * This is an **initialization-time snapshot**, captured on the main thread while
-     * the SDK initializes. It returns an empty list before initialization completes,
-     * and an adapter whose status changes afterwards is not reflected until the
-     * manager re-initializes. Accepted because adapter statuses are near-static
-     * post-init and this is debug/support tooling, not part of the ad-serving path.
+     * This is an **initialization-time snapshot**, captured on the main thread when the
+     * SDK starts accepting requests and refreshed once the adapters report back (see
+     * [dev.avinya.ads.adapterStartup]). It returns an empty list before initialization, may
+     * be partial while adapters are still starting, and an adapter whose status changes after
+     * they report is not reflected. Accepted because this is debug/support tooling, not part
+     * of the ad-serving path.
      */
     public fun adapterStatuses(): List<AdapterInitializationStatus>
 }

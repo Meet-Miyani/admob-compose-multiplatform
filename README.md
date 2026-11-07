@@ -92,7 +92,7 @@ fun App() {
 }
 ```
 
-`gatherConsentAndInitialize` runs the whole production sequence for you: UMP consent, then App Tracking Transparency on iOS, then the one-time SDK initialization. Gate ad-dependent UI on `adManager.status.collectAsState()` reaching `AdManagerStatus.Ready`.
+`gatherConsentAndInitialize` runs UMP consent and then the one-time SDK initialization. It does not request App Tracking Transparency on iOS: for that, use the consent → ATT → initialize order in the [ATT guide](https://ads.avinya.dev/privacy/app-tracking-transparency/). Gate ad-dependent UI on `adManager.status.collectAsState()` reaching `AdManagerStatus.Ready`.
 
 A banner is one composable — it measures its own container and supplies the width, so adaptive sizing is correct even in iPad split view and Slide Over:
 

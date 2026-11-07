@@ -4,7 +4,12 @@ import dev.avinya.ads.internal.ConsentStateHolder
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TestTimeSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
@@ -539,5 +544,155 @@ class ConsentStateHolderTest {
         assertEquals(ConsentStatus.Unknown, holder.status.value, "a pre-reset generation cannot republish")
         assertEquals(PrivacyOptionsRequirementStatus.NotRequired, holder.privacyOptionsRequirementStatus.value)
         assertTrue(holder.canRequestAds.value, "truth reconciliation survives the reset")
+    }
+
+    @Test
+    fun `successfulInfoUpdateAge is null before any successful info update`() {
+        val holder = ConsentStateHolder()
+
+        assertNull(holder.successfulInfoUpdateAge())
+    }
+
+    @Test
+    fun `successfulInfoUpdateAge measures time since the recorded success`() {
+        val testTimeSource = TestTimeSource()
+        val holder = ConsentStateHolder(testTimeSource)
+
+        holder.recordSuccessfulInfoUpdate()
+
+        assertEquals(Duration.ZERO, holder.successfulInfoUpdateAge(), "age is zero immediately after recording")
+        testTimeSource += 3.seconds
+        assertEquals(3.seconds, holder.successfulInfoUpdateAge(), "age advances with the time source")
+    }
+
+    @Test
+    fun `reset forgets a recorded successful info update`() {
+        val testTimeSource = TestTimeSource()
+        val holder = ConsentStateHolder(testTimeSource)
+        holder.recordSuccessfulInfoUpdate()
+        assertEquals(Duration.ZERO, holder.successfulInfoUpdateAge())
+
+        holder.reset()
+
+        assertNull(holder.successfulInfoUpdateAge(), "a reset must make the launch's update no longer reusable")
+    }
+
+    @Test
+    fun `serializedInfoUpdate reuses a successful update from this launch without running the update`() = runTest {
+        val state = ConsentStateHolder()
+        state.recordSuccessfulInfoUpdate()
+        var updateCalls = 0
+        var reusedCalls = 0
+
+        val result = state.serializedInfoUpdate(
+            reuseThisLaunch = true,
+            onReused = { reusedCalls++ },
+            onBusy = { error("must not be busy") },
+            update = {
+                updateCalls++
+                ConsentStatus.Obtained
+            },
+        )
+
+        assertEquals(0, updateCalls, "a successful update from this launch must not be repeated")
+        assertEquals(1, reusedCalls, "the reuse must be reported exactly once")
+        assertEquals(state.status.value, result, "the reused call returns what status holds")
+    }
+
+    @Test
+    fun `serializedInfoUpdate runs the update when nothing succeeded yet`() = runTest {
+        val state = ConsentStateHolder()
+        var updateCalls = 0
+        var reusedCalls = 0
+
+        val result = state.serializedInfoUpdate(
+            reuseThisLaunch = true,
+            onReused = { reusedCalls++ },
+            onBusy = { error("must not be busy") },
+            update = {
+                updateCalls++
+                ConsentStatus.Obtained
+            },
+        )
+
+        assertEquals(1, updateCalls, "with no success to reuse the update must run once")
+        assertEquals(0, reusedCalls, "nothing was reused")
+        assertEquals(ConsentStatus.Obtained, result, "the result is the update's own value")
+    }
+
+    @Test
+    fun `serializedInfoUpdate without reuse runs the update even after a success`() = runTest {
+        val state = ConsentStateHolder()
+        state.recordSuccessfulInfoUpdate()
+        var updateCalls = 0
+        var reusedCalls = 0
+
+        state.serializedInfoUpdate(
+            reuseThisLaunch = false,
+            onReused = { reusedCalls++ },
+            onBusy = { error("must not be busy") },
+            update = {
+                updateCalls++
+                ConsentStatus.Obtained
+            },
+        )
+
+        assertEquals(1, updateCalls, "without reuse the update must run even though one succeeded")
+        assertEquals(0, reusedCalls, "without reuse nothing is reused")
+    }
+
+    @Test
+    fun `an abandoned info-update pin falls back to reuse instead of declining`() = runTest {
+        val state = ConsentStateHolder()
+        state.recordSuccessfulInfoUpdate()
+        // Left without a release, as an abandoned caller would leave it.
+        val generation = state.beginOperation()
+        state.markInfoUpdateStarted(generation)
+        val busy = ConsentStatus.Failed(AdError.message("busy"))
+        var busyCalls = 0
+        var updateCalls = 0
+        var reusedCalls = 0
+
+        val result = state.serializedInfoUpdate(
+            reuseThisLaunch = true,
+            onReused = { reusedCalls++ },
+            onBusy = {
+                busyCalls++
+                busy
+            },
+            update = {
+                updateCalls++
+                ConsentStatus.Obtained
+            },
+        )
+
+        assertEquals(0, busyCalls, "a recorded success must be reused rather than declined as busy")
+        assertEquals(0, updateCalls, "the pin stops a native call, so no update may run")
+        assertEquals(1, reusedCalls, "the pinned call must fall back to reuse")
+        assertEquals(state.status.value, result, "the reused call returns what status holds")
+    }
+
+    @Test
+    fun `an abandoned info-update pin with nothing to reuse still declines`() = runTest {
+        val state = ConsentStateHolder()
+        val generation = state.beginOperation()
+        state.markInfoUpdateStarted(generation)
+        val busy = ConsentStatus.Failed(AdError.message("busy"))
+        var updateCalls = 0
+        var reusedCalls = 0
+
+        val result = state.serializedInfoUpdate(
+            reuseThisLaunch = true,
+            onReused = { reusedCalls++ },
+            onBusy = { busy },
+            update = {
+                updateCalls++
+                ConsentStatus.Obtained
+            },
+        )
+
+        assertSame(busy, result, "with nothing to reuse the pinned call must decline with onBusy's answer")
+        assertEquals(0, updateCalls, "the pin stops a native call")
+        assertEquals(0, reusedCalls, "nothing was recorded to reuse")
     }
 }

@@ -10,15 +10,14 @@ import GoogleMobileAds.GADInlineAdaptiveBannerAdSizeWithWidthAndMaxHeight
 import GoogleMobileAds.GADLargeAnchoredAdaptiveBannerAdSizeWithWidth
 import GoogleMobileAds.GADMobileAds
 import dev.avinya.ads.internal.DeclaredAppId
-import dev.avinya.ads.internal.InitializationTimeouts
 import dev.avinya.ads.internal.NativeAdManagerImpl
-import dev.avinya.ads.internal.awaitNativeCallback
+import dev.avinya.ads.internal.attRefusalForStoredConsentStart
 import dev.avinya.ads.internal.emitOrLogDrop
-import dev.avinya.ads.internal.suspendSingleShot
 import dev.avinya.ads.nativead.IosNativeAdPlatform
 import dev.avinya.ads.nativead.IosNativeMemorySignal
 import dev.avinya.ads.nativead.NativeAdManager
 import dev.avinya.ads.nativead.NativeAdMemoryPolicy
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.cinterop.CValue
@@ -44,10 +43,13 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
     // this is preserved rather than unified.
     override val nativeInitializationDispatcher: CoroutineDispatcher = Dispatchers.Main
 
-    override val consent: ConsentController = IosConsentController(resume@{ config ->
-        val mode = privacyOptionsResumeMode() ?: return@resume
-        initialize(config, mode)
-    })
+    override val consent: ConsentController = IosConsentController(
+        onCanRequestAds = resume@{ config ->
+            val mode = privacyOptionsResumeMode() ?: return@resume
+            initialize(config, mode)
+        },
+        storedConsentStart = storedConsentStart,
+    )
     private val iosDiagnostics = IosAdDiagnostics()
     override val diagnostics: AdDiagnostics = iosDiagnostics
     override val tracking: AdTrackingController = IosTrackingController
@@ -130,48 +132,46 @@ internal class IosGoogleAdManager : GoogleAdManagerBase() {
         iosDiagnostics.captureSnapshotOnMain()
     }
 
+    /**
+     * Invariant 11: ATT precedes the first iOS request when the app requests ATT at all. A
+     * stored-consent start before the prompt has been answered would send the first requests,
+     * and any ads GMA preloads during start, without the IDFA. Without the usage description the
+     * app can never ask, so waiting would gain nothing.
+     */
+    override fun storedConsentStartRefusal(): String? = attRefusalForStoredConsentStart(
+        tracking = tracking.status(),
+        declaresTrackingUsageDescription =
+            NSBundle.mainBundle.objectForInfoDictionaryKey("NSUserTrackingUsageDescription") != null,
+    )
+
     override suspend fun initializeMobileAdsNative(
         config: AdConfig,
         requestedIdentity: AdInitializationConfigIdentity,
         markHandoff: suspend () -> Unit,
-    ) {
+    ): NativeInitializationHandle {
         // Writing the request configuration onto the shared instance is already a process-global
         // mutation, so iOS's boundary is earlier than Android's.
         markHandoff()
         GADMobileAds.sharedInstance.requestConfiguration.let { requestConfig ->
             requestedIdentity.globalRequestConfiguration.applyTo(requestConfig)
         }
-        // MUST stay bounded: GMA can accept start() and never invoke the handler, which would
-        // leave initialize() suspended forever otherwise. A timeout is NOT a
-        // CancellationException (see awaitNativeCallback), so it reaches the catch below as a
-        // real failure. The requested identity is pinned as handed-off before this call
-        // regardless, so retrying the SAME configuration is still the correct next step, while
-        // a retry with a DIFFERENT one is refused deterministically instead of being
-        // reported as applied. See GoogleAdManagerBase.handedOffConfigIdentity.
-        awaitNativeCallback(
-            operation = "GADMobileAds.start",
-            timeout = InitializationTimeouts.nativeInitialize
-        ) {
-            suspendSingleShot<Unit> { continuation ->
-                GADMobileAds.sharedInstance.startWithCompletionHandler { status ->
-                    val adapterStates = status?.adapterStatusesByClassName
-                    if (adapterStates != null) {
-                        adapterStates.forEach { (name, _) ->
-                            AdLogger.d("iOS adapter '${name}'")
-                        }
-                    }
-                    continuation.resume(Unit)
-                }
-            }
-        }
+        // start() returns at once, and the SDK accepts requests from then on: its reference says
+        // it "starts on the first ad request if this method is not called". The completion
+        // handler is the adapters' own signal — it fires once they are set up or GMA's own
+        // timeout passes, or never — and the base class bounds how long Ready waits for it. Each
+        // adapter is logged there, on both platforms, once it reports.
+        val adapters = CompletableDeferred<Unit>()
+        GADMobileAds.sharedInstance.startWithCompletionHandler { _ -> adapters.complete(Unit) }
         // publisherFirstPartyIdEnabled is applied by applyTo() above, with the rest of the
-        // request configuration and before start(). It used to be logged and dropped here.
+        // request configuration and before start(). Audio is applied here, at the accept point,
+        // so it is in force once Ready is published.
         config.globalRequestConfiguration.appMuted?.let {
             GADMobileAds.sharedInstance.applicationMuted = it
         }
         config.globalRequestConfiguration.appVolume?.let {
             GADMobileAds.sharedInstance.applicationVolume = it.coerceIn(0f, 1f)
         }
+        return NativeInitializationHandle(adapters)
     }
 
     override fun banner(placement: AdPlacement): BannerAdController =

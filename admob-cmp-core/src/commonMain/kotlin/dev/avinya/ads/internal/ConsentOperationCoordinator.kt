@@ -131,6 +131,9 @@ internal class ConsentOperationCoordinator(
         if (nativeInfoUpdate?.generation == generation) nativeInfoUpdate = null
     }
 
+    /** Whether the info update [generation] started has not reported back yet. */
+    fun isInfoUpdateOutstanding(generation: Long): Boolean = nativeInfoUpdate?.generation == generation
+
     /**
      * Runs [block] with no other coordinated consent operation in flight, waiting if one is.
      *
