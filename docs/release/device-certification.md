@@ -395,6 +395,12 @@ Findings from the run:
   `IosBannerAdView` sizes the `UIKitView` with `.fillMaxWidth().height(adSize.height)`, so a
   `Fixed` size's width never reaches the frame. Banner code is unchanged since 2.6.0, so this
   is not a regression. It was measured from screenshots; the view frame was not read directly.
+  **Fixed in #71** (`32881d88`). The banner now sits in a full-width row at the ad size's own
+  width, centred, as on Android. On the same simulator the fixed frame measured 960 px at 3×
+  (320 pt), centred, in portrait and landscape. The anchored adaptive banner still spans the
+  container, and the collapsible banner expands and collapses as before. The test creative's
+  text clips inside the 320×50 frame. The cause is the showcase's choice of test unit for that
+  slot, Google's adaptive one (`…/2435281174`); the fixed-size unit is `…/2934735716`.
 - **F6 — row 13 vs the SDK's design.** The showcase's launch refresh is `gatherConsent`. That
   call claims the consent slot, and `showPrivacyOptions()` documents declining while it is
   held. So every privacy-options tap in the first 1–3 s is declined, and none opens a form. The
