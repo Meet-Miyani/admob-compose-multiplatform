@@ -295,3 +295,40 @@ Findings from the run:
 - **F4 — unverified, pre-existing code.** In landscape the Fixed 320×50 banner's creative
   looked wider than 320 pt. Banner code is unchanged since 2.6.0; a view-frame
   measurement is needed before calling it a defect.
+
+## Run record — 2026-11-07, #66 after #68 merged (iOS simulator only)
+
+#68 fixed F1, and `d49b08c3` merged it into #66. This run repeats the consent and native
+rows, the ones #68 changed. Same simulator as the run above, `iosApp` scheme built at
+`d49b08c3`, which had `READINESS: PASS`. The app was uninstalled first, so it was a fresh
+install, with the same test ad units and showcase defaults. The reinstall cleared the
+debug geography, so the first launch ran outside the EEA. Rows 1 and 4 come from a
+relaunch with EEA set and consent reset. Evidence comes from the same sources as above.
+There was no crash report and no exception on the console in either launch.
+
+The same deviations apply: no Android column and no physical iPhone. Rows 2, 5–8, 10 and
+13–15 were not re-run, because #68 does not touch them.
+
+| # | Scenario | iOS sim | Evidence |
+|---|---|---|---|
+| 1 | EEA, consent accepted → ads serve | PASS | GDPR form shown on relaunch. No ad event and no `initialize` while it was open. After **Consent**: `initialize` reused the launch's UMP update ("no second request"), adapters 112 ms, `app_open` and `feed_native` `Loaded` 1.2 s and 1.4 s later. The feed's native ad recorded `Impression` + `Paid` |
+| 3 | Revoke after ads were allowed → `load()`/`show()` blocked | PASS | Inspector **Reset consent (debug)** with the Today feed's native ad on screen: "consent revoked … purging", purge `fullScreen=1 nativeSessions=1`. Inspector: session `active`, slot `Ready` → `Empty`, manager loaded 4 → 0, reserved 0. Scrolling the feed requested nothing and did not crash (same PID). An interstitial `load()` then failed with `consent_required` |
+| 4 | Grant after prior denial → initialization resumes once | PASS | Same relaunch. The stored-consent start waited, and UMP reported `Required canRequestAds=false`. For the whole launch: one UMP update, one `initialize requested`, one "accepts ad requests", one "initialization succeeded" |
+| 9 | All six formats render: native | PASS | Feed: sponsored card, `Loaded` + `Impression` + `Paid`. Native lab: the same three events |
+| 11 | Native ad validator clean | PASS | "No implementation issues found"; `AdLayoutValidator` "No findings" |
+| 12 | Ordering UMP → ATT → first ad request | PASS | First launch: the UMP update finished 14:46:01.6 (`Required canRequestAds=false`), then the UMP explainer, then ATT allowed. `initialize` at 14:46:25.4, first `Loaded` 14:46:27.9 |
+| — | F1: native lab **Close** → **Recreate** | PASS | Close: "slot: not in window · active: false · tracked slots: 0". Recreate: a new ad loaded (instance 2 → 3, new response ID), no crash |
+
+Not covered on a device:
+
+- **Consent allowed again in the same process.** The showcase only asks for consent at
+  startup, so it cannot reach this state. Unit tests cover the coordinator re-offering
+  demand, and the admission hook firing on the transition. Across a relaunch, row 1
+  above loaded the feed again.
+- **A launch-time UMP update that withdraws stored consent.** This is the extra way to
+  reach F1 that #66's stored-consent start added. Reproducing it needs UMP to withdraw
+  consent stored in an earlier session during the update, which the simulator cannot
+  arrange.
+
+F2, F3 and F4 are still open. F3 was seen again: after the reset, the SDK Lab header
+read "Ready — ads may load".
