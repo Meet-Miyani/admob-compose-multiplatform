@@ -44,6 +44,7 @@ fun SdkLabScreen(
     val palette = showcaseColors
     val adManager = LocalAdManager.current
     val status by adManager.status.collectAsState()
+    val canRequestAds by adManager.consent.canRequestAds.collectAsState()
 
     LabScreen(
         title = "SDK Lab",
@@ -58,11 +59,11 @@ fun SdkLabScreen(
                     verticalArrangement = Arrangement.spacedBy(Tokens.Spacing.s4),
                 ) {
                     Text(
-                        text = status.headline(),
+                        text = sdkLabHeadline(status, canRequestAds),
                         style = MaterialTheme.typography.titleLarge,
-                        color = when (status) {
-                            is AdManagerStatus.Ready -> palette.success
-                            is AdManagerStatus.Failed -> palette.danger
+                        color = when {
+                            status is AdManagerStatus.Failed -> palette.danger
+                            status is AdManagerStatus.Ready && canRequestAds -> palette.success
                             else -> palette.ink
                         },
                     )
@@ -116,11 +117,16 @@ fun SdkLabScreen(
     }
 }
 
-private fun AdManagerStatus.headline(): String = when (this) {
-    is AdManagerStatus.Ready -> "Ready — ads may load"
+/**
+ * `Ready` alone does not mean ads may load. The status describes the Mobile Ads SDK and stays
+ * `Ready` after consent is withdrawn, while the SDK refuses every request until
+ * `consent.canRequestAds` is true again.
+ */
+internal fun sdkLabHeadline(status: AdManagerStatus, canRequestAds: Boolean): String = when (status) {
+    is AdManagerStatus.Ready -> if (canRequestAds) "Ready — ads may load" else "Ready — consent blocks ads"
     is AdManagerStatus.ConsentRequired -> "Consent required"
     is AdManagerStatus.Initializing -> "Initialising…"
     is AdManagerStatus.Idle -> "Idle"
-    is AdManagerStatus.Disabled -> "Disabled: $reason"
-    is AdManagerStatus.Failed -> "Failed: ${error.message}"
+    is AdManagerStatus.Disabled -> "Disabled: ${status.reason}"
+    is AdManagerStatus.Failed -> "Failed: ${status.error.message}"
 }
