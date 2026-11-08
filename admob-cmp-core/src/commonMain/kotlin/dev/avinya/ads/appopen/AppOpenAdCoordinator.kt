@@ -135,7 +135,8 @@ public class AppOpenAdCoordinator internal constructor(
     private var probeToken: FullScreenPresentationArbiter.PresentationToken? = null
 
     /**
-     * When true, the coordinator skips all foreground-show attempts.
+     * A switch your app sets, not a status the coordinator reports: the coordinator only reads
+     * it. When true, the coordinator skips all foreground-show attempts.
      * Set this during purchases, onboarding, or any full-screen flow that
      * must not be interrupted by a coordinator-driven app-open ad.
      */

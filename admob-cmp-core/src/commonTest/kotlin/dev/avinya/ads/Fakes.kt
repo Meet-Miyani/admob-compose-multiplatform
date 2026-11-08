@@ -186,7 +186,6 @@ internal class FakeAppOpenAdController(
         _loadState.value = AdLoadState.Loaded()
         return _loadState.value
     }
-    override suspend fun preload(requestOptions: AdRequestOptions): AdLoadState = load(requestOptions)
     override suspend fun show(options: FullScreenAdOptions): AdShowResult {
         beforeShow?.invoke()
         showCalled = true

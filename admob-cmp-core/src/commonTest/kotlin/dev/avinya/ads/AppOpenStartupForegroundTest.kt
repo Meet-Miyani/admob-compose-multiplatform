@@ -62,8 +62,6 @@ private class CountingAppOpenController(
         return _loadState.value
     }
 
-    override suspend fun preload(requestOptions: AdRequestOptions): AdLoadState = load(requestOptions)
-
     override suspend fun show(options: FullScreenAdOptions): AdShowResult {
         showCalls++
         // The ad is consumed by a show, so the coordinator must reload afterwards.

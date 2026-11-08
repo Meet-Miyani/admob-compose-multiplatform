@@ -126,8 +126,6 @@ private class OriginRecordingAppOpenController(
         return _loadState.value
     }
 
-    override suspend fun preload(requestOptions: AdRequestOptions): AdLoadState = load(requestOptions)
-
     override suspend fun show(options: FullScreenAdOptions): AdShowResult {
         ready = false
         _loadState.value = AdLoadState.Idle

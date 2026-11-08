@@ -107,7 +107,7 @@ public sealed interface AdRequestOutcome {
  * New origins may be added in minor releases. Include an `else` branch when you switch on it.
  */
 public sealed interface AdLoadOrigin {
-    /** `load()` or `preload()` called by the app; [tag] comes from an [AdLoadTag] in the calling coroutine. */
+    /** `load()` called by the app; [tag] comes from an [AdLoadTag] in the calling coroutine. */
     public data class App(val tag: String?) : AdLoadOrigin
 
     /** `AdCachePolicy.reloadAfterShow` refilling the slot after a show. */

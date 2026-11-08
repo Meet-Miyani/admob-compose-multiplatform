@@ -38,6 +38,20 @@ import kotlin.time.Duration.Companion.minutes
  * opt-in and must be deliberate: a higher [hardLimit] raises the worst-case
  * memory footprint across the process, and the platform memory-pressure
  * signal still remains authoritative for critical trim.
+ *
+ * Two of the names are easy to confuse:
+ * - [inactiveSessionLimit] is a number of **ads**: the most ads any one inactive session keeps.
+ * - [maxInactiveSessions] is a number of **sessions**: how many may be inactive at once.
+ *
+ * @property softLimit Native ads, across every session, past which nothing more is loaded
+ *   speculatively.
+ * @property hardLimit Native ads, loaded or loading, across every session; never exceeded.
+ * @property inactiveSessionLimit The most ads any one inactive session keeps. Not a limit on the
+ *   number of inactive sessions; that is [maxInactiveSessions].
+ * @property maxInactiveSessions How many sessions may be inactive at once before the least
+ *   recently used is reaped.
+ * @property maxSessionRecords How many sessions the registry tracks in all.
+ * @property inactiveSessionTtl How long a session may stay inactive before it is reaped.
  */
 public data class NativeAdMemoryPolicy(
     val softLimit: Int = 4,
@@ -97,6 +111,11 @@ public data class NativeAdMemoryPolicy(
  * [prefetchAhead] — must be strictly less than [maxRetainedAds], because at
  * least one slot is reserved for the currently-visible band. The arithmetic
  * is done in [Long] to keep the comparison safe at the validation boundary.
+ *
+ * "Retained" means two things nearby. [maxRetainedAds] counts **every** ad the session holds,
+ * visible ones included, while [NativeAdSlotState.Retained] is only a slot that has scrolled out
+ * of view and still holds its ad. And this [retainBehind] is a distance, while
+ * [NativeAdWindow.retainBehind] is the list of slots in that band.
  */
 public data class NativeAdSessionPolicy(
     val maxRetainedAds: Int = 3,

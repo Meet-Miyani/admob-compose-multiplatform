@@ -105,7 +105,8 @@ public interface AdManager {
 }
 
 /**
- * How long [AdManagerStatus.Ready] waits for mediation adapters once the Google Mobile Ads SDK
+ * The mediation adapter initialization timeout, in Google's terms: how long
+ * [AdManagerStatus.Ready] waits for mediation adapters once the Google Mobile Ads SDK
  * accepts ad requests. Ready comes when the adapters report back, or this long after the SDK
  * started accepting requests, whichever is first. Default [AdManager.DEFAULT_ADAPTER_STARTUP_WAIT].
  *
@@ -340,7 +341,14 @@ public interface FullScreenAdController {
     public fun isReady(): Boolean = availability().isReady
     /** Loads an ad. Suspends until the load completes. */
     public suspend fun load(requestOptions: AdRequestOptions = placement.requestOptions): AdLoadState
-    /** Alias for [load]. */
+    /**
+     * Alias for [load], with no difference in behaviour. Deprecated because a second name for the
+     * same call makes readers look for a difference that does not exist.
+     */
+    @Deprecated(
+        message = "preload() is the same call as load(). Use load().",
+        replaceWith = ReplaceWith("load(requestOptions)"),
+    )
     public suspend fun preload(requestOptions: AdRequestOptions = placement.requestOptions): AdLoadState = load(requestOptions)
     /** Shows the ad. Suspends until the ad is dismissed and returns [AdShowResult]. */
     public suspend fun show(options: FullScreenAdOptions = placement.fullScreenOptions): AdShowResult
