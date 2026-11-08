@@ -153,7 +153,8 @@ reducing first-impression latency also says to set an initialization
 timeout, and "proceed with the ad request after the time limit you set,
 or after initialization completes"
 ([Google](https://developers.google.com/admob/android/next-gen/reduce-first-impression-latency));
-every example there uses five seconds. Without a limit, one stalled
+every example there uses five seconds. `adapterStartupWait` is that
+initialization timeout. Without a limit, one stalled
 adapter holds back every ad in the app for up to the SDK's own 30
 seconds. Set `AdManager.MAX_ADAPTER_STARTUP_WAIT` (30 seconds) to wait
 as long as the SDK does.
@@ -173,6 +174,9 @@ adManager.adapterStartup.collect { startup ->
 
 The SDK also logs one line per adapter, on both platforms, when they
 report.
+
+The [glossary](/reference/glossary/) maps Google's initialization terms to
+this SDK's names.
 
 ## Verifying adapter initialisation and status
 

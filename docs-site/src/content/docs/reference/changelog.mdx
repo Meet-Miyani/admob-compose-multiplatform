@@ -35,6 +35,15 @@ release is **2.7.0**.
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
 
+## Unreleased
+
+Merged to `master` and not yet published. Nothing below resolves from Maven Central
+yet; the current release is still 2.7.0.
+
+### Deprecated
+
+**`FullScreenAdController.preload()`.** It has always been the same call as `load()`, and a second name made readers look for a difference. Replace it with `load()`; the IDE offers the fix. It still works, with a deprecation warning, and nothing else changes. The new [glossary](/reference/glossary/) lists the API terms that are easy to mix up, such as the two placement IDs and the two meanings of Ready.
+
 ## 2.7.0
 
 Faster ad startup, app-open telemetry, native ads that report who served them, and native

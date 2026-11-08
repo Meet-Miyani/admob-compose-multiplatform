@@ -298,6 +298,7 @@ export default defineConfig({
           items: [
             { slug: 'reference/architecture' },
             { slug: 'reference/compatibility' },
+            { slug: 'reference/glossary' },
             { slug: 'reference/troubleshooting' },
             { slug: 'reference/changelog' },
             { slug: 'reference/api' },

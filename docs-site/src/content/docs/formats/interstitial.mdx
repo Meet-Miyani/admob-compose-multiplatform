@@ -12,7 +12,7 @@ import FullScreenLifecycle from '../../../components/diagrams/FullScreenLifecycl
 
 Interstitial, rewarded, rewarded interstitial and app-open controllers
 all implement `FullScreenAdController`, whose surface is `load()`,
-`show()`, `isReady()`, `preload()`, `availability()`, `clear()`,
+`show()`, `isReady()`, `availability()`, `clear()`,
 `loadState: StateFlow<AdLoadState>`, `events: SharedFlow<AdEvent>` and
 `placement`. The interstitial integration:
 
@@ -134,8 +134,8 @@ Each behaviour, in turn. `load()` fills the cache sequentially and a
 partial fill still reports `Loaded`; the cache is full when it has
 `maxSize` ads. `show()` consumes FIFO, oldest first. TTL defaults are
 one hour for full-screen formats and four hours for app-open, both
-from `AdExpirationPolicy`. `preload()` is an alias of `load()` — both
-top up the cache and return the resulting `AdLoadState`. The
+from `AdExpirationPolicy`. `load()` tops up the cache and returns the
+resulting `AdLoadState`; `preload()` is a deprecated alias of it. The
 [caching, retry and timeouts guide](/advanced/caching-retry-timeouts/)
 goes through every knob.
 
