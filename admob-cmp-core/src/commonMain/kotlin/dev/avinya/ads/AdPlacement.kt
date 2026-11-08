@@ -188,7 +188,11 @@ public data class AdRequestOptions(
      * Requires an Ad Manager–enabled ad unit on iOS; standard AdMob units may ignore this field.
      */
     val publisherProvidedId: String? = null,
-    /** Placement reporting id. Mapped on both platforms (`placementID` on iOS). */
+    /**
+     * AdMob's numeric placement ID, used to group ad requests in AdMob reporting. Mapped on both
+     * platforms (`placementID` on iOS). Not the same as [AdPlacement.id], the string key that
+     * [AdEvent.placementId] reports.
+     */
     val placementId: Long? = null,
     /** **Android only.** Skip-uninitialized-adapters flag; ignored on iOS. */
     val skipUninitializedAdapters: Boolean = false

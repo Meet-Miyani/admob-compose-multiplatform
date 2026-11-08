@@ -88,7 +88,11 @@ public data class AdapterInitializationStatus(
  * ([Impression], [Clicked], [Paid] and the iOS video events) carry its `adInstanceId`.
  */
 public sealed interface AdEvent {
-    /** The placement that produced this event, or null for global events. */
+    /**
+     * The [AdPlacement.id] of the placement that produced this event, or null for global events.
+     * This is your own placement key, not AdMob's numeric placement ID, which is
+     * [AdRequestOptions.placementId].
+     */
     public val placementId: String?
 
     /** An ad was loaded successfully. */

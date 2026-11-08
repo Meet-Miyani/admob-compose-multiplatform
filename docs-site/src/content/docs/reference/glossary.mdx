@@ -1,0 +1,116 @@
+---
+title: "AdMob CMP glossary: API terms and their meanings"
+description: "The AdMob CMP API terms that are easy to mix up: placement IDs, the two meanings of Ready, adapter initialization, retained native ads, and load results."
+sidebar:
+  label: "Glossary"
+---
+
+A few words in this SDK's API mean two things, or differ from the words
+Google's own documentation uses. This page sets each one out.
+
+## Placement: your key, or AdMob's ID
+
+Two different values are both called a placement ID.
+
+| Name | Type | What it is |
+|---|---|---|
+| `AdPlacement.id` | `String` | Your own key for one ad slot in your app, such as `"home_banner"`. You choose it. |
+| `AdEvent.placementId` | `String?` | The `AdPlacement.id` of the placement that produced the event. |
+| `AdRequestOptions.placementId` | `Long?` | AdMob's numeric placement ID, used to group requests in AdMob reporting. It is Google's `setPlacementId` on Android and `placementID` on iOS. |
+
+So the `placementId` in your analytics events is your own key. AdMob's
+reporting never sees it unless you also set `AdRequestOptions.placementId`.
+
+## Ready: the SDK, or an ad
+
+"Ready" means the SDK is up in some names and that an ad is loaded in
+others.
+
+| Name | Means |
+|---|---|
+| `AdManagerStatus.Ready` | The Google Mobile Ads SDK accepts ad requests. |
+| `AdErrorCode.SDK_NOT_READY` | A request was made before `AdManagerStatus.Ready`. |
+| `AppOpenReturnOutcome.SdkNotReady` | A return to the foreground came before `AdManagerStatus.Ready`. |
+| `isReady()`, `AdAvailability.isReady` | A full-screen controller has a cached ad to show. |
+| `AdShowResult.NotReady` | `show()` found no cached ad. |
+| `NativeAdSlotState.Ready` | A native slot has a loaded ad that is not yet attached to a view. |
+
+## Initialization, startup and start
+
+Google's documentation talks about *adapter initialization* and an
+*initialization timeout*. The SDK's names for them are:
+
+| Google's term | In this SDK |
+|---|---|
+| Starting the Mobile Ads SDK (`MobileAds.initialize`, `start`) | `AdManager.initialize()` |
+| Adapter initialization status | `AdapterInitializationStatus`, one per adapter |
+| Adapter initialization, as a whole | `adManager.adapterStartup`, a `StateFlow<AdapterStartup>` |
+| Initialization timeout | `adManager.adapterStartupWait`: the longest `Ready` waits for mediation adapters |
+| Checking `canRequestAds` straight after `requestConsentInfoUpdate()` | `adManager.startFromStoredConsent`: start the Mobile Ads SDK from stored consent |
+
+`adapterStartupWait` doesn't fail anything when it runs out. `Ready`
+comes, and adapters still starting keep initializing in the background.
+See [mediation](/advanced/mediation/) for the trade-off.
+
+## Retained native ads
+
+| Name | Means |
+|---|---|
+| `NativeAdSessionPolicy.maxRetainedAds` | Every ad a session holds, visible ones included. |
+| `NativeAdSlotState.Retained` | One slot that has scrolled out of view and still holds its ad. |
+| `NativeAdSessionPolicy.retainBehind` | A distance, in slots, behind the viewport. |
+| `NativeAdWindow.retainBehind` | The list of slots in that band. |
+
+## Native memory limits
+
+`NativeAdMemoryPolicy` counts two different things. Most fields count ads,
+but `maxInactiveSessions` counts sessions.
+
+| Field | Counts | Means |
+|---|---|---|
+| `softLimit` | Ads | Past this, nothing more is loaded speculatively. |
+| `hardLimit` | Ads | Ads loaded or loading across every session; never exceeded. |
+| `inactiveSessionLimit` | Ads | The most ads any one inactive session keeps. |
+| `maxInactiveSessions` | Sessions | How many sessions may be inactive at once. |
+| `maxSessionRecords` | Sessions | How many sessions the registry tracks in all. |
+| `inactiveSessionTtl` | Time | How long a session may stay inactive before it is reaped. |
+
+## Which load result to read
+
+Several types describe a load. Each one answers a different question.
+
+| You want | Read |
+|---|---|
+| The state to draw in your UI | `controller.loadState`, an `AdLoadState` |
+| The result of one `load()` call | The `AdLoadState` that `load()` returns |
+| An app-wide stream for analytics, every format | `adManager.events`: `AdEvent.Loaded` and `AdEvent.LoadFailed` |
+| Each request's timing, origin and outcome, full-screen formats only | `adManager.loadTelemetry`: `AdLoadTelemetry` with an `AdRequestOutcome` |
+| What a `show()` call did | The `AdShowResult` that `show()` returns |
+
+## Switches you set
+
+These properties are switches. The SDK reads them, but never sets them
+itself.
+
+| Property | When true |
+|---|---|
+| `AppOpenAdCoordinator.isBlocked` | The coordinator shows no app-open ad on a return. Set it during purchases or onboarding. |
+| `AppOpenAdCoordinator.skipAfterAdClick` | The first return after an ad click shows no app-open ad. |
+| `NativeAdManager.reuseUnshownAds` | Native ads loaded but never shown are kept for the next slot of the same placement. |
+
+## Labelling your own loads
+
+`AdLoadTag` labels a load in `loadTelemetry`. It goes in the calling
+coroutine's context, so `load()` keeps one signature:
+
+```kotlin
+withContext(AdLoadTag("cold_start")) { controller.load() }
+```
+
+The tag arrives as `AdLoadOrigin.App.tag`.
+
+## Deprecated names
+
+| Deprecated | Use instead | Why |
+|---|---|---|
+| `FullScreenAdController.preload()` | `load()` | `preload()` was always the same call as `load()`. |
