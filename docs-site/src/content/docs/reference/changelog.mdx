@@ -40,6 +40,12 @@ Release details and release assets for all versions are published on the
 Merged to `master` and not yet published. Nothing below resolves from Maven Central
 yet; the current release is still 2.7.0.
 
+### Fixed
+
+**iOS: a wrap-content child beside a weighted one keeps its own width.** In a `row` with a `weight(1f)` child, an unweighted sibling such as a `wrapContentWidth()` call to action could take a large share of the free space on iOS: an `Install` button about 185 pt wide on a 358 pt row, where Android and the preview draw it at its label plus padding. The renderer now follows Compose's `weight` rule on every native view that has a content size: unweighted children keep exactly their content size, whether the row has space left over or too little, and weighted children take or give up the rest. Nested weights, such as the badge and headline inside `AdTemplates.compact`, keep their own split, and when the row is too narrow, as `compact` is at the largest accessibility text sizes, everything inside the weighted child gives way before the outer button does. Columns follow the same rule for height.
+
+**Android and preview: text taller than a fixed-height call to action is centred.** The SDK keeps the height you give a call to action, so very large text, or a large font scale, overflows it. On Android and in `AdLayoutPreview` the overflow was cut from the bottom only, taking the baseline with it. The label is now centred and trimmed evenly from both edges, as on iOS. The button's size does not change.
+
 ### Deprecated
 
 **`FullScreenAdController.preload()`.** It has always been the same call as `load()`, and a second name made readers look for a difference. Replace it with `load()`; the IDE offers the fix. It still works, with a deprecation warning, and nothing else changes. The new [glossary](/reference/glossary/) lists the API terms that are easy to mix up, such as the two placement IDs and the two meanings of Ready.
