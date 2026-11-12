@@ -409,39 +409,57 @@ internal class IosNativeAdRenderer(
                     else stack.heightAnchor
                 placed.heightAnchor.constraintEqualToAnchor(heightSource).active = true
             }
+            // Compose resolves a stack with a weighted (or main-axis `Match`) child in two steps:
+            // every other child is measured at its own size, then the claiming children divide
+            // whatever is left. `UIStackView` with `distribution = Fill` has no such order — it
+            // hands slack to, and takes overflow from, whichever arranged view has the lowest
+            // hugging / compression-resistance priority, and falls back to arranged-subview order
+            // on a tie. Both halves of Compose's rule therefore have to be stated as priorities:
+            //
+            //  - a claiming child hugs at almost nothing and resists compression only weakly, so it
+            //    takes the slack when the stack is underfull and gives way first when it is
+            //    overfull;
+            //  - every other child hugs and resists just below `required`, so it keeps exactly its
+            //    content size either way, while an impossibly narrow stack still degrades by
+            //    breaking a constraint rather than failing to lay out.
+            //
+            // Overfull is not hypothetical: without the second half the stack satisfied the weight
+            // by compressing a sibling, which crushed `AdTemplates.compact`'s call-to-action into a
+            // one-glyph-per-line column.
+            //
+            // The priorities have to reach the views that own an intrinsic content size, because
+            // only those turn a priority into a constraint. `placed` and `rendered` are often not
+            // such views: padding and margin wrappers are bare `UIView`s, and a `UIStackView` has
+            // no intrinsic size either. Setting them there alone left the call-to-action label and
+            // the weighted column's labels tied at UIKit's default hugging, and Auto Layout
+            // resolved the tie by stretching the call-to-action across half the row.
+            //
+            // One shape is not reproduced: an unweighted child that itself contains a weighted
+            // descendant on this axis. Compose lets that descendant fill everything the unweighted
+            // child is offered, so the child ends up taking the whole stack; here it keeps its
+            // content size and the weighted sibling still takes the rest. It is a layout that
+            // asks for two different things, and `AdLayoutValidator` is the right place to flag it.
             if (claimsMainAxis(childModifier, isHorizontal)) {
-                // Hugging and compression resistance only govern a view's *intrinsic content
-                // size*, and the margin/alignment wrappers are bare `UIView`s that have none — set
-                // on a wrapper alone these are inert and the child keeps hugging its own content
-                // instead of taking the free space its weight asks for. Set on every layer from
-                // the rendered view outward so the priority reaches something intrinsic.
-                //
-                // The hugging priority has to go *below* the default, not to it: a weighted child
-                // competes with siblings whose own hugging is already `UILayoutPriorityDefaultLow`,
-                // so setting the same 250 here left `UIStackView` free to stretch whichever view it
-                // liked and made the weight a no-op.
-                for (view in setOf(rendered, placed)) {
-                    view.setContentHuggingPriority(WEIGHTED_CHILD_HUGGING_PRIORITY, axis)
-                    view.setContentCompressionResistancePriority(UILayoutPriorityDefaultLow, axis)
-                }
+                applyMainAxisPriorities(
+                    root = placed,
+                    axis = axis,
+                    hugging = WEIGHTED_CHILD_HUGGING_PRIORITY,
+                    compressionResistance = UILayoutPriorityDefaultLow,
+                    claimsSlack = true,
+                )
             } else if (hasClaimingChild) {
-                // The other half of the same contract, and it is not optional: dropping the
-                // weighted child's hugging tells the stack who *may* grow, but nothing yet says the
-                // rest must not shrink. `UIStackView` was free to satisfy the weighted child by
-                // compressing a sibling instead of by using the slack, which crushed the
-                // call-to-action in `AdTemplates.compact` into a one-glyph-per-line column.
-                //
-                // Compose has no such ambiguity: unweighted children measure at their own intrinsic
-                // size and the weighted ones divide whatever is left. Pinning the siblings just
-                // below `required` reproduces that, while still leaving Auto Layout a constraint it
-                // can break rather than an unsatisfiable layout when the stack is genuinely too
-                // narrow for them.
-                for (view in setOf(rendered, placed)) {
-                    view.setContentHuggingPriority(UNWEIGHTED_SIBLING_PRIORITY, axis)
-                    view.setContentCompressionResistancePriority(UNWEIGHTED_SIBLING_PRIORITY, axis)
-                }
+                applyMainAxisPriorities(
+                    root = placed,
+                    axis = axis,
+                    hugging = UNWEIGHTED_SIBLING_PRIORITY,
+                    compressionResistance = UNWEIGHTED_SIBLING_PRIORITY,
+                    claimsSlack = false,
+                )
             }
         }
+        // Every arranged subtree of this stack now carries an explicit main-axis priority, so an
+        // enclosing stack on the same axis must leave it alone (see `applyMainAxisPriorities`).
+        if (hasClaimingChild) resolvedStacks(axis) += stack
 
         // Compose divides the free space between weighted children in proportion to their weights;
         // priorities alone cannot express a ratio, so state it as an explicit relation.
@@ -468,6 +486,84 @@ internal class IosNativeAdRenderer(
         }
         return decorate(outer, modifier, contentHandlesPadding = true)
     }
+
+    /**
+     * Stacks whose arranged subtrees already carry explicit main-axis priorities, per axis.
+     *
+     * Children render before their parent, so an inner stack has always settled its own contract
+     * by the time an enclosing stack on the same axis walks into it.
+     */
+    private val resolvedHorizontalStacks = HashSet<UIView>()
+    private val resolvedVerticalStacks = HashSet<UIView>()
+
+    private fun resolvedStacks(axis: UILayoutConstraintAxis): MutableSet<UIView> =
+        if (axis == UILayoutConstraintAxisHorizontal) resolvedHorizontalStacks else resolvedVerticalStacks
+
+    /**
+     * Sets [hugging] and [compressionResistance] on [axis] for [root] and every view under it that
+     * the renderer built, so the priorities land on the views that own an intrinsic content size.
+     *
+     * Two boundaries keep the walk from overriding decisions that are not its to make:
+     *
+     *  - A nested stack that resolved its own weighted children on the same axis keeps its own
+     *    split. `AdTemplates.compact` nests `row[badge, headline.weight(1f)]` inside a weighted
+     *    column; flattening that column's subtree to one priority would leave the badge and the
+     *    headline tied. A stack on the other axis has made no decision on this one, so the walk
+     *    continues through it.
+     *
+     *    Keeping the split is not the same as keeping the numbers, though. Compose measures the
+     *    outer stack's unweighted children before the weighted one even *starts* measuring its own
+     *    children, so everything inside a weighted child — the inner badge included — must yield to
+     *    an outer sibling. Left at the same just-below-required priority, the badge and an outer
+     *    call-to-action tied whenever the row was too narrow for both (very large Dynamic Type),
+     *    and Auto Layout truncated both. When [claimsSlack] is set, a resolved stack's subtree is
+     *    therefore lowered by one step instead ([demoteMainAxisPriorities]): its internal order is
+     *    preserved exactly, and every value lands below the outer siblings'. Each level of nesting
+     *    lowers it once more, so deeper stacks always yield to shallower ones. An unweighted
+     *    sibling that contains a weighted descendant is left alone; see the note in `renderStack`.
+     *  - Only containers the renderer itself creates — plain `UIView` wrappers and `UIStackView`s —
+     *    are descended into. Leaves such as `UILabel` and `UIImageView` take the priority and stop,
+     *    and so do `GADMediaView` and `GADAdChoicesView`, whose subviews belong to the Google
+     *    Mobile Ads SDK and may be rebuilt by it at any time.
+     */
+    private fun applyMainAxisPriorities(
+        root: UIView,
+        axis: UILayoutConstraintAxis,
+        hugging: Float,
+        compressionResistance: Float,
+        claimsSlack: Boolean,
+    ) {
+        root.setContentHuggingPriority(hugging, axis)
+        root.setContentCompressionResistancePriority(compressionResistance, axis)
+        if (root in resolvedStacks(axis)) {
+            if (claimsSlack) rendererSubviews(root).forEach { demoteMainAxisPriorities(it, axis) }
+            return
+        }
+        for (child in rendererSubviews(root)) {
+            applyMainAxisPriorities(child, axis, hugging, compressionResistance, claimsSlack)
+        }
+    }
+
+    /**
+     * Lowers every main-axis priority in [root]'s subtree by one step, keeping their order.
+     *
+     * Floored at 1: a priority must stay above zero, and the values that reach the floor are
+     * already the weighted ones that yield to everything.
+     */
+    private fun demoteMainAxisPriorities(root: UIView, axis: UILayoutConstraintAxis) {
+        root.setContentHuggingPriority(maxOf(1f, root.contentHuggingPriorityForAxis(axis) - 1f), axis)
+        root.setContentCompressionResistancePriority(
+            maxOf(1f, root.contentCompressionResistancePriorityForAxis(axis) - 1f),
+            axis,
+        )
+        rendererSubviews(root).forEach { demoteMainAxisPriorities(it, axis) }
+    }
+
+    /** The subviews of a container the renderer built itself; nothing for leaves or SDK views. */
+    @Suppress("UNCHECKED_CAST")
+    private fun rendererSubviews(view: UIView): List<UIView> =
+        if (view is UIStackView || view.isMemberOfClass(UIView.`class`())) view.subviews as List<UIView>
+        else emptyList()
 
     /**
      * Wraps [childView] in a container the stack is free to stretch, pinning the child along the
@@ -934,8 +1030,9 @@ private val SHRINK_TO_FIT_CEILING = platform.UIKit.UILayoutPriorityFittingSizeLe
 private val SHRINK_TO_FIT_PRIORITY = SHRINK_TO_FIT_CEILING - 1f
 
 /**
- * Sits below every default hugging priority so a weighted child yields to its siblings and takes
- * the stack's free space, rather than tying with them at `UILayoutPriorityDefaultLow`.
+ * Sits below every default hugging priority (250 for `UIView`, 251 for `UILabel`/`UIImageView`) so
+ * a weighted child yields to its siblings and takes the stack's free space, rather than tying with
+ * them.
  */
 private const val WEIGHTED_CHILD_HUGGING_PRIORITY: Float = 1f
 
