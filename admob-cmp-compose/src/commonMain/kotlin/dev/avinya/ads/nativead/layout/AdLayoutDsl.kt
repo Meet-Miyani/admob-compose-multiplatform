@@ -142,6 +142,14 @@ public open class AdLayoutScope internal constructor() {
      * The renderer displays the creative-provided call-to-action text as supplied; this node
      * controls its layout and appearance, not its wording.
      *
+     * The button is its label plus its insets. With no `padding` on [modifier], the insets come
+     * from [style] (its horizontal padding, and a fixed vertical padding). Any `padding` on
+     * [modifier] replaces all four sides, so `padding(horizontal = 16.dp)` alone leaves no vertical
+     * inset; give the button a `height` or a vertical padding as well.
+     *
+     * A fixed `height` is kept exactly. Text taller than it, for example at a large font scale, is
+     * centred and clipped evenly rather than growing the button.
+     *
      * @param modifier Layout modifier for the button.
      * @param style Button style (defaults to filled).
      * @param visibilityPolicy Visibility when the asset is missing.

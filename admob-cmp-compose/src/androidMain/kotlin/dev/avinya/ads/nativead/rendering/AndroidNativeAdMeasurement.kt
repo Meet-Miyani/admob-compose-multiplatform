@@ -78,6 +78,37 @@ internal class ModifierMeasureFrameLayout(
     }
 }
 
+/**
+ * The call-to-action's surface: sized like a plain `FrameLayout`, but its label always keeps its
+ * full line height.
+ *
+ * The SDK never changes a height the layout author fixed, so a line taller than the button —
+ * large text, or a large font scale — has to overflow it. A plain `FrameLayout` measures a
+ * wrap-content child `AT_MOST` its own content height, which clamps the label to the box; a
+ * `TextView` then draws from its top (its vertical gravity only applies to text *shorter* than the
+ * view), so the overflow was cut from the bottom alone and the baseline went with it. Re-measuring
+ * a clamped label at its natural height lets the `Gravity.CENTER` it is added with centre the whole
+ * line — `FrameLayout` places a child taller than itself at a negative offset — and `clipChildren`
+ * trims the overflow evenly from both edges, as the preview and iOS do.
+ *
+ * The container's own size is untouched: it is still the author's fixed height, or the label plus
+ * the insets when it wraps.
+ */
+internal class CallToActionFrameLayout(context: Context) : FrameLayout(context) {
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        val contentHeight = max(0, measuredHeight - paddingTop - paddingBottom)
+        for (index in 0 until childCount) {
+            val child = getChildAt(index)
+            if (child.visibility == View.GONE || child.measuredHeight < contentHeight) continue
+            child.measure(
+                MeasureSpec.makeMeasureSpec(child.measuredWidth, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+            )
+        }
+    }
+}
+
 internal object RectOutlineProvider : ViewOutlineProvider() {
     override fun getOutline(view: View, outline: Outline) {
         outline.setRect(0, 0, view.width, view.height)

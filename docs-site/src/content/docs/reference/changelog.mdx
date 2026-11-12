@@ -42,6 +42,10 @@ yet; the current release is still 2.7.0.
 
 ### Fixed
 
+**iOS: a wrap-content child beside a weighted one keeps its own width.** In a `row` with a `weight(1f)` child, an unweighted sibling such as a `wrapContentWidth()` call to action could take a large share of the free space on iOS: an `Install` button about 185 pt wide on a 358 pt row, where Android and the preview draw it at its label plus padding. The renderer now follows Compose's `weight` rule on every native view that has a content size: unweighted children keep exactly their content size, whether the row has space left over or too little, and weighted children take or give up the rest. Nested weights, such as the badge and headline inside `AdTemplates.compact`, keep their own split, and when the row is too narrow, as `compact` is at the largest accessibility text sizes, everything inside the weighted child gives way before the outer button does. Columns follow the same rule for height.
+
+**Android and preview: text taller than a fixed-height call to action is centred.** The SDK keeps the height you give a call to action, so very large text, or a large font scale, overflows it. On Android and in `AdLayoutPreview` the overflow was cut from the bottom only, taking the baseline with it. The label is now centred and trimmed evenly from both edges, as on iOS. The button's size does not change.
+
 **iOS: a native ad resizes when the text size changes while it is on screen.** Changing Dynamic Type in Settings used to leave the ad at its old height, so larger text was clipped. After any text-size change, the ad was also sized by its own content instead of by the space Compose gave it: at the largest sizes it grew wider than its card, with full-width media stretched past the edge. The ad now measures its new height once its text has restyled, in place, and keeps the size Compose gives it. A screen that sets its own text size for part of the app is followed too.
 
 ### Deprecated

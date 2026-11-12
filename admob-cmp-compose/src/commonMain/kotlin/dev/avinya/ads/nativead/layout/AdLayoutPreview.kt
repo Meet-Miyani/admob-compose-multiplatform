@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -215,7 +216,11 @@ private fun PreviewButton(
             .padding(insets.startDp.dp, insets.topDp.dp, insets.endDp.dp, insets.bottomDp.dp),
         contentAlignment = Alignment.Center
     ) {
-        PreviewText(text, style.textStyle, 1, Modifier)
+        // A button given a fixed height keeps it, however large the text. Measured under that
+        // height, `BasicText` coerces its own height to the box and paints from the top, so a line
+        // taller than the button lost only its bottom. Measuring it unbounded lets the box centre
+        // the whole line and the clip above trim the overflow evenly — what the two renderers do.
+        PreviewText(text, style.textStyle, 1, Modifier.wrapContentHeight(unbounded = true))
     }
 }
 
