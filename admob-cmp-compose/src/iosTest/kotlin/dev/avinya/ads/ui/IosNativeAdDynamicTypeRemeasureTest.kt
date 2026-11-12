@@ -94,7 +94,12 @@ class IosNativeAdDynamicTypeRemeasureTest {
                     style = AdTextStyle(fontSizeSp = 13f),
                     maxLines = 6,
                 )
-                text(modifier = AdModifier.padding(horizontal = 16.dp), text = "Install now", style = AdTextStyle(fontSizeSp = 14f), maxLines = 1)
+                text(
+                    modifier = AdModifier.padding(horizontal = 16.dp),
+                    text = "Install now",
+                    style = AdTextStyle(fontSizeSp = 14f),
+                    maxLines = 1,
+                )
             }
         }
     }
