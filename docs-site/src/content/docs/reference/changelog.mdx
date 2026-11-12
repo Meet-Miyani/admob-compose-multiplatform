@@ -46,6 +46,8 @@ yet; the current release is still 2.7.0.
 
 **Android and preview: text taller than a fixed-height call to action is centred.** The SDK keeps the height you give a call to action, so very large text, or a large font scale, overflows it. On Android and in `AdLayoutPreview` the overflow was cut from the bottom only, taking the baseline with it. The label is now centred and trimmed evenly from both edges, as on iOS. The button's size does not change.
 
+**iOS: a native ad resizes when the text size changes while it is on screen.** Changing Dynamic Type in Settings used to leave the ad at its old height, so larger text was clipped. After any text-size change, the ad was also sized by its own content instead of by the space Compose gave it: at the largest sizes it grew wider than its card, with full-width media stretched past the edge. The ad now measures its new height once its text has restyled, in place, and keeps the size Compose gives it. A screen that sets its own text size for part of the app is followed too.
+
 ### Deprecated
 
 **`FullScreenAdController.preload()`.** It has always been the same call as `load()`, and a second name made readers look for a difference. Replace it with `load()`; the IDE offers the fix. It still works, with a deprecation warning, and nothing else changes. The new [glossary](/reference/glossary/) lists the API terms that are easy to mix up, such as the two placement IDs and the two meanings of Ready.

@@ -190,7 +190,7 @@ class IosNativeAdHostSizingTest {
         val settled = attached.measureAsComposeWould()
 
         repeat(5) {
-            val detached = hostForTest().measureDetachedHeight(WIDTH)
+            val detached = hostForTest().measureHeight(WIDTH)
             assertEquals(settled, detached, absoluteTolerance = 0.5, message = "detached measurement drifted")
         }
     }
@@ -236,7 +236,7 @@ class IosNativeAdHostSizingTest {
     @Test
     fun `a card overlapping the safe area keeps every label at its intrinsic height`() {
         val host = hostForTest()
-        val natural = host.measureDetachedHeight(WIDTH)
+        val natural = host.measureHeight(WIDTH)
 
         val controller = UIViewController(nibName = null, bundle = null)
         controller.additionalSafeAreaInsets = UIEdgeInsetsMake(60.0, 0.0, 34.0, 0.0)
