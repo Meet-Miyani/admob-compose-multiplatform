@@ -263,7 +263,7 @@ internal class AndroidNativeAdLayoutRenderer(
                 resolvedComposeFonts,
             )
         }
-        return FrameLayout(context).apply {
+        return CallToActionFrameLayout(context).apply {
             clipChildren = true
             clipToPadding = true
             disableDirectInteractionForNativeAdAsset()
