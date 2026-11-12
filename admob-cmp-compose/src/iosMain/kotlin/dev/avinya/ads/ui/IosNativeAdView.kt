@@ -48,13 +48,13 @@ import dev.avinya.ads.nativead.rendering.uiColorFromArgb
 import kotlinx.cinterop.useContents
 import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGSizeMake
-import platform.Foundation.NSNotificationCenter
-import platform.Foundation.NSOperationQueue
 import platform.UIKit.NSLayoutConstraint
-import platform.UIKit.UIContentSizeCategoryDidChangeNotification
+import platform.UIKit.UITraitCollection
 import platform.UIKit.UILayoutPriorityFittingSizeLevel
 import platform.UIKit.UILayoutPriorityRequired
 import platform.UIKit.UIView
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 
 @Composable
 public actual fun NativeAdView(
@@ -145,14 +145,22 @@ public actual fun NativeAdView(
                             fillsHost = rootFillsHost,
                         )
                     }
-                    var height by remember(prepared, minHeightPoints, maxHeightPoints) {
-                        mutableDoubleStateOf(prepared.height.coerceIntoHostBounds(minHeightPoints, maxHeightPoints))
-                    }
+                    // The tree's own height, before the caller's bounds. It is keyed on the tree
+                    // alone and the bounds are applied on read: keying it on the bounds as well
+                    // re-seeded it from the *first* measurement whenever they changed, which threw
+                    // away any re-measure a text-size change had made since and clipped the ad again.
+                    var measuredHeight by remember(prepared) { mutableDoubleStateOf(prepared.height) }
+                    val height = measuredHeight.coerceIntoHostBounds(minHeightPoints, maxHeightPoints)
                     // The one thing that legitimately resizes a built tree: every label sets
-                    // `adjustsFontForContentSizeCategory`, so a Dynamic Type change re-measures.
-                    ObserveContentSizeCategory(prepared) {
-                        height = prepared.host.measureDetachedHeight(widthPoints)
-                            .coerceIntoHostBounds(minHeightPoints, maxHeightPoints)
+                    // `adjustsFontForContentSizeCategory`, so a Dynamic Type change restyles it in
+                    // place and the host reports when that restyle is complete.
+                    DisposableEffect(prepared) {
+                        val host = prepared.host
+                        host.onContentSizeCategoryChanged = { measuredHeight = host.measureHeight(widthPoints) }
+                        // The category may already differ from the one the tree was measured at —
+                        // a screen that overrides it, or a change while the tree was being built.
+                        host.scheduleContentSizeCategoryCheck()
+                        onDispose { host.onContentSizeCategoryChanged = null }
                     }
                     key(prepared) {
                         UIKitView(
@@ -214,6 +222,16 @@ internal class IosNativeAdHostView(
 ) : UIView(frame = kotlinx.cinterop.cValue { }) {
     private var nativeAdRegistered = false
     private var containmentFailureReported = false
+
+    /**
+     * Called on the main thread once a text-size change has restyled every label in this tree, so
+     * the owner can measure the new height. Set and cleared by the composable that shows the host.
+     */
+    var onContentSizeCategoryChanged: (() -> Unit)? = null
+
+    /** The text-size category [measureHeight] last measured at. */
+    private var measuredContentSizeCategory: String? = null
+    private var contentSizeCategoryCheckPending = false
     /**
      * Keeps the rendered tree inside the ad view — and, as a consequence, gives the ad view a
      * height for Compose to measure.
@@ -299,16 +317,41 @@ internal class IosNativeAdHostView(
     }
 
     /**
-     * The height this ad needs at [width], measured where nothing else can perturb the answer.
+     * The height this ad needs at [width].
      *
-     * The view is laid out inside a throwaway container first, at the width it will really have, so
-     * every multi-line label has resolved its own wrap width before the fitting size is taken. That
-     * is the whole difference between this and measuring in place: an attached tree can be caught
-     * part-way through an update and answers with the real height plus whatever its unsettled
-     * subviews are short by, and there is no reliable way to ask whether it has finished.
+     * Two paths, because the right one depends on who owns this view's frame.
+     *
+     * **Not yet attached** — the first measurement, taken before Compose has the view: it is laid
+     * out inside a throwaway container at the width it will really have, so every multi-line label
+     * resolves its own wrap width before the fitting size is taken. Nothing else is laying the tree
+     * out there, so the answer is exact.
+     *
+     * **Attached** — every later measurement: measured where it is. Moving it would be fatal.
+     * `UIKitView` adds this view to its own host once and pins all four edges to it, and
+     * `removeFromSuperview` deletes those constraints for good; re-adding the view does not restore
+     * them, and Compose never installs them again. The text-size re-measure used to do exactly that,
+     * after which the ad was sized by its own content rather than by Compose — 487pt wide in a
+     * 370pt card at the largest text size, with its 16:9 media stretched to match and clipped.
+     *
+     * Measuring in place is safe here because of *when* it happens: never inside a layout pass,
+     * where a parent-first `layoutSubviews` would read descendants still holding the previous
+     * frames, but from a main-queue turn after the change has settled. The fitting size is taken
+     * from the rendered content alone: a fitting solve ignores the receiver's constraints to its
+     * superview, so the height Compose currently fixes does not cap the answer — the same contract
+     * UIKit's self-sizing cells measure their `contentView` under. The solve also resolves every
+     * label's wrap width itself, so the tree is not laid out first: a label whose width moves with
+     * a neighbour's font (278pt to 96pt beside a growing button) measures the same either way, and
+     * `IosNativeAdDynamicTypeRemeasureTest` pins both that and the independence from the shown
+     * height.
      */
-    fun measureDetachedHeight(width: Double): Double {
-        val previousSuperview = superview
+    fun measureHeight(width: Double): Double {
+        val category = traitCollection.preferredContentSizeCategory
+        val measured = if (superview == null) measureDetached(width) else measureInPlace(width)
+        measuredContentSizeCategory = category
+        return measured
+    }
+
+    private fun measureDetached(width: Double): Double {
         val container = UIView(frame = CGRectMake(0.0, 0.0, width, 0.0))
         container.addSubview(this)
         setTranslatesAutoresizingMaskIntoConstraints(false)
@@ -327,8 +370,52 @@ internal class IosNativeAdHostView(
         ).useContents { height }
         NSLayoutConstraint.deactivateConstraints(pins)
         removeFromSuperview()
-        previousSuperview?.addSubview(this)
         return measured
+    }
+
+    private fun measureInPlace(width: Double): Double =
+        content.systemLayoutSizeFittingSize(
+            targetSize = CGSizeMake(width, 0.0),
+            withHorizontalFittingPriority = UILayoutPriorityRequired,
+            verticalFittingPriority = UILayoutPriorityFittingSizeLevel,
+        ).useContents { height }
+
+    /**
+     * Why this listens to its own traits rather than `UIContentSizeCategoryDidChangeNotification`.
+     *
+     * The notification is posted *before* UIKit pushes the new category down the view tree, and a
+     * label only restyles once that push reaches it. Measuring from the notification therefore
+     * measured the old fonts: on the simulator the app already reported AccessibilityXXXL while
+     * this view's traits still said L and its labels were still 10pt, so the ad re-measured at its
+     * old 345pt, kept it, and clipped the 28pt text it then showed. The same measurement one
+     * main-queue turn later read 561pt.
+     *
+     * Traits are also the more complete signal: a screen that overrides the category for its own
+     * subtree changes this view's traits without posting any notification at all.
+     */
+    override fun traitCollectionDidChange(previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if (traitCollection.preferredContentSizeCategory == measuredContentSizeCategory) return
+        scheduleContentSizeCategoryCheck()
+    }
+
+    /**
+     * Re-measures, one main-queue turn from now, if the text-size category differs from the one
+     * last measured at.
+     *
+     * The turn is the point. UIKit delivers trait changes parent-first, so when this view hears of
+     * one its labels have not restyled yet; by the next turn the whole tree has. Requests in the
+     * same turn collapse into one, and nothing is re-measured unless the category really moved.
+     */
+    fun scheduleContentSizeCategoryCheck() {
+        if (contentSizeCategoryCheckPending) return
+        contentSizeCategoryCheckPending = true
+        dispatch_async(dispatch_get_main_queue()) {
+            contentSizeCategoryCheckPending = false
+            if (traitCollection.preferredContentSizeCategory != measuredContentSizeCategory) {
+                onContentSizeCategoryChanged?.invoke()
+            }
+        }
     }
 
     /** Binds the ad to its view exactly once, and only while every asset is inside the root. */
@@ -419,25 +506,6 @@ internal class IosNativeHostRelease(
 }
 
 /**
- * Asks Compose to remeasure the ad when the text size category changes.
- *
- * Every label in the rendered tree sets `adjustsFontForContentSizeCategory`, so a Dynamic Type
- * change resizes them — and UIKit has no way to tell Compose that the fitting size moved.
- */
-@Composable
-private fun ObserveContentSizeCategory(key: Any, onChanged: () -> Unit) {
-    val currentOnChanged by rememberUpdatedState(onChanged)
-    DisposableEffect(key) {
-        val observer = NSNotificationCenter.defaultCenter.addObserverForName(
-            name = UIContentSizeCategoryDidChangeNotification,
-            `object` = null,
-            queue = NSOperationQueue.mainQueue,
-        ) { _ -> currentOnChanged() }
-        onDispose { NSNotificationCenter.defaultCenter.removeObserver(observer) }
-    }
-}
-
-/**
  * A built, measured ad, ready to hand to `UIKitView`.
  *
  * Building the tree here rather than in the `UIKitView` factory is what makes the height available
@@ -484,7 +552,7 @@ private fun prepareNativeAd(
         surfaceArgb = resolveNativeAdSurfaceArgb(layout.frozenRoot),
         fillsHost = fillsHost,
     )
-    return PreparedNativeAd(host = host, height = host.measureDetachedHeight(width))
+    return PreparedNativeAd(host = host, height = host.measureHeight(width))
 }
 
 /** Clamps a measured height into the bounds the caller's constraints allow. */
