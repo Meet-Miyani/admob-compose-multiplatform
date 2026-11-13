@@ -438,3 +438,94 @@ Findings from the run:
         RewardEarned detail shows micros.
       - Known, Google-side, debug only: the native validator popup can stay on screen after
         leaving the Native lab.
+
+## Run record — 2026-11-13, master `380a0d38`, 2.8.0 candidate (Android emulator + iOS simulator)
+
+`380a0d38` is master with #75–#78 merged, and `VERSION_NAME` is still 2.7.0. Both #77 and #78
+had a full `READINESS: PASS` before merging, and the combined code passed the iOS and Android
+test suites, detekt, the ABI check and the docs build. Both apps were built at that commit and
+freshly installed, with Google test ad units and showcase defaults.
+
+- **Android:** a `medium_phone` emulator (1080×2400, 420 dpi, 2 GB RAM), Android 17 / API 37
+  (= `compileSdk`), Play Store image.
+- **iOS:** iPhone 17 Pro simulator and iPad Pro 11-inch (M5) simulator, both iOS 26.5.
+- **Evidence:** the SDK's `AdMobCMP` log lines (logcat, simulator console); the showcase's
+  `ad_events` table, copied from each app; `uiautomator` view bounds on Android; screenshots.
+- **Stability:** no crash report, ANR or fatal exception on any device. The Android process
+  kept the same PID across font-scale, rotation and dark-mode changes.
+
+**Scope.** Since 2.7.0 the only code changes are the native renderers (#77: iOS weighted-row
+slack, CTA overflow on Android and in the preview; #78: iOS live Dynamic Type re-measure) and
+#75, which only deprecates `preload()`. Consent, lifecycle, full-screen formats and rewards are
+untouched, so rows 1–6, 8, 10 and 13–15 were not re-run. The release owner decides whether
+that scope is enough and signs below.
+
+**Deviations:**
+- An emulator instead of an Android device, and no `minSdk` (API 26) pass.
+- No physical iPhone.
+- Both runs were outside the EEA, so no consent form was shown. The consent code is unchanged.
+
+| # | Scenario | Android emu | iOS sim | Evidence |
+|---|---|---|---|---|
+| 7 | Rotation around native views | PASS | PASS | Android: landscape and back, the Native lab re-rendered at each width with the same ad (`ad 1`). iOS: App: inline re-laid out at landscape width and back, same ad (`ad 3`), no new load |
+| 9 | Formats render: native | PASS | PASS | Feed native and all five Native lab layouts (Compact, Medium, Feed card, App: feed, App: inline). `feed_native` / `lab_native` `Loaded` + `Impression` + `Paid`. Other formats are unchanged since 2.7.0 and were not re-run |
+| 11 | Native ad validator clean | PASS | PASS | "No implementation issues found" in the feed and the Native lab, on iPhone and iPad too; `AdLayoutValidator` "No findings" in every layout |
+| 12 | UMP → ATT → first ad request | n/a | PASS | Fresh install: UMP explainer, then ATT allowed, then `initialize` at 09:40:12.7 and initialization succeeded 0.8 s later |
+| 16 | Ad host not focusable; dark mode with native on screen | PARTIAL | n/a | #77's new CTA container is `clickable=true focusable=false`. `uimode night yes` with the Native lab on screen restyled the ad, with no crash and the same PID. The 25 × TAB traversal was not re-run |
+| 17 | Touch click and impression | PARTIAL | n/a | Tapping Compact's INSTALL opened Play; `lab_native` `Clicked` + `Impression` + `Paid`. Not compared with a 2.7.0 build; TalkBack not on the image |
+
+Checks specific to this release:
+
+- **#77, weighted row with a wrap-width CTA.** Compact's INSTALL takes its label width plus
+  padding, and the weighted text column takes the rest. On iOS this holds on the 834 pt iPad
+  row, where the button used to stretch across the free space. On Android the CTA container
+  measures 205 px = 141 px label + 2 × 32 px padding, in portrait and in landscape on a
+  2400 px row.
+- **#77, CTA label inside its button.** Android at font scale 1.0: container 101 px, label
+  49 px, 26 px above and below. At font scale 2.0: container 333 × 144 px, label 269 × 92 px,
+  26 px above and below. Nothing clipped.
+- **#77, overfull row.** At the largest text size on both platforms, INSTALL keeps its whole
+  label, the weighted column narrows, and the card grows with no overlap.
+- **iOS click through the CTA.** Tapping App: inline's INSTALL recorded `lab_native` `Clicked`.
+- **#78, live Dynamic Type.** With the feed's native ad on screen, switching to
+  `accessibility-extra-extra-extra-large` restyled the text and the card grew to fit it, with
+  no clipping, the same width and the media unchanged. Switching back to `large` returned the
+  card to exactly its original height.
+
+Findings from the run:
+
+- **F7 — iOS only, SDK template, extreme text size.** In `AdTemplates.compact` at
+  `accessibility-extra-extra-extra-large` on a 402 pt iPhone, the CTA and the icon leave the
+  weighted text column about 50 pt. The "Ad" badge then truncates to "…", and the weighted
+  headline beside it collapses to nothing. This follows Compose `weight` semantics, which
+  measure unweighted children first, as the template asks. On Android the largest font scale
+  (2.0) leaves the column 302 px, and the badge stays whole. It was not compared with a 2.7.0
+  build. It is not a crash or a clip of the card, but an attribution badge reading "…" is a
+  policy risk at that size. A fix would be a template change (for example stacking the CTA
+  under the text at accessibility sizes) or a validator warning. Owner decision.
+- **Showcase only:** on Android, a font-scale change or a rotation recreates the activity, and
+  the Native lab goes back to "App: feed".
+- **Google-side, debug only:** the validator popup can stay on screen over the content.
+
+**Sign-off for 2.8.0:**
+
+    Release version: 2.8.0
+    Certified by: Meet Miyani
+    Date: 2026-11-13
+    Devices used: Android emulator medium_phone, Android 17 / API 37 (= compileSdk), Play Store image;
+      iOS simulators iPhone 17 Pro and iPad Pro 11-inch (M5), iOS 26.5. Certified build: master 380a0d38.
+    Deviations or known issues:
+      - No physical Android device (emulator only) and no minSdk (API 26) pass.
+      - No physical iPhone. The simulators were accepted for this release.
+      - Scope limited to the native renderers: rows 1–6, 8, 10 and 13–15 not re-run, because
+        nothing since 2.7.0 touches consent, lifecycle, full-screen formats or rewards.
+      - Partial: row 16 on Android (TAB traversal not re-run) and row 17 on Android (TalkBack isn't
+        on the emulator image, and layout wasn't compared with a 2.7.0 build).
+      - Known, SDK template, accepted for this release: F7. At iOS's largest accessibility text
+        sizes, AdTemplates.compact's "Ad" badge truncates to "…" and its headline collapses.
+        The 2.7.0 renderer's code resolves a too-narrow row the same way, so it predates this
+        release (code reading, not a 2.7.0 device run). Deferred; the proposed fix is a row option that stacks the call to
+        action under the text when the row is too narrow.
+      - Known, showcase only: on Android, a font-scale change or rotation resets the Native lab to
+        "App: feed".
+      - Known, Google-side, debug only: the native validator popup can stay on screen.

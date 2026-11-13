@@ -12,11 +12,12 @@ import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 All published artifacts live under `dev.avinya.ads` on Maven Central:
 `admob-cmp`, `admob-cmp-core`, `admob-cmp-compose`, and the
 `dev.avinya.ads.admob-cmp.gradle.plugin` marker. The current
-release is **2.7.0**.
+release is **2.8.0**.
 
 | Version | Status | Highlights |
 |---|---|---|
-| 2.7.0 | Current | Faster ad startup: `Ready` waits at most five seconds for mediation adapters, one UMP request per launch, opt-in start from stored consent; app-open return and full-screen load telemetry; native `Loaded`/`LoadFailed` events and `NativeAdSession.adInfo`; a native feed no longer crashes after consent is withdrawn; an iOS `Fixed` banner keeps its own width |
+| 2.8.0 | Current | iOS: a wrap-content call to action beside a weighted column keeps its own width, and a native ad resizes when the text size changes while it is on screen; Android and preview: text taller than a fixed-height call to action is centred; `preload()` deprecated in favour of `load()` |
+| 2.7.0 | Superseded | Faster ad startup: `Ready` waits at most five seconds for mediation adapters, one UMP request per launch, opt-in start from stored consent; app-open return and full-screen load telemetry; native `Loaded`/`LoadFailed` events and `NativeAdSession.adInfo`; a native feed no longer crashes after consent is withdrawn; an iOS `Fixed` banner keeps its own width |
 | 2.6.0 | Superseded | Android full-screen ads shown on a return to the foreground are no longer refused as background shows; opt-in reuse of unshown native ads and opt-in app-open skip after an ad click; two native feed fixes that stop wasted ad requests |
 | 2.5.1 | Superseded | Removing an Android ad that holds input focus no longer crashes the app; ad views are kept out of input focus |
 | 2.5.0 | Superseded | 27 verified defects from an external review plus 3 it missed: Android banner callbacks confined to Main, a `Fixed` banner requesting its configured width, native sessions that load when created before initialization finishes, iOS Dynamic Type, and a new `updateGlobalRequestConfiguration()` |
@@ -35,10 +36,12 @@ release is **2.7.0**.
 Release details and release assets for all versions are published on the
 [GitHub releases page](https://github.com/Meet-Miyani/admob-compose-multiplatform/releases).
 
-## Unreleased
+## 2.8.0
 
-Merged to `master` and not yet published. Nothing below resolves from Maven Central
-yet; the current release is still 2.7.0.
+Native ad layout fixes on iOS, Android and in the preview, and one deprecation. No public
+API is added or removed: the ABI dumps are unchanged against 2.7.0, and `preload()` is only
+deprecated. The toolchain and the bound Google SDKs are the same as 2.7.0's. Certified on an
+Android emulator (Android 17) and the iOS simulator, on iPhone and iPad.
 
 ### Fixed
 

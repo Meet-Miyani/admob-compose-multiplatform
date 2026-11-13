@@ -54,14 +54,21 @@ describe('interstitial format page', () => {
   });
 });
 
-describe('changelog Unreleased section', () => {
+/** The body of the changelog's `## <heading>` section, up to the next `## ` heading. */
+const changelogSection = (heading: string) => {
+  const changelog = readRepoFile('docs-site/src/content/docs/reference/changelog.mdx');
+  const marker = `\n## ${heading}\n`;
+  const start = changelog.indexOf(marker);
+  expect(start, `no "## ${heading}" section in the changelog`).toBeGreaterThanOrEqual(0);
+  const rest = changelog.slice(start + marker.length);
+  const next = rest.search(/^## /m);
+  return next === -1 ? rest : rest.slice(0, next);
+};
+
+describe('changelog 2.8.0 section', () => {
+  // The deprecation shipped in 2.8.0, so that is where its entry lives for good.
   it('records the preload() deprecation under ### Deprecated', () => {
-    const changelog = readRepoFile('docs-site/src/content/docs/reference/changelog.mdx');
-    const start = changelog.indexOf('\n## Unreleased');
-    expect(start).toBeGreaterThanOrEqual(0);
-    const rest = changelog.slice(start + 1);
-    const next = rest.slice('## Unreleased'.length).search(/^## /m);
-    const section = next === -1 ? rest : rest.slice(0, next + '## Unreleased'.length);
+    const section = changelogSection('2.8.0');
 
     expect(section).toContain('### Deprecated');
     expect(section).toContain('FullScreenAdController.preload()');
